@@ -8,6 +8,7 @@ import { getTopKeywordsForCategory } from './learning/dynamic-classifier.js';
 import { executeLearn, formatLearnReport } from './learning/learn-command.js';
 import { executeReclassify } from './learning/reclassify-command.js';
 import type { ExtractorWithComments } from './extractors/types.js';
+import { postProcess } from './enrichment/post-processor.js';
 import { handleTimeline } from './commands/timeline-command.js';
 import { handleMonitor, handleSearch } from './commands/monitor-command.js';
 import { camoufoxPool } from './utils/camoufox-pool.js';
@@ -218,6 +219,17 @@ export function createBot(config: AppConfig): Telegraf {
           if (enriched.summary) content.enrichedSummary = enriched.summary;
           if (enriched.title) content.title = enriched.title;
           if (enriched.category) content.category = enriched.category;
+        }
+
+        try {
+          await postProcess(content, config.anthropicApiKey, {
+            enrichPostLinks: true,
+            enrichCommentLinks: true,
+            translate: config.enableTranslation,
+            maxLinkedUrls: config.maxLinkedUrls,
+          });
+        } catch (err) {
+          console.warn('[postProcess] 補充處理失敗:', (err as Error).message);
         }
 
         const result = await saveToVault(content, config.vaultPath);

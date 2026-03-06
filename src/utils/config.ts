@@ -8,6 +8,10 @@ export interface AppConfig {
   anthropicApiKey?: string;
   /** Optional: Telegram user ID whitelist. Undefined = allow all. */
   allowedUserIds?: Set<number>;
+  /** Enable automatic translation of non-zh-TW content (requires anthropicApiKey) */
+  enableTranslation: boolean;
+  /** Max URLs to enrich from post/comments (default: 5) */
+  maxLinkedUrls: number;
 }
 
 export function loadConfig(): AppConfig {
@@ -40,5 +44,7 @@ export function loadConfig(): AppConfig {
     vaultPath,
     anthropicApiKey: process.env.ANTHROPIC_API_KEY,
     allowedUserIds,
+    enableTranslation: process.env.ENABLE_TRANSLATION === 'true',
+    maxLinkedUrls: parseInt(process.env.MAX_LINKED_URLS ?? '5', 10) || 5,
   };
 }

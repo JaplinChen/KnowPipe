@@ -50,6 +50,29 @@ export interface ExtractedContent {
   comments?: ThreadComment[];
   /** Total comment count reported by the platform (may exceed fetched) */
   commentCount?: number;
+  /** URLs found in post/comments with fetched metadata (post-processing) */
+  linkedContent?: LinkedContentMeta[];
+  /** Translation to Traditional Chinese when source is non-zh-TW (post-processing) */
+  translation?: TranslationResult;
+}
+
+/** Lightweight metadata fetched from a URL found in content or comments */
+export interface LinkedContentMeta {
+  url: string;
+  source: 'post' | 'comment';
+  mentionedBy?: string;
+  title: string;
+  description?: string;
+  platform?: string;
+  stars?: number;
+  language?: string;
+}
+
+/** Translation result for non-Traditional-Chinese content */
+export interface TranslationResult {
+  detectedLanguage: 'en' | 'zh-CN' | 'ja' | 'ko' | 'other';
+  translatedText: string;
+  translatedTitle?: string;
 }
 
 /** Each platform extractor must implement this interface */

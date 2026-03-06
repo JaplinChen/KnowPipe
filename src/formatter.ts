@@ -1,4 +1,4 @@
-import type { ExtractedContent } from './extractors/types.js';
+import type { ExtractedContent, LinkedContentMeta } from './extractors/types.js';
 import { extractKeywords } from './classifier.js';
 
 const PLATFORM_LABELS: Record<string, string> = {
@@ -62,8 +62,38 @@ export function formatAsMarkdown(
     lines.push('');
   }
 
+  // Translation section (for non-zh-TW content)
+  if (content.translation) {
+    const langLabel: Record<string, string> = {
+      en: 'English', 'zh-CN': '簡體中文', ja: '日文', ko: '韓文', other: '其他',
+    };
+    lines.push('## 繁中翻譯', '');
+    lines.push(`> 原文語言：${langLabel[content.translation.detectedLanguage] ?? '其他'}`, '');
+    if (content.translation.translatedTitle) {
+      lines.push(`**${content.translation.translatedTitle}**`, '');
+    }
+    lines.push(content.translation.translatedText, '');
+  }
+
   if (content.body) {
     lines.push('## README', '', content.body, '');
+  }
+
+  // Linked content section (URLs found in post text or comments)
+  if (content.linkedContent && content.linkedContent.length > 0) {
+    lines.push('## 相關連結', '');
+    const postLinks = content.linkedContent.filter(l => l.source === 'post');
+    const commentLinks = content.linkedContent.filter(l => l.source === 'comment');
+    if (postLinks.length > 0) {
+      for (const link of postLinks) lines.push(formatLinkedMeta(link), '');
+    }
+    if (commentLinks.length > 0) {
+      if (postLinks.length > 0) lines.push('### 評論提及', '');
+      for (const link of commentLinks) {
+        const mention = link.mentionedBy ? `  _提及者: ${link.mentionedBy}_` : '';
+        lines.push(formatLinkedMeta(link) + mention, '');
+      }
+    }
   }
 
   // Embed local images
@@ -141,4 +171,14 @@ function linkifyUrls(text: string): string {
     /(?<!\]\()(?<![<])(https?:\/\/[^\s\)\]\>,'"]+)/g,
     '[$1]($1)',
   );
+}
+
+/** Format a single linked content metadata entry as a Markdown line */
+function formatLinkedMeta(link: LinkedContentMeta): string {
+  const parts: string[] = [];
+  if (link.stars != null) parts.push(`⭐ ${link.stars}`);
+  if (link.language) parts.push(link.language);
+  const suffix = parts.length > 0 ? ` | ${parts.join(' | ')}` : '';
+  const desc = link.description ? ` — ${link.description}` : '';
+  return `- **[${link.title}](${link.url})**${desc}${suffix}`;
 }
