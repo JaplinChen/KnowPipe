@@ -4,9 +4,11 @@
  */
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
+import type { ExtractedContent } from '../extractors/types.js';
 import { searchReddit, webSearch, fetchJinaContent } from '../utils/search-service.js';
-import { saveToVault } from '../saver.js';
+import { saveToVault, isDuplicateUrl } from '../saver.js';
 import { classifyContent } from '../classifier.js';
+import { findExtractor } from '../utils/url-parser.js';
 
 /** Hosts excluded from /monitor results (auth-required, content not accessible). */
 const MONITOR_SKIP_HOSTS = new Set([
@@ -82,7 +84,7 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
   }
 }
 
-export async function handleSearch(ctx: Context, _config: AppConfig): Promise<void> {
+export async function handleSearch(ctx: Context, config: AppConfig): Promise<void> {
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
   const query = text.replace(/^\/(search|google)\s*/i, '').trim();
 
@@ -93,20 +95,45 @@ export async function handleSearch(ctx: Context, _config: AppConfig): Promise<vo
 
   const status = await ctx.reply(`正在搜尋「${query}」...`);
   try {
-    const results = await webSearch(query, 5);
+    const results = await webSearch(query, 8);
     if (results.length === 0) {
       await ctx.reply('沒有找到搜尋結果，請稍後再試。');
       return;
     }
 
-    const lines = [`🔍 搜尋「${query}」前 ${results.length} 筆：`, ''];
-    for (let i = 0; i < results.length; i++) {
-      const r = results[i];
-      lines.push(`${i + 1}. [${r.title}](${r.url})`);
-      if (r.snippet) lines.push(`   _${r.snippet.slice(0, 100)}_`);
+    // Check which URLs are already saved
+    const entries: Array<{ title: string; url: string; host: string; saved: boolean }> = [];
+    for (const r of results) {
+      const dup = await isDuplicateUrl(r.url, config.vaultPath);
+      const host = (() => { try { return new URL(r.url).hostname; } catch { return ''; } })();
+      entries.push({ title: r.title, url: r.url, host, saved: !!dup });
     }
-    lines.push('', '💡 將上方連結傳給我即可儲存到 Obsidian。');
-    await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
+
+    const unsaved = entries.filter(e => !e.saved);
+
+    // Auto-save unsaved results using platform extractors
+    let newSaved = 0;
+    for (const e of unsaved) {
+      try {
+        const extractor = findExtractor(e.url);
+        if (!extractor) continue;
+        const content = await extractor.extract(e.url);
+        content.category = classifyContent(content.title, content.text);
+        const r = await saveToVault(content, config.vaultPath);
+        if (!r.duplicate) { newSaved++; e.saved = true; }
+      } catch { /* skip */ }
+    }
+
+    // Format reply
+    const alreadySaved = entries.filter(e => e.saved && !unsaved.some(u => u.url === e.url)).length;
+    const lines = [`🔍 搜尋「${query}」：${entries.length} 筆結果，新儲存 ${newSaved} 篇`, ''];
+    for (const [i, e] of entries.entries()) {
+      const icon = unsaved.some(u => u.url === e.url) ? (e.saved ? '✅' : '❌') : '📂';
+      lines.push(`${i + 1}. ${icon} ${e.title.slice(0, 50)}`);
+      lines.push(`   ${e.host}`);
+    }
+    if (alreadySaved > 0) lines.push('', `📂 = 已儲存  ✅ = 新儲存  ❌ = 擷取失敗`);
+    await ctx.reply(lines.join('\n'));
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);

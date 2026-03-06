@@ -110,7 +110,7 @@ async function buildUrlIndex(vaultPath: string): Promise<Map<string, string>> {
 }
 
 /** Check for duplicate URL using in-memory cache (O(1) after first scan). */
-async function isDuplicateUrl(url: string, vaultPath: string): Promise<string | null> {
+export async function isDuplicateUrl(url: string, vaultPath: string): Promise<string | null> {
   if (!urlIndex) urlIndex = await buildUrlIndex(vaultPath);
   return urlIndex.get(normaliseUrl(url)) ?? null;
 }
