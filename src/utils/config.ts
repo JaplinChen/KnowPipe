@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import { config as dotenvConfig } from 'dotenv';
+dotenvConfig({ override: true });
 import { existsSync } from 'node:fs';
 
 export interface AppConfig {

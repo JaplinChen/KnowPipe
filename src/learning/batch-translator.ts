@@ -1,7 +1,7 @@
 /**
  * Batch-translate existing Vault notes that lack a Traditional Chinese translation.
  * Scans all .md files, detects language, and inserts a "繁中翻譯" section
- * for non-zh-TW content using Claude Haiku.
+ * for non-zh-TW content (opencc-js for zh-CN, Google Translate for en).
  */
 
 import type { AppConfig } from '../utils/config.js';
@@ -98,9 +98,6 @@ function insertTranslation(raw: string, section: string): string {
 /* ------------------------------------------------------------------ */
 
 export async function executeBatchTranslate(config: AppConfig): Promise<BatchTranslateResult> {
-  const apiKey = config.anthropicApiKey;
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY 未設定，無法翻譯');
-
   const baseDir = join(config.vaultPath, 'GetThreads');
   const allFiles = await collectMarkdownFiles(baseDir);
 
@@ -131,7 +128,7 @@ export async function executeBatchTranslate(config: AppConfig): Promise<BatchTra
     // Needs translation (en or zh-CN)
     const title = extractTitle(raw);
     try {
-      const tr = await translateIfNeeded(title, body, apiKey);
+      const tr = await translateIfNeeded(title, body);
       if (!tr) {
         result.failed++;
         result.details.push({ file: name, lang, status: 'API 回傳空' });

@@ -159,7 +159,6 @@ export function createBot(config: AppConfig): Telegraf {
 
   // Fire-and-forget: batch translation may exceed 90s
   bot.command('translate', (ctx) => {
-    if (!config.anthropicApiKey) { ctx.reply('未設定 ANTHROPIC_API_KEY，無法翻譯。').catch(() => {}); return; }
     ctx.reply('開始批次翻譯筆記，完成後會通知你。').catch(() => {});
     executeBatchTranslate(config)
       .then(r => {
