@@ -11,7 +11,7 @@ import { camoufoxPool } from '../utils/camoufox-pool.js';
 import { saveToVault } from '../saver.js';
 import { classifyContent } from '../classifier.js';
 
-type SupportedPlatform = 'threads' | 'x' | 'weibo' | 'bilibili';
+type SupportedPlatform = 'threads' | 'x';
 
 interface TimelineResult {
   saved: number;
@@ -52,7 +52,7 @@ function parseArgs(text: string): { username: string; platform: SupportedPlatfor
 
   for (const part of parts.slice(1)) {
     const lp = part.toLowerCase();
-    if (['threads', 'x', 'twitter', 'weibo', 'bilibili'].includes(lp)) {
+    if (['threads', 'x', 'twitter'].includes(lp)) {
       platform = lp === 'twitter' ? 'x' : lp as SupportedPlatform;
     } else {
       const n = parseInt(part, 10);
@@ -62,7 +62,7 @@ function parseArgs(text: string): { username: string; platform: SupportedPlatfor
 
   // Support full URL as username input
   if (username.startsWith('http')) {
-    const m = username.match(/(?:threads\.net|threads\.com|x\.com|twitter\.com|weibo\.com|bilibili\.com)\/@?([\w.]+)/);
+    const m = username.match(/(?:threads\.net|threads\.com|x\.com|twitter\.com)\/@?([\w.]+)/);
     if (m) {
       username = m[1];
       if (username.includes('threads')) platform = 'threads';
@@ -145,9 +145,9 @@ export async function handleTimeline(ctx: Context, config: AppConfig): Promise<v
 
   if (!args) {
     await ctx.reply(
-      '用法：/timeline @username [threads|weibo|bilibili] [數量]\n' +
-      '例：/timeline @zuck threads 10\n' +
-      '注意：X/Twitter 需要登入，目前不支援。',
+      '用法：/timeline @username [數量]\n' +
+      '例：/timeline @zuck 10\n' +
+      '目前支援 Threads 平台。',
     );
     return;
   }
@@ -160,11 +160,6 @@ export async function handleTimeline(ctx: Context, config: AppConfig): Promise<v
       'X.com 需要帳號登入才能讀取時間軸，目前不支援。\n' +
       '若對方同時有 Threads，可改用：/timeline @username threads',
     );
-    return;
-  }
-
-  if (platform !== 'threads') {
-    await ctx.reply(`${platform} 時間軸功能即將支援，敬請期待。`);
     return;
   }
 

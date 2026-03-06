@@ -1,55 +1,76 @@
 # GetThreads
 
-Telegram Bot，自動擷取社群平台內容並儲存至 Obsidian Vault。
+**把社群內容變成你的第二大腦。**
 
-傳送連結給 Bot，自動抓取文章、評論、圖片與影片，智慧分類後存成 Markdown 筆記。
+丟一個連結給 Telegram Bot，它會自動抓取文章、評論、圖片與影片，智慧分類後存成 Markdown 筆記到你的 Obsidian Vault。
+
+---
+
+## 為什麼需要 GetThreads？
+
+你在 Twitter 看到一篇好文、Reddit 上有精彩討論、Threads 上有值得收藏的串文——
+但你知道這些內容遲早會消失在時間線裡。
+
+GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsidian 裡了**。
+不只文章本體，連底下的評論討論也一起收。
+
+---
+
+## 亮點功能
+
+- **丟連結就存檔** — 支援 10+ 平台，評論自動一起抓
+- **智慧分類** — 自動歸檔到對的 Obsidian 資料夾，支援 20+ 分類
+- **跨平台搜尋** — 在 Telegram 裡搜 DuckDuckGo + Reddit
+- **時間軸抓取** — 一次撈回某人最近的所有貼文
+- **AI 增強**（選配）— Claude 自動產生摘要與關鍵詞
 
 ---
 
 ## 支援平台
 
-| 平台 | 內容擷取 | 評論擷取 | 時間軸 | 備註 |
-|------|:--------:|:--------:|:------:|------|
-| X / Twitter | ✅ | ✅ | — | 時間軸需登入，不支援 |
-| Threads | ✅ | ✅ | ✅ | 透過 Camoufox |
-| Reddit | ✅ | ✅ | — | Reddit API |
-| YouTube | ✅ | — | — | 需安裝 yt-dlp |
-| GitHub | ✅ | — | — | Repo / Issue / PR |
-| Bilibili | ✅ | ✅ | — | 公開 API |
-| 微博 | ⚠️ | — | — | 需登入 |
-| 小紅書 | ⚠️ | — | — | 需登入 |
-| 抖音 / 今日頭條 | ⚠️ | — | — | 需登入 |
-| 通用網頁 | ✅ | — | — | 透過 Jina Reader |
+### 完整支援
+
+| 平台 | 內容 | 評論 | 時間軸 |
+|------|:----:|:----:|:------:|
+| X / Twitter | ✅ | ✅ | — |
+| Threads | ✅ | ✅ | ✅ |
+| Reddit | ✅ | ✅ | — |
+| Bilibili | ✅ | ✅ | — |
+
+### 內容擷取
+
+| 平台 | 內容 | 備註 |
+|------|:----:|------|
+| YouTube | ✅ | 需安裝 yt-dlp |
+| GitHub | ✅ | Repo / Issue / PR |
+| 通用網頁 | ✅ | Jina Reader fallback |
+
+### 需登入平台
+
+| 平台 | 內容 | 備註 |
+|------|:----:|------|
+| 微博 | ✅ | Camoufox + API |
+| 小紅書 | ✅ | Camoufox |
+| 抖音 / 今日頭條 | ✅ | Camoufox |
+
+> 需登入的平台使用 [Camoufox](https://camoufox.com/)（反偵測瀏覽器），首次使用需執行 `npx camoufox-js fetch`。
 
 ---
 
-## 安裝前準備：申請 Telegram Bot
+## 快速開始
 
-1. 在 Telegram 搜尋 **@BotFather**（藍勾官方帳號）
-2. 傳送 `/newbot`
-3. 輸入 Bot 名稱（如 `我的收藏Bot`）
-4. 輸入 Bot 帳號（必須以 `bot` 結尾，如 `mycollection_bot`）
-5. BotFather 會給你一串 Token，格式如：`1234567890:AAFdFMgb...`
-6. 複製這串 Token，安裝時會用到
+### 1. 申請 Telegram Bot Token
 
----
+在 Telegram 找 **@BotFather** → 傳送 `/newbot` → 取得 Token（格式：`1234567890:AAFdFMgb...`）
 
-## 第一次安裝
+### 2. 安裝
 
-### 方法一：使用安裝精靈（適合一般使用者）
+**一般使用者** — 雙擊 `setup.bat`，按畫面指示操作
 
-1. 雙擊 `setup.bat`
-2. 若提示 Node.js 未安裝，程式會自動開啟下載頁，安裝 LTS 版後重新執行
-3. 在自動開啟的設定頁面中填入 Bot Token 與 Obsidian Vault 路徑
-4. 按「儲存設定」完成
-
-### 方法二：手動設定（適合開發者）
+**開發者** — 手動設定：
 
 ```bash
-# 1. 安裝依賴
 npm install
-
-# 2. 建立環境設定
 cp .env.example .env
 ```
 
@@ -66,84 +87,52 @@ ALLOWED_USER_IDS=123456,789012      # 限制使用者（逗號分隔 Telegram us
 ```
 
 ```bash
-# 3. Camoufox 初始化（首次，Threads/小紅書/抖音需要）
+# Camoufox 初始化（首次，Threads/小紅書/抖音需要）
 npx camoufox-js fetch
-
-# 4. 啟動
-npm run dev
 ```
 
----
+### 3. 啟動
 
-## 每天使用
-
-雙擊 `啟動.bat`（或 `start-dev.bat`）即可啟動 Bot。
-
-- 保持視窗開啟 = Bot 持續運作
-- 關閉視窗 = Bot 停止
+雙擊 `啟動.bat`（或 `start-dev.bat`），保持視窗開啟即可。
 
 ---
 
-## Telegram 指令
+## 指令速查
 
-| 指令 | 說明 |
+| 指令 | 用途 |
 |------|------|
-| 直接傳送 URL | 自動擷取內容並儲存到 Vault |
-| `/timeline @用戶 [threads]` | 抓取用戶最近貼文（支援 Threads） |
+| 傳送 URL | 自動擷取內容與評論，分類後存到 Vault |
+| `/search <查詢>` | 網頁搜尋（DuckDuckGo，`/google` 為別名） |
 | `/monitor <關鍵字>` | 跨平台搜尋提及（Reddit + DuckDuckGo） |
-| `/google <查詢>` | 網頁搜尋（DuckDuckGo） |
+| `/timeline @用戶 [數量]` | 抓取用戶最近貼文（支援 Threads） |
+| `/recent` | 本次啟動已儲存的內容 |
+| `/status` | Bot 運行狀態與統計 |
 | `/learn` | 重新掃描 Vault 更新分類規則 |
 | `/reclassify` | 重新分類所有 Vault 筆記 |
+| `/help` | 顯示說明 |
 
 ---
 
-## 專案結構
+## 常見問題
 
-```
-src/
-├── index.ts                  # 入口（ProcessGuardian 自動重試）
-├── bot.ts                    # Telegram Bot 主邏輯
-├── classifier.ts             # 內容智慧分類
-├── formatter.ts              # Markdown 格式化
-├── saver.ts                  # Obsidian 存檔
-├── process-guardian.ts       # 409 衝突自動重試 + PID lockfile
-├── commands/
-│   ├── timeline-command.ts   # /timeline
-│   ├── monitor-command.ts    # /monitor + /google
-│   └── comments-command.ts   # /comments
-├── extractors/
-│   ├── x-extractor.ts        # Twitter/X
-│   ├── threads-extractor.ts  # Threads（Camoufox）
-│   ├── reddit-extractor.ts   # Reddit
-│   ├── youtube-extractor.ts  # YouTube
-│   ├── github-extractor.ts   # GitHub
-│   ├── bilibili-extractor.ts # B站
-│   ├── weibo-extractor.ts    # 微博
-│   ├── xiaohongshu-extractor.ts # 小紅書
-│   ├── douyin-extractor.ts   # 抖音
-│   └── web-extractor.ts      # 通用網頁 fallback
-└── utils/
-    ├── config.ts              # 環境設定
-    ├── url-parser.ts          # URL 解析與路由
-    ├── fetch-with-timeout.ts  # 帶超時的 HTTP 請求
-    └── camoufox-pool.ts       # 反偵測瀏覽器池（max 2）
-```
+**Bot 沒有回應？**
+關掉 `啟動.bat` 視窗，重新雙擊啟動。
+
+**顯示「409 Conflict」？**
+上次 Bot 未正確關閉。關閉所有命令列視窗，等 10 秒再重新啟動。程式內建 ProcessGuardian 會自動重試。
+
+**抓取超時或失敗？**
+所有外部請求皆有超時保護（HTTP 30s / 影片 120s / 存檔 10s）。如果 DuckDuckGo 被限流，搜尋會自動降級到 Camoufox。
+
+**想修改設定？**
+編輯 `.env` 檔案，或重新執行 `setup.bat`。
 
 ---
 
-## 技術細節
+<details>
+<summary><strong>開發者資訊</strong></summary>
 
-- **TypeScript** + ESM modules（`tsx` 執行）
-- **Telegraf** 處理 Telegram Bot API
-- **Camoufox**（反偵測瀏覽器，基於 Firefox）處理需 JS 渲染的平台
-- **ProcessGuardian** 防止 409 polling 衝突，指數退避自動重試
-- 所有外部請求皆有超時保護（HTTP 30s / 影片 120s / 存檔 10s）
-- 內建智慧分類器，自動將內容分類到 Obsidian 資料夾
-- 可選 Anthropic API 進行 AI 摘要與關鍵字增強
-
----
-
-## 開發指令
+### 開發指令
 
 ```bash
 npm run dev      # 開發模式（tsx 即時執行）
@@ -152,23 +141,56 @@ npm start        # 生產模式（需先 build）
 npx tsc --noEmit # 型別檢查
 ```
 
----
+### 技術架構
 
-## 常見問題
+- **TypeScript** + ESM（`tsx` 執行）
+- **Telegraf** — Telegram Bot API
+- **Camoufox** — 反偵測瀏覽器（Firefox 基底），處理需 JS 渲染的平台
+- **ProcessGuardian** — 防止 409 polling 衝突，指數退避自動重試
+- **Anthropic Claude API**（選配）— AI 摘要與關鍵字增強
+- 所有長任務（timeline / monitor / learn / reclassify）採 fire-and-forget：先回覆「處理中」→ 背景執行 → 完成通知
+- 評論自動篩選：過濾純 emoji 和過短反應，只保留有意義的討論
+- URL 去重快取：避免重複儲存相同內容
 
-### Bot 沒有回應？
-- 確認 `啟動.bat` 的視窗是否還開著
-- 關掉視窗再重新雙擊 `啟動.bat`
+### 專案結構
 
-### 顯示「409 Conflict」？
-- 上次 Bot 未正確關閉。關閉所有命令列視窗，等 10 秒，重新啟動
+```
+src/
+├── index.ts                    # 入口（ProcessGuardian 自動重試）
+├── bot.ts                      # Telegram Bot 主邏輯
+├── classifier.ts               # 內容智慧分類（20+ 分類）
+├── formatter.ts                # Markdown 格式化
+├── saver.ts                    # Obsidian 存檔 + 去重快取
+├── process-guardian.ts         # 409 衝突自動重試 + PID lockfile
+├── commands/
+│   ├── timeline-command.ts     # /timeline
+│   └── monitor-command.ts      # /monitor + /search
+├── extractors/
+│   ├── x-extractor.ts          # Twitter/X（fxTweet API）
+│   ├── threads-extractor.ts    # Threads（Camoufox）
+│   ├── reddit-extractor.ts     # Reddit（公開 API）
+│   ├── youtube-extractor.ts    # YouTube（yt-dlp）
+│   ├── github-extractor.ts     # GitHub（REST API）
+│   ├── bilibili-extractor.ts   # B站（公開 API）
+│   ├── weibo-extractor.ts      # 微博（API + Camoufox）
+│   ├── xiaohongshu-extractor.ts # 小紅書（Camoufox）
+│   ├── douyin-extractor.ts     # 抖音（Camoufox）
+│   └── web-extractor.ts        # 通用網頁（Jina Reader）
+├── learning/
+│   ├── dynamic-classifier.ts   # 動態分類規則快取
+│   ├── vault-learner.ts        # Vault 掃描學習
+│   ├── learn-command.ts        # /learn 指令
+│   ├── ai-enricher.ts          # Claude API 摘要/關鍵詞
+│   └── reclassify-command.ts   # /reclassify 指令
+└── utils/
+    ├── config.ts               # 環境設定
+    ├── url-parser.ts           # URL 解析與路由
+    ├── fetch-with-timeout.ts   # 帶超時的 HTTP 請求
+    ├── search-service.ts       # 搜尋服務（DDG + Reddit + Jina）
+    └── camoufox-pool.ts        # 反偵測瀏覽器池（max 2, idle 10min）
+```
 
-### 找不到 Obsidian Vault？
-- 確認 Obsidian 已建立 Vault
-- 在 `.env` 手動輸入 Vault 完整路徑，或重新執行 `setup.bat`
-
-### 修改設定？
-- 編輯 `.env` 檔案，或重新雙擊 `setup.bat`
+</details>
 
 ---
 

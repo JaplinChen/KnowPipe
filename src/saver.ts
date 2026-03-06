@@ -5,6 +5,12 @@ import type { ExtractedContent, Platform } from './extractors/types.js';
 import { formatAsMarkdown } from './formatter.js';
 import { fetchWithTimeout } from './utils/fetch-with-timeout.js';
 
+// In-memory URL index: normalizedUrl → filePath (built on first use)
+let urlIndex: Map<string, string> | null = null;
+
+// URLs currently being processed (race condition protection)
+const processingUrls = new Set<string>();
+
 /** Extract a short, stable ID from a URL for use in filenames */
 function extractPostId(url: string, platform: Platform): string {
   try {
@@ -31,7 +37,7 @@ function extractPostId(url: string, platform: Platform): string {
 /** Convert a title string into a safe, readable filename slug */
 function slugify(text: string, maxLen = 50): string {
   return text
-    .replace(/[\\/:*?"<>|]/g, '')  // Remove Windows-invalid chars
+    .replace(/[\\/:*?"<>|]/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, maxLen)
@@ -49,13 +55,10 @@ async function downloadImage(
     throw new Error(`Failed to download image: ${res.status} ${imageUrl}`);
   }
   const buffer = Buffer.from(await res.arrayBuffer());
-
   const ext = extname(new URL(imageUrl).pathname) || '.jpg';
   const fullName = `${filename}${ext}`;
   const fullPath = join(destDir, fullName);
   await writeFile(fullPath, buffer);
-
-  // Return Obsidian-relative path
   return `attachments/getthreads/${fullName}`;
 }
 
@@ -76,46 +79,40 @@ function normaliseUrl(raw: string): string {
   }
 }
 
-/**
- * Scan all .md files under {vaultPath}/GetThreads/ and check whether any of
- * them already contains a matching `url:` front-matter field.
- * Returns the existing file path on a match, otherwise null.
- */
-async function isDuplicateUrl(url: string, vaultPath: string): Promise<string | null> {
-  const targetNorm = normaliseUrl(url);
+/** Build URL index by scanning all .md files (runs once, then cached in memory). */
+async function buildUrlIndex(vaultPath: string): Promise<Map<string, string>> {
+  const index = new Map<string, string>();
   const rootDir = join(vaultPath, 'GetThreads');
 
-  async function scanDir(dir: string): Promise<string | null> {
+  async function scanDir(dir: string): Promise<void> {
     let entries: import('node:fs').Dirent<string>[];
     try {
       entries = await readdir(dir, { withFileTypes: true, encoding: 'utf-8' });
-    } catch {
-      return null;
-    }
+    } catch { return; }
 
     for (const entry of entries) {
       const fullPath = join(dir, entry.name);
       if (entry.isDirectory()) {
-        const found = await scanDir(fullPath);
-        if (found) return found;
+        await scanDir(fullPath);
       } else if (entry.isFile() && entry.name.endsWith('.md')) {
         try {
           const raw = await readFile(fullPath, 'utf-8');
           const first25 = raw.split('\n').slice(0, 25).join('\n');
           const match = first25.match(/^url:\s*["']?(.*?)["']?\s*$/m);
-          if (match) {
-            const fileNorm = normaliseUrl(match[1].trim());
-            if (fileNorm === targetNorm) return fullPath;
-          }
-        } catch {
-          // skip unreadable files
-        }
+          if (match) index.set(normaliseUrl(match[1].trim()), fullPath);
+        } catch { /* skip unreadable files */ }
       }
     }
-    return null;
   }
 
-  return scanDir(rootDir);
+  await scanDir(rootDir);
+  return index;
+}
+
+/** Check for duplicate URL using in-memory cache (O(1) after first scan). */
+async function isDuplicateUrl(url: string, vaultPath: string): Promise<string | null> {
+  if (!urlIndex) urlIndex = await buildUrlIndex(vaultPath);
+  return urlIndex.get(normaliseUrl(url)) ?? null;
 }
 
 /** Save extracted content as Obsidian Markdown + images to the vault */
@@ -124,79 +121,88 @@ export async function saveToVault(
   vaultPath: string,
   opts?: { forceOverwrite?: boolean },
 ): Promise<SaveResult> {
-  // Dedup check before any disk I/O (skipped when forceOverwrite, e.g. /comments)
+  const normUrl = normaliseUrl(content.url);
+
+  // Race condition guard (skip for forceOverwrite)
   if (!opts?.forceOverwrite) {
-    const existingPath = await isDuplicateUrl(content.url, vaultPath);
-    if (existingPath) {
-      return { mdPath: existingPath, imageCount: 0, videoCount: 0, duplicate: true };
+    if (processingUrls.has(normUrl)) {
+      return { mdPath: '', imageCount: 0, videoCount: 0, duplicate: true };
     }
+    processingUrls.add(normUrl);
   }
 
-  const postId = extractPostId(content.url, content.platform);
-
-  // Ensure directories exist
-  const rawCategory = content.category ?? '其他';
-  // Sanitize: allow only CJK/alphanumeric/dash/underscore/space, max 2 levels
-  const categoryParts = rawCategory
-    .split('/')
-    .slice(0, 2)
-    .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ ]/g, '').trim())
-    .filter(p => p.length > 0);
-  const folderPath = categoryParts.join('/') || '其他';
-  // Defense in depth: verify resolved path stays within vault
-  const baseGetThreads = resolve(join(vaultPath, 'GetThreads'));
-  const resolvedNotes = resolve(join(vaultPath, 'GetThreads', folderPath));
-  const notesDir = (resolvedNotes === baseGetThreads || resolvedNotes.startsWith(baseGetThreads + sep))
-    ? resolvedNotes
-    : baseGetThreads;
-  const imagesDir = join(vaultPath, 'attachments', 'getthreads');
-  await mkdir(notesDir, { recursive: true });
-  await mkdir(imagesDir, { recursive: true });
-
-  // Download all images
-  const localImagePaths: string[] = [];
-  for (let i = 0; i < content.images.length; i++) {
-    const imgFilename = `${content.platform}-${postId}-${i}`;
-    const relativePath = await downloadImage(
-      content.images[i],
-      imagesDir,
-      imgFilename,
-    );
-    localImagePaths.push(relativePath);
-  }
-
-  // Download video thumbnails
-  for (let i = 0; i < content.videos.length; i++) {
-    const thumb = content.videos[i].thumbnailUrl;
-    if (thumb) {
-      try {
-        const thumbFilename = `${content.platform}-${postId}-vid${i}-thumb`;
-        const relativePath = await downloadImage(thumb, imagesDir, thumbFilename);
-        localImagePaths.push(relativePath);
-      } catch {
-        // skip failed thumbnail downloads
+  try {
+    // Dedup check (skipped when forceOverwrite)
+    if (!opts?.forceOverwrite) {
+      const existingPath = await isDuplicateUrl(content.url, vaultPath);
+      if (existingPath) {
+        return { mdPath: existingPath, imageCount: 0, videoCount: 0, duplicate: true };
       }
     }
-  }
 
-  // Generate Markdown
-  const markdown = formatAsMarkdown(content, localImagePaths);
+    const postId = extractPostId(content.url, content.platform);
 
-  // Save .md file with readable name
-  // Fallback: if title looks like an error message, use hostname instead
-  const ERROR_TITLE_RE = /^(warning[:\s]|error\s*\d{3}|access denied|forbidden|you've been blocked)/i;
-  let titleForFilename = content.title;
-  if (ERROR_TITLE_RE.test(titleForFilename)) {
-    try {
-      titleForFilename = new URL(content.url).hostname.replace(/^www\./, '');
-    } catch {
-      titleForFilename = 'untitled';
+    // Ensure directories exist
+    const rawCategory = content.category ?? '其他';
+    const categoryParts = rawCategory
+      .split('/')
+      .slice(0, 2)
+      .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ ]/g, '').trim())
+      .filter(p => p.length > 0);
+    const folderPath = categoryParts.join('/') || '其他';
+    const baseGetThreads = resolve(join(vaultPath, 'GetThreads'));
+    const resolvedNotes = resolve(join(vaultPath, 'GetThreads', folderPath));
+    const notesDir = (resolvedNotes === baseGetThreads || resolvedNotes.startsWith(baseGetThreads + sep))
+      ? resolvedNotes
+      : baseGetThreads;
+    const imagesDir = join(vaultPath, 'attachments', 'getthreads');
+    await mkdir(notesDir, { recursive: true });
+    await mkdir(imagesDir, { recursive: true });
+
+    // Download images in parallel
+    const imageResults = await Promise.allSettled(
+      content.images.map((imgUrl, i) =>
+        downloadImage(imgUrl, imagesDir, `${content.platform}-${postId}-${i}`),
+      ),
+    );
+    const localImagePaths = imageResults
+      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
+      .map(r => r.value);
+
+    // Download video thumbnails in parallel
+    for (const r of await Promise.allSettled(
+      content.videos.map((v, i) =>
+        v.thumbnailUrl
+          ? downloadImage(v.thumbnailUrl, imagesDir, `${content.platform}-${postId}-vid${i}-thumb`)
+          : Promise.reject('no thumbnail'),
+      ),
+    )) {
+      if (r.status === 'fulfilled') localImagePaths.push(r.value);
     }
-  }
-  const slug = slugify(titleForFilename);
-  const mdFilename = `${content.date}-${content.platform}-${slug}.md`;
-  const mdPath = join(notesDir, mdFilename);
-  await writeFile(mdPath, markdown, 'utf-8');
 
-  return { mdPath, imageCount: localImagePaths.length, videoCount: content.videos.length };
+    // Generate Markdown
+    const markdown = formatAsMarkdown(content, localImagePaths);
+
+    // Save .md file with readable name
+    const ERROR_TITLE_RE = /^(warning[:\s]|error\s*\d{3}|access denied|forbidden|you've been blocked)/i;
+    let titleForFilename = content.title;
+    if (ERROR_TITLE_RE.test(titleForFilename)) {
+      try {
+        titleForFilename = new URL(content.url).hostname.replace(/^www\./, '');
+      } catch {
+        titleForFilename = 'untitled';
+      }
+    }
+    const slug = slugify(titleForFilename);
+    const mdFilename = `${content.date}-${content.platform}-${slug}.md`;
+    const mdPath = join(notesDir, mdFilename);
+    await writeFile(mdPath, markdown, 'utf-8');
+
+    // Update in-memory index
+    if (urlIndex) urlIndex.set(normUrl, mdPath);
+
+    return { mdPath, imageCount: localImagePaths.length, videoCount: content.videos.length };
+  } finally {
+    processingUrls.delete(normUrl);
+  }
 }

@@ -35,7 +35,23 @@ class CamoufoxPool {
     };
   }
 
+  /** Pool statistics for /status command. */
+  getStats(): { total: number; inUse: number } {
+    return {
+      total: this.entries.length,
+      inUse: this.entries.filter(e => e.inUse).length,
+    };
+  }
+
   private async getAvailableEntry(): Promise<PoolEntry> {
+    // Prune disconnected browsers
+    const alive: PoolEntry[] = [];
+    for (const e of this.entries) {
+      if (e.browser.isConnected()) { alive.push(e); }
+      else { e.browser.close().catch(() => {}); }
+    }
+    this.entries = alive;
+
     // Return idle entry if available
     const idle = this.entries.find(e => !e.inUse);
     if (idle) return idle;

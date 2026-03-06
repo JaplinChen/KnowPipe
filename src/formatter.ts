@@ -7,6 +7,10 @@ const PLATFORM_LABELS: Record<string, string> = {
   youtube: 'YouTube',
   github: 'GitHub',
   reddit: 'Reddit',
+  weibo: '微博',
+  bilibili: 'Bilibili',
+  xiaohongshu: '小紅書',
+  douyin: '抖音',
   web: 'Web',
 };
 
