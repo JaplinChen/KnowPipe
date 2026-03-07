@@ -1,7 +1,7 @@
 /** Supported platform identifiers — add new platforms here */
 export type Platform =
   | 'x' | 'threads' | 'youtube' | 'github' | 'reddit' | 'web'
-  | 'weibo' | 'xiaohongshu' | 'bilibili' | 'douyin';
+  | 'weibo' | 'xiaohongshu' | 'bilibili' | 'douyin' | 'tiktok';
 
 /** A single comment or reply on a post */
 export interface ThreadComment {
@@ -17,6 +17,8 @@ export interface ThreadComment {
 export interface VideoInfo {
   url: string;
   thumbnailUrl?: string;
+  /** Local file path for downloaded video (e.g. TikTok mp4) — copied to vault by saver */
+  localPath?: string;
   type?: 'video' | 'gif';
 }
 
@@ -54,6 +56,10 @@ export interface ExtractedContent {
   linkedContent?: LinkedContentMeta[];
   /** Translation to Traditional Chinese when source is non-zh-TW (post-processing) */
   translation?: TranslationResult;
+  /** Video transcript (subtitles / STT) — used for AI summary, not rendered in note */
+  transcript?: string;
+  /** Temp directory to clean up after saving (used by TikTok extractor for local screenshots) */
+  tempDir?: string;
 }
 
 /** Lightweight metadata fetched from a URL found in content or comments */

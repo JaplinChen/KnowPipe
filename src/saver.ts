@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readdir, readFile } from 'node:fs/promises';
+import { mkdir, writeFile, readdir, readFile, copyFile } from 'node:fs/promises';
 import { join, extname, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { ExtractedContent, Platform } from './extractors/types.js';
@@ -26,6 +26,8 @@ function extractPostId(url: string, platform: Platform): string {
         return u.pathname.split('/').filter(Boolean).slice(0, 3).join('-').slice(0, 40);
       case 'reddit':
         return u.pathname.split('/').filter(Boolean)[3] ?? 'unknown';
+      case 'tiktok':
+        return u.pathname.match(/\/video\/(\d+)/)?.[1] ?? createHash('md5').update(url).digest('hex').slice(0, 8);
       default:
         return createHash('md5').update(url).digest('hex').slice(0, 8);
     }
@@ -44,12 +46,32 @@ function slugify(text: string, maxLen = 50): string {
     .trim();
 }
 
-/** Download a single image and return the local file path (relative to vault) */
+/** Shorter slug for attachment filenames (spaces → hyphens, tighter limit) */
+function attachmentSlug(text: string): string {
+  return text
+    .replace(/[\\/:*?"<>|#\[\](){}@]/g, '')
+    .replace(/\s+/g, '-')
+    .trim()
+    .slice(0, 30)
+    .replace(/-$/, '');
+}
+
+/** Download a single image (or copy a local file) and return the vault-relative path */
 async function downloadImage(
   imageUrl: string,
   destDir: string,
   filename: string,
+  platform: string,
 ): Promise<string> {
+  // Handle local file paths (e.g. TikTok screenshots saved to tmp)
+  if (/^[a-zA-Z]:[\\/]/.test(imageUrl) || imageUrl.startsWith('/')) {
+    const ext = extname(imageUrl) || '.jpg';
+    const fullName = `${filename}${ext}`;
+    const fullPath = join(destDir, fullName);
+    await copyFile(imageUrl, fullPath);
+    return `attachments/getthreads/${platform}/${fullName}`;
+  }
+
   const res = await fetchWithTimeout(imageUrl, 30_000);
   if (!res.ok) {
     throw new Error(`Failed to download image: ${res.status} ${imageUrl}`);
@@ -59,7 +81,7 @@ async function downloadImage(
   const fullName = `${filename}${ext}`;
   const fullPath = join(destDir, fullName);
   await writeFile(fullPath, buffer);
-  return `attachments/getthreads/${fullName}`;
+  return `attachments/getthreads/${platform}/${fullName}`;
 }
 
 export interface SaveResult {
@@ -142,6 +164,19 @@ export async function saveToVault(
 
     const postId = extractPostId(content.url, content.platform);
 
+    // Compute slug early — used for both .md filename and attachment filenames
+    const ERROR_TITLE_RE = /^(warning[:\s]|error\s*\d{3}|access denied|forbidden|you've been blocked)/i;
+    let titleForFilename = content.title;
+    if (ERROR_TITLE_RE.test(titleForFilename)) {
+      try {
+        titleForFilename = new URL(content.url).hostname.replace(/^www\./, '');
+      } catch {
+        titleForFilename = 'untitled';
+      }
+    }
+    const slug = slugify(titleForFilename);
+    const imgSlug = attachmentSlug(titleForFilename);
+
     // Ensure directories exist
     const rawCategory = content.category ?? '其他';
     const categoryParts = rawCategory
@@ -155,45 +190,53 @@ export async function saveToVault(
     const notesDir = (resolvedNotes === baseGetThreads || resolvedNotes.startsWith(baseGetThreads + sep))
       ? resolvedNotes
       : baseGetThreads;
-    const imagesDir = join(vaultPath, 'attachments', 'getthreads');
+    const imagesDir = join(vaultPath, 'attachments', 'getthreads', content.platform);
     await mkdir(notesDir, { recursive: true });
     await mkdir(imagesDir, { recursive: true });
 
-    // Download images in parallel
+    // Download images in parallel (slug-based readable filenames)
     const imageResults = await Promise.allSettled(
       content.images.map((imgUrl, i) =>
-        downloadImage(imgUrl, imagesDir, `${content.platform}-${postId}-${i}`),
+        downloadImage(imgUrl, imagesDir, `${imgSlug}-${i}`, content.platform),
       ),
     );
-    const localImagePaths = imageResults
-      .filter((r): r is PromiseFulfilledResult<string> => r.status === 'fulfilled')
-      .map(r => r.value);
+    const localImagePaths: string[] = [];
+    const imageUrlMap = new Map<string, string>();
+    for (let i = 0; i < imageResults.length; i++) {
+      const r = imageResults[i];
+      if (r.status === 'fulfilled') {
+        localImagePaths.push(r.value);
+        imageUrlMap.set(content.images[i], r.value);
+      }
+    }
 
     // Download video thumbnails in parallel
     for (const r of await Promise.allSettled(
       content.videos.map((v, i) =>
         v.thumbnailUrl
-          ? downloadImage(v.thumbnailUrl, imagesDir, `${content.platform}-${postId}-vid${i}-thumb`)
+          ? downloadImage(v.thumbnailUrl, imagesDir, `${imgSlug}-vid${i}-thumb`, content.platform)
           : Promise.reject('no thumbnail'),
       ),
     )) {
       if (r.status === 'fulfilled') localImagePaths.push(r.value);
     }
 
-    // Generate Markdown
-    const markdown = formatAsMarkdown(content, localImagePaths);
-
-    // Save .md file with readable name
-    const ERROR_TITLE_RE = /^(warning[:\s]|error\s*\d{3}|access denied|forbidden|you've been blocked)/i;
-    let titleForFilename = content.title;
-    if (ERROR_TITLE_RE.test(titleForFilename)) {
-      try {
-        titleForFilename = new URL(content.url).hostname.replace(/^www\./, '');
-      } catch {
-        titleForFilename = 'untitled';
+    // Copy local video files to vault attachments
+    const localVideoPaths: string[] = [];
+    for (let i = 0; i < content.videos.length; i++) {
+      const v = content.videos[i];
+      if (v.localPath) {
+        try {
+          const ext = extname(v.localPath) || '.mp4';
+          const vidName = `${imgSlug}-vid${i}${ext}`;
+          await copyFile(v.localPath, join(imagesDir, vidName));
+          localVideoPaths.push(`attachments/getthreads/${content.platform}/${vidName}`);
+        } catch { /* skip if copy fails */ }
       }
     }
-    const slug = slugify(titleForFilename);
+
+    // Generate Markdown
+    const markdown = formatAsMarkdown(content, localImagePaths, localVideoPaths, imageUrlMap);
     const mdFilename = `${content.date}-${content.platform}-${slug}.md`;
     const mdPath = join(notesDir, mdFilename);
     await writeFile(mdPath, markdown, 'utf-8');

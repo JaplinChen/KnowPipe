@@ -1,4 +1,5 @@
 import { Telegraf } from 'telegraf';
+import { rm } from 'node:fs/promises';
 import type { AppConfig } from './utils/config.js';
 import { extractUrls, findExtractor } from './utils/url-parser.js';
 import { saveToVault } from './saver.js';
@@ -227,8 +228,10 @@ export function createBot(config: AppConfig): Telegraf {
 
         if (config.anthropicApiKey) {
           const hints = getTopKeywordsForCategory(content.category);
+          const textForAI = content.transcript
+            ? `${content.text}\n\n文字稿：${content.transcript.slice(0, 500)}` : content.text;
           const enriched = await enrichContent(
-            content.title, content.text, hints, config.anthropicApiKey,
+            content.title, textForAI, hints, config.anthropicApiKey,
           );
           if (enriched.keywords) content.enrichedKeywords = enriched.keywords;
           if (enriched.summary) content.enrichedSummary = enriched.summary;
@@ -248,6 +251,9 @@ export function createBot(config: AppConfig): Telegraf {
         }
 
         const result = await saveToVault(content, config.vaultPath);
+        if (content.tempDir) {
+          rm(content.tempDir, { recursive: true, force: true }).catch(() => {});
+        }
         console.log('[msg] saved:', result.mdPath);
 
         if (result.duplicate) {

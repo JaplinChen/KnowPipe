@@ -12,6 +12,10 @@ data/
 .bot.pid
 nul
 
+# Whisper.cpp binary & models
+tools/
+models/
+
 # Learning / diagnostic scripts
 src/learning/
 
