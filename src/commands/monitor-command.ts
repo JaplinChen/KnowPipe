@@ -1,4 +1,4 @@
-/**
+﻿/**
  * /monitor command — cross-platform keyword search (mention discovery).
  * /google command — web search (DuckDuckGo HTML + Camoufox fallback).
  */
@@ -77,9 +77,10 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
 
     const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆，儲存 ${saved} 篇`, ''];
     for (const p of posts.slice(0, 8)) {
-      lines.push(`• [${p.title.slice(0, 50)}](${p.url})`);
+      lines.push(`- ${p.title.slice(0, 50)}`);
+      lines.push(`  ${p.url}`);
     }
-    await ctx.reply(lines.join('\n'), { parse_mode: 'Markdown' });
+    await ctx.reply(lines.join('\n')); 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);
@@ -148,3 +149,5 @@ export async function handleSearch(ctx: Context, config: AppConfig): Promise<voi
     await ctx.deleteMessage(status.message_id).catch(() => {});
   }
 }
+
+

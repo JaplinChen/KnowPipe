@@ -1,9 +1,10 @@
-/**
+﻿/**
  * /recommend, /brief, /compare — query knowledge base from Telegram.
  * Pure queries on vault-knowledge.json, no API calls needed.
  */
 import type { Context } from 'telegraf';
 import { Markup } from 'telegraf';
+import { createHash } from 'node:crypto';
 import type { AppConfig } from '../utils/config.js';
 import { loadKnowledge } from '../knowledge/knowledge-store.js';
 import { aggregateKnowledge, getTopEntities, getInsightsByTopic } from '../knowledge/knowledge-aggregator.js';
@@ -15,6 +16,30 @@ const TYPE_LABEL: Record<string, string> = {
   company: '公司', technology: '技術', platform: '平台', language: '語言',
 };
 
+const CALLBACK_CACHE_LIMIT = 500;
+const callbackPayloadCache = new Map<string, string>();
+
+function rememberCallbackPayload(command: string, payload: string): string {
+  const token = createHash('sha1').update(command + ':' + payload).digest('hex').slice(0, 12);
+  const key = command + ':' + token;
+  callbackPayloadCache.set(key, payload);
+
+  if (callbackPayloadCache.size > CALLBACK_CACHE_LIMIT) {
+    const oldest = callbackPayloadCache.keys().next().value;
+    if (oldest) callbackPayloadCache.delete(oldest);
+  }
+
+  return token;
+}
+
+export function buildCallbackData(command: string, payload: string): string {
+  return `${command}:${rememberCallbackPayload(command, payload)}`;
+}
+
+export function resolveCallbackPayload(command: string, tokenOrPayload: string): string {
+  const key = command + ':' + tokenOrPayload;
+  return callbackPayloadCache.get(key) ?? tokenOrPayload;
+}
 /** /recommend <topic> — find related notes by topic */
 export async function handleRecommend(ctx: Context, _config: AppConfig): Promise<void> {
   const topic = extractArg(ctx);
@@ -135,6 +160,104 @@ export async function handleCompare(ctx: Context, _config: AppConfig): Promise<v
   await ctx.reply(lines.join('\n'));
 }
 
+
+export async function handleRecommendByTopic(ctx: Context, topic: string): Promise<void> {
+  const knowledge = await loadAndAggregate();
+  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
+
+  const matchedNotes = findNotesByTopic(knowledge, topic);
+  if (matchedNotes.length === 0) {
+    await ctx.reply(`No notes found for "${topic}".`);
+    return;
+  }
+
+  const entity = findEntity(knowledge, topic);
+  const header = entity
+    ? `Related notes for ${entity.name} (${entity.mentions} mentions)`
+    : `Related notes for "${topic}"`;
+
+  const lines = [header, ''];
+  for (const n of matchedNotes.slice(0, 10)) {
+    const stars = '*'.repeat(Math.min(n.qualityScore, 5));
+    lines.push(`${stars} ${n.title.slice(0, 50)}`);
+  }
+
+  const insights = getInsightsByTopic(knowledge, topic).slice(0, 3);
+  if (insights.length > 0) {
+    lines.push('', 'Insights:');
+    for (const ins of insights) {
+      lines.push(`- ${ins.content.slice(0, 80)}`);
+    }
+  }
+
+  await ctx.reply(lines.join('\n'));
+}
+
+export async function handleBriefByTopic(ctx: Context, topic: string): Promise<void> {
+  const knowledge = await loadAndAggregate();
+  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
+
+  const insights = getInsightsByTopic(knowledge, topic);
+  const matchedNotes = findNotesByTopic(knowledge, topic);
+
+  if (insights.length === 0 && matchedNotes.length === 0) {
+    await ctx.reply(`No knowledge found for "${topic}".`);
+    return;
+  }
+
+  const lines = [`Knowledge brief: ${topic}`, '', `Sources: ${matchedNotes.length} notes`];
+
+  if (insights.length > 0) {
+    lines.push('', 'Core insights:');
+    for (const ins of insights.slice(0, 6)) {
+      lines.push(`- ${ins.content}`);
+    }
+  }
+
+  const entitySet = new Set<string>();
+  for (const n of matchedNotes) {
+    for (const e of n.entities) {
+      if (e.name.toLowerCase() !== topic.toLowerCase()) entitySet.add(e.name);
+    }
+  }
+  if (entitySet.size > 0) {
+    const entityList = [...entitySet].slice(0, 8).join(', ');
+    lines.push('', `Related entities: ${entityList}`);
+  }
+
+  await ctx.reply(lines.join('\n'));
+}
+
+export async function handleCompareByArg(ctx: Context, arg: string): Promise<void> {
+  const [rawA, rawB] = arg.split(/\s+vs\s+/i).map(s => s.trim());
+  if (!rawA || !rawB) {
+    await ctx.reply('Invalid format. Usage: /compare <A> vs <B>');
+    return;
+  }
+
+  const knowledge = await loadAndAggregate();
+  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
+
+  const entityA = findEntity(knowledge, rawA);
+  const entityB = findEntity(knowledge, rawB);
+
+  const lines = [`Compare: ${rawA} vs ${rawB}`, ''];
+
+  lines.push(...formatEntitySection(knowledge, rawA, entityA));
+  lines.push('');
+  lines.push(...formatEntitySection(knowledge, rawB, entityB));
+
+  const directRels = findDirectRelations(knowledge, rawA, rawB);
+  if (directRels.length > 0) {
+    lines.push('', 'Direct relations:');
+    for (const r of directRels) {
+      lines.push(`- ${r.from} -> ${r.to}: ${r.description}`);
+    }
+  }
+
+  await ctx.reply(lines.join('\n'));
+}
+
 // --- Helpers ---
 
 function extractArg(ctx: Context): string | null {
@@ -249,9 +372,9 @@ async function replyWithTopicPicker(ctx: Context, command: string, prompt: strin
   // Build 2-column keyboard from top entities
   const buttons: Array<{ text: string; callback_data: string }[]> = [];
   for (let i = 0; i < topEntities.length; i += 2) {
-    const row = [Markup.button.callback(topEntities[i].name, `${command}:${topEntities[i].name}`)];
+    const row = [Markup.button.callback(topEntities[i].name, buildCallbackData(command, topEntities[i].name))];
     if (i + 1 < topEntities.length) {
-      row.push(Markup.button.callback(topEntities[i + 1].name, `${command}:${topEntities[i + 1].name}`));
+      row.push(Markup.button.callback(topEntities[i + 1].name, buildCallbackData(command, topEntities[i + 1].name)));
     }
     buttons.push(row);
   }
@@ -293,8 +416,9 @@ async function replyWithComparePicker(ctx: Context): Promise<void> {
   }
 
   const buttons = pairs.map(([a, b]) => [
-    Markup.button.callback(`${a} vs ${b}`, `compare:${a} vs ${b}`),
+    Markup.button.callback(`${a} vs ${b}`, buildCallbackData('compare', `${a} vs ${b}`)),
   ]);
 
   await ctx.reply('選擇對比組合或輸入自訂：', Markup.inlineKeyboard(buttons));
 }
+

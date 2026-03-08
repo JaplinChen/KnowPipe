@@ -63,11 +63,15 @@ function parseArgs(text: string): { username: string; platform: SupportedPlatfor
 
   // Support full URL as username input
   if (username.startsWith('http')) {
-    const m = username.match(/(?:threads\.net|threads\.com|x\.com|twitter\.com)\/@?([\w.]+)/);
-    if (m) {
-      username = m[1];
-      if (username.includes('threads')) platform = 'threads';
-      else if (username.includes('x.com') || username.includes('twitter')) platform = 'x';
+    try {
+      const u = new URL(username);
+      const host = u.hostname.toLowerCase();
+      const m = u.pathname.match(/\/@?([\w.]+)/);
+      if (m) username = m[1];
+      if (host.includes('threads.')) platform = 'threads';
+      else if (host === 'x.com' || host.endsWith('.x.com') || host.includes('twitter.com')) platform = 'x';
+    } catch {
+      // keep parsed fallback values
     }
   }
 
