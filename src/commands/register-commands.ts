@@ -17,7 +17,7 @@ import {
   handleRecommendByTopic,
   handleBriefByTopic,
   handleCompareByArg,
-  resolveCallbackPayload,
+  resolveCallbackToken,
 } from './knowledge-query-command.js';
 import { runCommandTask } from './command-runner.js';
 import { formatErrorMessage } from '../core/errors.js';
@@ -146,16 +146,24 @@ export function registerCommands(
   // --- InlineKeyboard callback handlers ---
   registerAsyncAction(bot, /^(recommend|brief):(.+)$/, 'knowledge-action', async (ctx) => {
     const [, cmd, rawTopic] = ctx.match!;
-    const topic = resolveCallbackPayload(cmd, rawTopic);
+    const topic = resolveCallbackToken(cmd, rawTopic);
     await ctx.answerCbQuery().catch(() => {});
+    if (!topic) {
+      await ctx.reply('This button has expired. Please run /recommend or /brief again.');
+      return;
+    }
     const handler = cmd === 'recommend' ? handleRecommendByTopic : handleBriefByTopic;
     await handler(ctx, topic);
   });
 
   registerAsyncAction(bot, /^compare:(.+)$/, 'compare-action', async (ctx) => {
     const rawArg = ctx.match![1];
-    const arg = resolveCallbackPayload('compare', rawArg);
+    const arg = resolveCallbackToken('compare', rawArg);
     await ctx.answerCbQuery().catch(() => {});
+    if (!arg) {
+      await ctx.reply('This button has expired. Please run /compare again.');
+      return;
+    }
     await handleCompareByArg(ctx, arg);
   });
 

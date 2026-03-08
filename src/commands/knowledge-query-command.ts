@@ -40,6 +40,11 @@ export function resolveCallbackPayload(command: string, tokenOrPayload: string):
   const key = command + ':' + tokenOrPayload;
   return callbackPayloadCache.get(key) ?? tokenOrPayload;
 }
+
+export function resolveCallbackToken(command: string, token: string): string | null {
+  const key = command + ':' + token;
+  return callbackPayloadCache.get(key) ?? null;
+}
 /** /recommend <topic> — find related notes by topic */
 export async function handleRecommend(ctx: Context, _config: AppConfig): Promise<void> {
   const topic = extractArg(ctx);
@@ -47,9 +52,47 @@ export async function handleRecommend(ctx: Context, _config: AppConfig): Promise
     await replyWithTopicPicker(ctx, 'recommend', '請選擇主題或輸入關鍵字：');
     return;
   }
+  await runRecommend(ctx, topic);
+}
 
+/** /brief <topic> — aggregated knowledge briefing */
+export async function handleBrief(ctx: Context, _config: AppConfig): Promise<void> {
+  const topic = extractArg(ctx);
+  if (!topic) {
+    await replyWithTopicPicker(ctx, 'brief', '請選擇主題或輸入關鍵字：');
+    return;
+  }
+  await runBrief(ctx, topic);
+}
+
+/** /compare <A> vs <B> — entity comparison */
+export async function handleCompare(ctx: Context, _config: AppConfig): Promise<void> {
+  const arg = extractArg(ctx);
+  if (!arg || !arg.includes('vs')) {
+    await replyWithComparePicker(ctx);
+    return;
+  }
+  await runCompare(ctx, arg);
+}
+
+export async function handleRecommendByTopic(ctx: Context, topic: string): Promise<void> {
+  await runRecommend(ctx, topic);
+}
+
+export async function handleBriefByTopic(ctx: Context, topic: string): Promise<void> {
+  await runBrief(ctx, topic);
+}
+
+export async function handleCompareByArg(ctx: Context, arg: string): Promise<void> {
+  await runCompare(ctx, arg);
+}
+
+async function runRecommend(ctx: Context, topic: string): Promise<void> {
   const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('知識庫為空，請先執行 /vault-analyze'); return; }
+  if (!knowledge) {
+    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
+    return;
+  }
 
   const matchedNotes = findNotesByTopic(knowledge, topic);
   if (matchedNotes.length === 0) {
@@ -79,16 +122,12 @@ export async function handleRecommend(ctx: Context, _config: AppConfig): Promise
   await ctx.reply(lines.join('\n'));
 }
 
-/** /brief <topic> — aggregated knowledge briefing */
-export async function handleBrief(ctx: Context, _config: AppConfig): Promise<void> {
-  const topic = extractArg(ctx);
-  if (!topic) {
-    await replyWithTopicPicker(ctx, 'brief', '請選擇主題或輸入關鍵字：');
+async function runBrief(ctx: Context, topic: string): Promise<void> {
+  const knowledge = await loadAndAggregate();
+  if (!knowledge) {
+    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
     return;
   }
-
-  const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('知識庫為空，請先執行 /vault-analyze'); return; }
 
   const insights = getInsightsByTopic(knowledge, topic);
   const matchedNotes = findNotesByTopic(knowledge, topic);
@@ -107,7 +146,6 @@ export async function handleBrief(ctx: Context, _config: AppConfig): Promise<voi
     }
   }
 
-  // Collect related entities from matched notes
   const entitySet = new Set<string>();
   for (const n of matchedNotes) {
     for (const e of n.entities) {
@@ -122,22 +160,18 @@ export async function handleBrief(ctx: Context, _config: AppConfig): Promise<voi
   await ctx.reply(lines.join('\n'));
 }
 
-/** /compare <A> vs <B> — entity comparison */
-export async function handleCompare(ctx: Context, _config: AppConfig): Promise<void> {
-  const arg = extractArg(ctx);
-  if (!arg || !arg.includes('vs')) {
-    await replyWithComparePicker(ctx);
-    return;
-  }
-
-  const [rawA, rawB] = arg.split(/\s+vs\s+/i).map(s => s.trim());
+async function runCompare(ctx: Context, arg: string): Promise<void> {
+  const [rawA, rawB] = arg.split(/\s+vs\s+/i).map((s) => s.trim());
   if (!rawA || !rawB) {
     await ctx.reply('格式錯誤，用法：/compare <A> vs <B>');
     return;
   }
 
   const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('知識庫為空，請先執行 /vault-analyze'); return; }
+  if (!knowledge) {
+    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
+    return;
+  }
 
   const entityA = findEntity(knowledge, rawA);
   const entityB = findEntity(knowledge, rawB);
@@ -148,7 +182,6 @@ export async function handleCompare(ctx: Context, _config: AppConfig): Promise<v
   lines.push('');
   lines.push(...formatEntitySection(knowledge, rawB, entityB));
 
-  // Direct relations between A and B
   const directRels = findDirectRelations(knowledge, rawA, rawB);
   if (directRels.length > 0) {
     lines.push('', '🔗 直接關係：');
@@ -159,105 +192,6 @@ export async function handleCompare(ctx: Context, _config: AppConfig): Promise<v
 
   await ctx.reply(lines.join('\n'));
 }
-
-
-export async function handleRecommendByTopic(ctx: Context, topic: string): Promise<void> {
-  const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
-
-  const matchedNotes = findNotesByTopic(knowledge, topic);
-  if (matchedNotes.length === 0) {
-    await ctx.reply(`No notes found for "${topic}".`);
-    return;
-  }
-
-  const entity = findEntity(knowledge, topic);
-  const header = entity
-    ? `Related notes for ${entity.name} (${entity.mentions} mentions)`
-    : `Related notes for "${topic}"`;
-
-  const lines = [header, ''];
-  for (const n of matchedNotes.slice(0, 10)) {
-    const stars = '*'.repeat(Math.min(n.qualityScore, 5));
-    lines.push(`${stars} ${n.title.slice(0, 50)}`);
-  }
-
-  const insights = getInsightsByTopic(knowledge, topic).slice(0, 3);
-  if (insights.length > 0) {
-    lines.push('', 'Insights:');
-    for (const ins of insights) {
-      lines.push(`- ${ins.content.slice(0, 80)}`);
-    }
-  }
-
-  await ctx.reply(lines.join('\n'));
-}
-
-export async function handleBriefByTopic(ctx: Context, topic: string): Promise<void> {
-  const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
-
-  const insights = getInsightsByTopic(knowledge, topic);
-  const matchedNotes = findNotesByTopic(knowledge, topic);
-
-  if (insights.length === 0 && matchedNotes.length === 0) {
-    await ctx.reply(`No knowledge found for "${topic}".`);
-    return;
-  }
-
-  const lines = [`Knowledge brief: ${topic}`, '', `Sources: ${matchedNotes.length} notes`];
-
-  if (insights.length > 0) {
-    lines.push('', 'Core insights:');
-    for (const ins of insights.slice(0, 6)) {
-      lines.push(`- ${ins.content}`);
-    }
-  }
-
-  const entitySet = new Set<string>();
-  for (const n of matchedNotes) {
-    for (const e of n.entities) {
-      if (e.name.toLowerCase() !== topic.toLowerCase()) entitySet.add(e.name);
-    }
-  }
-  if (entitySet.size > 0) {
-    const entityList = [...entitySet].slice(0, 8).join(', ');
-    lines.push('', `Related entities: ${entityList}`);
-  }
-
-  await ctx.reply(lines.join('\n'));
-}
-
-export async function handleCompareByArg(ctx: Context, arg: string): Promise<void> {
-  const [rawA, rawB] = arg.split(/\s+vs\s+/i).map(s => s.trim());
-  if (!rawA || !rawB) {
-    await ctx.reply('Invalid format. Usage: /compare <A> vs <B>');
-    return;
-  }
-
-  const knowledge = await loadAndAggregate();
-  if (!knowledge) { await ctx.reply('Knowledge base is empty. Run /vault-analyze first.'); return; }
-
-  const entityA = findEntity(knowledge, rawA);
-  const entityB = findEntity(knowledge, rawB);
-
-  const lines = [`Compare: ${rawA} vs ${rawB}`, ''];
-
-  lines.push(...formatEntitySection(knowledge, rawA, entityA));
-  lines.push('');
-  lines.push(...formatEntitySection(knowledge, rawB, entityB));
-
-  const directRels = findDirectRelations(knowledge, rawA, rawB);
-  if (directRels.length > 0) {
-    lines.push('', 'Direct relations:');
-    for (const r of directRels) {
-      lines.push(`- ${r.from} -> ${r.to}: ${r.description}`);
-    }
-  }
-
-  await ctx.reply(lines.join('\n'));
-}
-
 // --- Helpers ---
 
 function extractArg(ctx: Context): string | null {
@@ -421,4 +355,5 @@ async function replyWithComparePicker(ctx: Context): Promise<void> {
 
   await ctx.reply('選擇對比組合或輸入自訂：', Markup.inlineKeyboard(buttons));
 }
+
 
