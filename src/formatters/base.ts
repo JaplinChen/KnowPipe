@@ -78,12 +78,21 @@ function isReadableText(input: string): boolean {
   return safeChars / compact.length >= 0.6;
 }
 
+/** 在標點或空格邊界處截斷，避免句子斷在詞中間 */
+function truncateAtBoundary(text: string, maxLen: number): string {
+  if (text.length <= maxLen) return text;
+  const cut = text.slice(0, maxLen);
+  const last = Math.max(cut.lastIndexOf('。'), cut.lastIndexOf('，'), cut.lastIndexOf('！'),
+    cut.lastIndexOf('？'), cut.lastIndexOf('；'), cut.lastIndexOf(' '));
+  return last > maxLen * 0.4 ? cut.slice(0, last + 1) : cut;
+}
+
 function fallbackSummary(content: ExtractedContent, displayText: string): string {
   const sentences = collectContentSentences(content, displayText);
   if (sentences.length > 0) {
-    return sentences.slice(0, 2).join('。').slice(0, 180);
+    return truncateAtBoundary(sentences.slice(0, 3).join('。'), 200);
   }
-  return '本片可用文字內容不足，建議先補抓逐字稿再產生摘要。';
+  return '';
 }
 
 function fallbackAnalysis(content: ExtractedContent, displayText: string): string {
@@ -91,23 +100,20 @@ function fallbackAnalysis(content: ExtractedContent, displayText: string): strin
   if (sentences.length >= 2) {
     const top = sentences.slice(0, 3);
     return [
-      `影片重點聚焦在：${top[0].slice(0, 70)}。`,
-      `可落地的做法：${top[1].slice(0, 70)}。`,
-      top[2] ? `補充觀點：${top[2].slice(0, 70)}。` : null,
+      `影片重點聚焦在：${truncateAtBoundary(top[0], 80)}。`,
+      `可落地的做法：${truncateAtBoundary(top[1], 80)}。`,
+      top[2] ? `補充觀點：${truncateAtBoundary(top[2], 80)}。` : null,
     ].filter(Boolean).join(' ');
   }
-  return '目前缺少可分析的逐字稿或具體文案，暫不產生推論型分析。';
+  return '';
 }
 
 function fallbackKeyTakeaways(content: ExtractedContent, displayText: string): string[] {
-  const raw = collectContentSentences(content, displayText)
+  return collectContentSentences(content, displayText)
     .map((s) => s.trim())
     .filter((s) => s.length >= 8 && isReadableText(s) && !looksGeneric(s))
     .slice(0, 5)
-    .map((s) => s.slice(0, 42).replace(/[。.!?]+$/g, ''));
-
-  if (raw.length > 0) return raw;
-  return ['可用文字內容不足，待補逐字稿後再整理'];
+    .map((s) => truncateAtBoundary(s, 60).replace(/[。.!?]+$/g, ''));
 }
 
 export function assembleNote(
@@ -148,14 +154,18 @@ export function assembleNote(
     && !looksGeneric(content.enrichedSummary)
     ? content.enrichedSummary
     : fallbackSummary(content, displayText);
-  lines.push('## 重點摘要', '', cleanSummary.slice(0, 300).replace(/\n/g, ' ').trim(), '');
+  if (cleanSummary) {
+    lines.push('## 重點摘要', '', cleanSummary.slice(0, 300).replace(/\n/g, ' ').trim(), '');
+  }
 
   const cleanAnalysis = content.enrichedAnalysis
     && isReadableText(content.enrichedAnalysis)
     && !looksGeneric(content.enrichedAnalysis)
     ? content.enrichedAnalysis
     : fallbackAnalysis(content, displayText);
-  lines.push('## 內容分析', '', cleanAnalysis.replace(/\n/g, ' ').trim(), '');
+  if (cleanAnalysis) {
+    lines.push('## 內容分析', '', cleanAnalysis.replace(/\n/g, ' ').trim(), '');
+  }
 
   const cleanKeyPoints = (content.enrichedKeyPoints ?? [])
     .map((s) => s.trim())
