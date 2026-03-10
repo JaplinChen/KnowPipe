@@ -1,59 +1,69 @@
 /**
  * LLM prompt runner.
- * Priority: claude -p (fast, reliable via Max subscription) → DDG AI Chat fallback.
+ * Priority: opencode run (MiniMax M2.5 Free) → DDG AI Chat fallback.
  */
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
 
-const execFileAsync = promisify(execFile);
-
-const CLI_TIMEOUT_MS = 15_000;
+const CLI_TIMEOUT_MS = 90_000;
+const OPENCODE_MODEL = 'opencode/minimax-m2.5-free';
 
 interface RunOptions {
   timeoutMs?: number;
 }
 
-/* ── CLI provider ────────────────────────────────────────────────────── */
+/* ── CLI provider (OpenCode + MiniMax M2.5 Free) ─────────────────────── */
 
-function isRecoverableCliError(err: unknown): boolean {
-  const msg = err instanceof Error ? err.message : String(err);
-  return (
-    msg.includes('ENOENT') ||
-    msg.includes('not recognized') ||
-    msg.includes('Unknown option') ||
-    msg.includes('unknown option') ||
-    msg.includes('Usage:')
+/** Strip ANSI escape codes and opencode banner lines from output. */
+function cleanOpenCodeOutput(raw: string): string {
+  const noAnsi = raw.replace(/\x1b\[[0-9;]*m/g, '');
+  const lines = noAnsi.split('\n').filter(
+    (line) => !line.startsWith('> ') && line.trim().length > 0,
   );
+  return lines.join('\n').trim();
 }
 
+/**
+ * Run prompt via OpenCode CLI using stdin pipe.
+ * Windows .cmd files cannot be executed via execFile (EINVAL),
+ * so we spawn cmd.exe /c and pipe the prompt via stdin.
+ */
 async function runViaCli(prompt: string, timeoutMs: number): Promise<string | null> {
-  try {
-    const env = { ...process.env };
-    delete env.CLAUDECODE;
-    const { stdout } = await execFileAsync('claude', ['-p', prompt, '--max-turns', '1'], {
-      timeout: Math.min(timeoutMs, CLI_TIMEOUT_MS),
-      maxBuffer: 10 * 1024 * 1024,
-      windowsHide: true,
-      env,
+  const timeout = Math.min(timeoutMs, CLI_TIMEOUT_MS);
+
+  return new Promise((resolve) => {
+    const proc = spawn(
+      process.platform === 'win32' ? 'cmd.exe' : 'opencode',
+      process.platform === 'win32'
+        ? ['/c', 'opencode', 'run', '-m', OPENCODE_MODEL]
+        : ['run', '-m', OPENCODE_MODEL],
+      { timeout, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+    );
+
+    let stdout = '';
+    proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
+    proc.stderr.on('data', () => {});
+
+    proc.on('error', () => resolve(null));
+    proc.on('close', () => {
+      const out = cleanOpenCodeOutput(stdout);
+      resolve(out || null);
     });
-    const out = stdout.trim();
-    return out || null;
-  } catch (err) {
-    if (isRecoverableCliError(err)) return null;
-    return null;
-  }
+
+    proc.stdin.write(prompt);
+    proc.stdin.end();
+  });
 }
 
 /**
  * Run a prompt against LLM providers.
- * Priority: claude -p (fast, Max subscription) → DDG AI Chat (Camoufox, free).
+ * Priority: opencode run (MiniMax M2.5 Free) → DDG AI Chat (Camoufox, free).
  * Returns null when no provider succeeds.
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
 
-  // 1) Try claude -p CLI (fast, ~10s, uses Max subscription)
+  // 1) Try opencode CLI with MiniMax M2.5 Free (~10-15s)
   const cliResult = await runViaCli(prompt, timeoutMs);
   if (cliResult) return cliResult;
 

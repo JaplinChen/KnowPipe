@@ -58,7 +58,7 @@ export async function enrichContent(
   ].filter(Boolean).join('\n');
 
   try {
-    const responseText = await runLocalLlmPrompt(prompt, { timeoutMs: 30_000 });
+    const responseText = await runLocalLlmPrompt(prompt, { timeoutMs: 90_000 });
     if (!responseText) {
       return { keywords: null, summary: null, analysis: null, keyPoints: null };
     }
