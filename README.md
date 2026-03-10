@@ -36,12 +36,12 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 
 ### 完整支援
 
-| 平台 | 內容 | 評論 | 時間軸 |
-|------|:----:|:----:|:------:|
-| X / Twitter | ✅ | ✅ | — |
-| Threads | ✅ | ✅ | ✅ |
-| Reddit | ✅ | ✅ | — |
-| Bilibili | ✅ | ✅ | — |
+| 平台 | 內容 | 評論 | 時間軸 | 備註 |
+|------|:----:|:----:|:------:|------|
+| X / Twitter | ✅ | ✅ | — | fxTweet API |
+| Threads | ✅ | ✅ | ✅ | topic tag 自動偵測，智慧標題 |
+| Reddit | ✅ | ✅ | — | 公開 API |
+| Bilibili | ✅ | ✅ | — | 公開 API |
 
 ### 內容擷取
 
@@ -201,7 +201,7 @@ src/
 │   └── knowledge-query-command.ts # /recommend + /brief + /compare
 ├── extractors/                 # 各平台內容擷取器
 │   ├── x-extractor.ts          # Twitter/X（fxTweet API）
-│   ├── threads-extractor.ts    # Threads（Camoufox）
+│   ├── threads-extractor.ts    # Threads（Camoufox，topic tag 偵測）
 │   ├── reddit-extractor.ts     # Reddit（公開 API）
 │   ├── youtube-extractor.ts    # YouTube（yt-dlp + 播放清單）
 │   ├── tiktok-extractor.ts     # TikTok（yt-dlp + whisper.cpp STT）
