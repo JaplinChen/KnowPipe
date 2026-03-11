@@ -40,7 +40,8 @@ function extractPostId(url: string, platform: Platform): string {
 /** Convert a title string into a safe, readable filename slug */
 function slugify(text: string, maxLen = 40): string {
   return text
-    .replace(/[\\/:*?"<>|：；，。！？【】「」（）《》\[\](){}]/g, '')
+    .replace(/[：；]/g, '-')
+    .replace(/[\\/:*?"<>|，。！？【】「」（）《》\[\](){}]/g, '')
     .replace(/\s+/g, '-')
     .replace(/-{2,}/g, '-')
     .trim()
