@@ -50,7 +50,8 @@ export async function enrichContent(
     'summary: <= 120字，客觀陳述核心主題與實用價值，語氣中性專業。',
     'analysis: 2-4句，引用內容中的具體做法/技術細節，不引用情緒語言。',
     'keyPoints: 3-5條，每條<=24字，必須可執行或可驗證，不可出現泛用模板語或推銷語。',
-    'title: <= 50字，語意清楚，不要作者前綴，不要感嘆號。',
+    'title: 格式「{工具或概念名}-{簡短描述}」，<=40字，語意清楚，不要作者前綴，不要感嘆號。',
+    '例：「Kaku-整合AI的深度定製終端」「Symphony-AI自動完成CI和PR」「Obsidian-雙向連結筆記管理工具」',
     'If content is insufficient, state what is missing briefly instead of inventing.',
     hints ? `Category hints: ${hints}` : '',
     `Original title: ${title}`,
@@ -87,7 +88,7 @@ export async function enrichContent(
       keyPoints: Array.isArray(parsed.keyPoints)
         ? (parsed.keyPoints.filter((v): v is string => typeof v === 'string').slice(0, 5).map(s2tw))
         : null,
-      title: typeof parsed.title === 'string' ? s2tw(parsed.title).slice(0, 50) : undefined,
+      title: typeof parsed.title === 'string' ? s2tw(parsed.title).slice(0, 40) : undefined,
       category: normalizeCategory(parsed.category),
     };
   } catch {

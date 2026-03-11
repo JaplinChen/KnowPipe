@@ -9,7 +9,7 @@ export const PLATFORM_LABELS: Record<string, string> = {
   reddit: 'Reddit',
   weibo: '微博',
   bilibili: 'Bilibili',
-  xiaohongshu: '小紅書',
+  xhs: '小紅書',
   douyin: '抖音',
   tiktok: 'TikTok',
   web: 'Web',

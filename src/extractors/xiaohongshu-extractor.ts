@@ -33,7 +33,7 @@ async function resolveShortUrl(url: string): Promise<string> {
 }
 
 export const xiaohongshuExtractor: Extractor = {
-  platform: 'xiaohongshu',
+  platform: 'xhs',
 
   match(url: string): boolean {
     return XHS_PATTERN.test(url) || XHS_LINK_PATTERN.test(url) || XHS_DISCOVER_PATTERN.test(url);
@@ -93,7 +93,7 @@ export const xiaohongshuExtractor: Extractor = {
       const noteTitle = title || text.split('\n')[0].slice(0, 80);
 
       return {
-        platform: 'xiaohongshu',
+        platform: 'xhs',
         author: author.trim(),
         authorHandle: authorHandle ? `@${authorHandle.split('/').pop()}` : `@${author.trim()}`,
         title: noteTitle,

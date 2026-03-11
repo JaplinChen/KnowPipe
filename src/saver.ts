@@ -38,13 +38,14 @@ function extractPostId(url: string, platform: Platform): string {
 }
 
 /** Convert a title string into a safe, readable filename slug */
-function slugify(text: string, maxLen = 50): string {
+function slugify(text: string, maxLen = 40): string {
   return text
-    .replace(/[\\/:*?"<>|]/g, '')
-    .replace(/\s+/g, ' ')
+    .replace(/[\\/:*?"<>|：；，。！？【】「」（）《》\[\](){}]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-{2,}/g, '-')
     .trim()
     .slice(0, maxLen)
-    .trim();
+    .replace(/-$/, '');
 }
 
 /** Shorter slug for attachment filenames (spaces → hyphens, tighter limit) */
@@ -230,7 +231,7 @@ export async function saveToVault(
 
     // Generate Markdown
     const markdown = formatAsMarkdown(content, localImagePaths, localVideoPaths, imageUrlMap);
-    const mdFilename = `${content.date}-${content.platform}-${slug}.md`;
+    const mdFilename = `${slug}-${content.date}-${content.platform}.md`;
     const mdPath = join(notesDir, mdFilename);
     await writeFile(mdPath, markdown, 'utf-8');
 
