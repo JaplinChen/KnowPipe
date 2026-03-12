@@ -1,7 +1,7 @@
-﻿import type { Telegraf } from 'telegraf';
+import type { Telegraf } from 'telegraf';
 import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
-import type { ExtractorWithComments } from '../extractors/types.js';
+import type { ExtractorWithComments, ExtractorWithSeries } from '../extractors/types.js';
 import type { AppConfig } from '../utils/config.js';
 import { extractUrls, findExtractor } from '../utils/url-parser.js';
 import {
@@ -13,7 +13,12 @@ import {
 import { enrichExtractedContent } from './services/enrich-content-service.js';
 import { extractContentWithComments } from './services/extract-content-service.js';
 import { saveExtractedContent } from './services/save-content-service.js';
+import { processSeriesBatch } from './services/series-processing-service.js';
 import type { BotStats } from './types.js';
+
+function isSeriesExtractor(e: unknown): e is ExtractorWithSeries {
+  return typeof (e as ExtractorWithSeries).isSeries === 'function';
+}
 
 export function registerUrlProcessingHandler(
   bot: Telegraf,
@@ -39,6 +44,32 @@ export function registerUrlProcessingHandler(
 
       logger.info('msg', 'extracting', { platform: extractor.platform, url });
       stats.urls++;
+
+      // Series detection: batch-process all articles
+      if (isSeriesExtractor(extractor) && extractor.isSeries(url)) {
+        const processing = await ctx.reply('正在處理系列文章...');
+        try {
+          const result = await processSeriesBatch(
+            url, extractor, config,
+            (msg) => ctx.reply(msg),
+          );
+          stats.saved += result.saved;
+          const summary = [
+            `系列處理完成`,
+            `索引：${result.indexPath}`,
+            `已存：${result.saved} | 跳過：${result.skipped} | 失敗：${result.failed}`,
+          ].join('\n');
+          await ctx.reply(summary);
+        } catch (err) {
+          logger.error('msg', 'series processing failed', { url, err });
+          stats.errors++;
+          await ctx.reply(formatErrorMessage(err));
+        }
+        try { await ctx.deleteMessage(processing.message_id); } catch { /* */ }
+        continue;
+      }
+
+      // Standard single-URL processing
       const processing = await ctx.reply(formatProcessingMessage(extractor.platform));
 
       try {

@@ -9,6 +9,7 @@ import { weiboExtractor } from './weibo-extractor.js';
 import { xiaohongshuExtractor } from './xiaohongshu-extractor.js';
 import { douyinExtractor } from './douyin-extractor.js';
 import { tiktokExtractor } from './tiktok-extractor.js';
+import { ithomeExtractor } from './ithome-extractor.js';
 import { webExtractor } from './web-extractor.js';
 
 /** Register all extractors — add new platforms here.
@@ -24,5 +25,6 @@ export function registerAllExtractors(): void {
   registerExtractor(xiaohongshuExtractor);
   registerExtractor(douyinExtractor);
   registerExtractor(tiktokExtractor);
+  registerExtractor(ithomeExtractor);
   registerExtractor(webExtractor); // fallback — must be last
 }
