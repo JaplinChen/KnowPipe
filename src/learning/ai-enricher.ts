@@ -1,6 +1,7 @@
 /** Local LLM enrichment for keywords/summary/title/category generation. */
 
-import { runLocalLlmPrompt } from '../utils/local-llm.js';
+import { logger } from '../core/logger.js';
+import { runLocalLlmPrompt, type ModelTier } from '../utils/local-llm.js';
 // @ts-expect-error opencc-js lacks proper TS declarations
 import * as OpenCC from 'opencc-js';
 
@@ -26,8 +27,16 @@ function normalizeCategory(raw: unknown): string | undefined {
   return v.slice(0, 40);
 }
 
+/** Pick model tier based on content length. */
+function selectModelTier(textLen: number, hasTranscript: boolean): ModelTier {
+  if (hasTranscript || textLen > 1000) return 'deep';
+  if (textLen < 300) return 'flash';
+  return 'standard';
+}
+
 /**
  * Enrich content with local LLM-generated metadata.
+ * Auto-routes to the best free model based on content complexity.
  * Falls back silently to null fields on any error.
  */
 export async function enrichContent(
@@ -38,6 +47,9 @@ export async function enrichContent(
 ): Promise<EnrichResult> {
   const textPreview = text.slice(0, 1200).replace(/\n/g, ' ');
   const hints = categoryHints.slice(0, 8).join(', ');
+  const hasTranscript = text.includes('文字稿：') || text.includes('[Transcript]');
+  const tier = selectModelTier(text.length, hasTranscript);
+  logger.info('enricher', 'model-route', { tier, textLen: text.length, hasTranscript });
 
   const prompt = [
     'You are a strict JSON generator for content enrichment.',
@@ -59,7 +71,7 @@ export async function enrichContent(
   ].filter(Boolean).join('\n');
 
   try {
-    const responseText = await runLocalLlmPrompt(prompt, { timeoutMs: 90_000 });
+    const responseText = await runLocalLlmPrompt(prompt, { timeoutMs: 90_000, model: tier });
     if (!responseText) {
       return { keywords: null, summary: null, analysis: null, keyPoints: null };
     }

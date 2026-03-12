@@ -6,6 +6,7 @@ import { enrichContent } from '../../learning/ai-enricher.js';
 import { getTopKeywordsForCategory } from '../../learning/dynamic-classifier.js';
 import { AI_TRANSCRIPT_PREFIX } from '../user-messages.js';
 import type { AppConfig } from '../../utils/config.js';
+import { analyzeContentImages } from '../../utils/vision-llm.js';
 
 export async function enrichExtractedContent(content: ExtractedContent, config: AppConfig): Promise<void> {
   content.category = classifyContent(content.title, content.text);
@@ -17,10 +18,28 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
     .replace(/\*\*Stats:\*\*.*(?:\r?\n|$)/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+  // Vision analysis: analyze images when text is insufficient
+  let imageContext = '';
+  if (content.images.length > 0 && cleanText.length < 200) {
+    try {
+      imageContext = await analyzeContentImages(content.images, 2);
+      if (imageContext) {
+        content.imageDescriptions = imageContext;
+        logger.info('msg', 'vision-analysis', { chars: imageContext.length });
+      }
+    } catch (err) {
+      logger.warn('msg', 'vision-analysis failed', { message: (err as Error).message });
+    }
+  }
+
   const textForAI = content.transcript
     ? `${cleanText}${AI_TRANSCRIPT_PREFIX}${content.transcript.slice(0, 2500)}`
     : cleanText;
-  const enriched = await enrichContent(content.title, textForAI, hints);
+  const finalText = imageContext
+    ? `${textForAI}\n\n[圖片視覺描述]\n${imageContext}`
+    : textForAI;
+  const enriched = await enrichContent(content.title, finalText, hints);
   if (enriched.keywords) content.enrichedKeywords = enriched.keywords;
   if (enriched.summary) content.enrichedSummary = enriched.summary;
   if (enriched.analysis) content.enrichedAnalysis = enriched.analysis;

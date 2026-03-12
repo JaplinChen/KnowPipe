@@ -9,6 +9,8 @@ import { handleMonitor, handleSearch } from './monitor-command.js';
 import { handleAnalyze, handleKnowledge, handleGaps, handleSkills } from './knowledge-command.js';
 import { handlePreferences, handleDistill } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
+import { handleAsk } from './ask-command.js';
+import { handleDiscover, handleDiscoverTrending } from './discover-command.js';
 import {
   handleRecommend,
   handleBrief,
@@ -81,6 +83,9 @@ export function registerCommands(
   registerAsyncCommand(bot, 'preferences', 'preferences', config, handlePreferences);
   registerAsyncCommand(bot, 'distill', 'distill', config, handleDistill);
   registerAsyncCommand(bot, 'consolidate', 'consolidate', config, handleConsolidate);
+  registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
+  registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
+  registerAsyncCommand(bot, 'trending', 'trending', config, handleDiscoverTrending);
 
   // --- InlineKeyboard callback handlers ---
   registerAsyncAction(bot, /^(recommend|brief):(.+)$/, 'knowledge-action', async (ctx) => {
@@ -115,6 +120,10 @@ export function registerCommands(
     runCommandTask(ctx, 'timeline', () => handleTimeline(ctx, config), formatErrorMessage));
   registerForceReplyHandler('compare', (ctx) =>
     runCommandTask(ctx, 'compare', () => handleCompare(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('ask', (ctx) =>
+    runCommandTask(ctx, 'ask', () => handleAsk(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('discover', (ctx) =>
+    runCommandTask(ctx, 'discover', () => handleDiscover(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 
