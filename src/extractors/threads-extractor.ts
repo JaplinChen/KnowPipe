@@ -161,22 +161,21 @@ export const threadsExtractor: ExtractorWithComments = {
         throw new Error('Threads: 無法找到貼文容器（頁面結構可能已變更）');
       }
 
-      // Find the target container: usually the first, but for replies the
-      // parent post appears first. Scan all containers for the URL username.
+      // Scan all containers for the URL username; collect author's thread parts
       const allContainers = await page.locator('[data-pressable-container]').all();
-      let targetContainer = page.locator('[data-pressable-container]').first();
+      const authorContainers: (typeof allContainers)[number][] = [];
       let isReply = false;
-
-      for (const container of allContainers) {
-        const spans = await container.locator('span[dir="auto"]').all();
+      for (let i = 0; i < allContainers.length; i++) {
+        const spans = await allContainers[i].locator('span[dir="auto"]').all();
         if (spans.length === 0) continue;
         const handle = (await spans[0].innerText().catch(() => '')).trim();
         if (handle.toLowerCase() === username.toLowerCase()) {
-          targetContainer = container;
-          isReply = container !== allContainers[0];
-          break;
+          if (authorContainers.length === 0 && i > 0) isReply = true;
+          authorContainers.push(allContainers[i]);
         }
       }
+      const targetContainer = authorContainers[0]
+        ?? page.locator('[data-pressable-container]').first();
 
       // If none matched, verify we haven't been redirected to the home feed
       const firstSpans = await targetContainer.locator('span[dir="auto"]').all();
@@ -194,8 +193,14 @@ export const threadsExtractor: ExtractorWithComments = {
         }
       }
 
-      const { text: spanText, tags } = await extractSpanText(targetContainer);
-      let text = spanText;
+      const { text: mainText, tags } = await extractSpanText(targetContainer);
+      // Merge self-reply thread parts from the same author (串文)
+      const threadParts: string[] = mainText ? [mainText] : [];
+      for (let i = 1; i < authorContainers.length; i++) {
+        const { text: part } = await extractSpanText(authorContainers[i]);
+        if (part && !threadParts.includes(part)) threadParts.push(part);
+      }
+      let text = threadParts.join('\n\n---\n\n');
 
       // Fallback: try reading from page title (Threads sets title = post text)
       if (!text) {
@@ -217,11 +222,9 @@ export const threadsExtractor: ExtractorWithComments = {
         if (maybeHandle.trim()) author = maybeHandle.trim();
       }
 
-      // For replies, try to get the precise time from the target container
       const timeAttr = await targetContainer
         .locator('time').first().getAttribute('datetime').catch(() =>
-          page.locator('time').first().getAttribute('datetime').catch(() => null),
-        );
+          page.locator('time').first().getAttribute('datetime').catch(() => null));
       const date = timeAttr
         ? new Date(timeAttr).toISOString().split('T')[0]
         : new Date().toISOString().split('T')[0];
@@ -260,8 +263,8 @@ export const threadsExtractor: ExtractorWithComments = {
         await page.waitForTimeout(800);
       }
 
-      // All containers: skip first (original post)
       const containers = await page.locator('[data-pressable-container]').all();
+      const postAuthor = url.match(THREADS_URL_PATTERN)?.[1]?.toLowerCase() ?? '';
       const comments: ThreadComment[] = [];
 
       for (const container of containers.slice(1)) {
@@ -271,16 +274,14 @@ export const threadsExtractor: ExtractorWithComments = {
           if (spans.length < 2) continue;
 
           const commentAuthor = await spans[0].innerText().catch(() => '');
-          // Use extractSpanText (longest non-timestamp span) instead of fixed index
-          // because self-thread replies have "·" and "Author" labels before the text
+          const linkHref = await container
+            .locator('a[href*="/@"]').first().getAttribute('href').catch(() => '') ?? '';
+          const handle = (linkHref.replace(/^\/@/, '').split('/')[0]) || commentAuthor;
+          // Skip author's self-replies — already merged in extract()
+          if (handle.toLowerCase() === postAuthor) continue;
+
           const { text } = await extractSpanText(container);
-
           if (text) {
-            // Get handle from link
-            const linkHref = await container
-              .locator('a[href*="/@"]').first().getAttribute('href').catch(() => '') ?? '';
-            const handle = linkHref.replace(/\/@/, '') || commentAuthor;
-
             comments.push({
               author: commentAuthor.trim() || handle,
               authorHandle: `@${handle}`,
