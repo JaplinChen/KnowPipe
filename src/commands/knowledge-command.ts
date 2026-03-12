@@ -1,18 +1,66 @@
 /**
- * /analyze, /knowledge, /gaps, /skills — knowledge system commands.
- * /analyze: guides user to Claude Code /vault-analyze skill.
- * /knowledge: reads pre-computed knowledge from vault-knowledge.json.
- * /gaps: shows knowledge gaps detected in the vault.
- * /skills: shows high-density topics that can become Claude Code commands.
+ * /knowledge — unified knowledge system entry point.
+ * Shows knowledge summary + InlineKeyboard for sub-functions:
+ * gaps, skills, preferences, analyze.
+ *
+ * Individual handlers are exported for callback use from register-commands.ts.
  */
 import type { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { loadKnowledge } from '../knowledge/knowledge-store.js';
 import { aggregateKnowledge, formatKnowledgeSummary } from '../knowledge/knowledge-aggregator.js';
 import { detectKnowledgeGaps, formatGapsSummary } from '../knowledge/knowledge-graph.js';
 import { detectHighDensityTopics, formatTopicsSummary } from '../knowledge/skill-generator.js';
 
-/** /analyze — guide user to Claude Code skill */
+/** /knowledge — show summary + sub-function buttons */
+export async function handleKnowledge(ctx: Context, _config: AppConfig): Promise<void> {
+  const knowledge = await loadKnowledge();
+  if (Object.keys(knowledge.notes).length === 0) {
+    await ctx.reply(
+      '知識庫為空。\n\n' +
+      '請在 Claude Code 中執行 /vault-analyze 進行深度分析。',
+    );
+    return;
+  }
+  aggregateKnowledge(knowledge);
+  await ctx.reply(formatKnowledgeSummary(knowledge), Markup.inlineKeyboard([
+    [
+      Markup.button.callback('🕳 知識缺口', 'kb:gaps'),
+      Markup.button.callback('🎯 高密度技能', 'kb:skills'),
+    ],
+    [
+      Markup.button.callback('📊 偏好模型', 'kb:preferences'),
+      Markup.button.callback('🔍 深度分析', 'kb:analyze'),
+    ],
+  ]));
+}
+
+/** kb:gaps callback — show knowledge gaps */
+export async function handleGaps(ctx: Context, _config: AppConfig): Promise<void> {
+  const knowledge = await loadKnowledge();
+  if (Object.keys(knowledge.notes).length === 0) {
+    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
+    return;
+  }
+  aggregateKnowledge(knowledge);
+  const gaps = detectKnowledgeGaps(knowledge);
+  await ctx.reply(formatGapsSummary(gaps));
+}
+
+/** kb:skills callback — show high-density topics */
+export async function handleSkills(ctx: Context, _config: AppConfig): Promise<void> {
+  const knowledge = await loadKnowledge();
+  if (Object.keys(knowledge.notes).length === 0) {
+    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
+    return;
+  }
+  aggregateKnowledge(knowledge);
+  const topics = detectHighDensityTopics(knowledge);
+  await ctx.reply(formatTopicsSummary(topics));
+}
+
+/** kb:analyze callback — guide to Claude Code */
 export async function handleAnalyze(ctx: Context, _config: AppConfig): Promise<void> {
   const knowledge = await loadKnowledge();
   const noteCount = Object.keys(knowledge.notes).length;
@@ -37,42 +85,4 @@ export async function handleAnalyze(ctx: Context, _config: AppConfig): Promise<v
   }
 
   await ctx.reply(lines.join('\n'));
-}
-
-/** /knowledge — show knowledge summary */
-export async function handleKnowledge(ctx: Context, _config: AppConfig): Promise<void> {
-  const knowledge = await loadKnowledge();
-  if (Object.keys(knowledge.notes).length === 0) {
-    await ctx.reply(
-      '知識庫為空。\n\n' +
-      '請在 Claude Code 中執行 /vault-analyze 進行深度分析。',
-    );
-    return;
-  }
-  aggregateKnowledge(knowledge);
-  await ctx.reply(formatKnowledgeSummary(knowledge));
-}
-
-/** /gaps — show knowledge gaps */
-export async function handleGaps(ctx: Context, _config: AppConfig): Promise<void> {
-  const knowledge = await loadKnowledge();
-  if (Object.keys(knowledge.notes).length === 0) {
-    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
-    return;
-  }
-  aggregateKnowledge(knowledge);
-  const gaps = detectKnowledgeGaps(knowledge);
-  await ctx.reply(formatGapsSummary(gaps));
-}
-
-/** /skills — show high-density topics suitable for skill generation */
-export async function handleSkills(ctx: Context, _config: AppConfig): Promise<void> {
-  const knowledge = await loadKnowledge();
-  if (Object.keys(knowledge.notes).length === 0) {
-    await ctx.reply('知識庫為空，請先執行 /vault-analyze');
-    return;
-  }
-  aggregateKnowledge(knowledge);
-  const topics = detectHighDensityTopics(knowledge);
-  await ctx.reply(formatTopicsSummary(topics));
 }

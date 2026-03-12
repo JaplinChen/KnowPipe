@@ -1,10 +1,12 @@
 /**
- * /digest — Knowledge digest: summarize recent vault notes by category.
- * /digest        → last 7 days
- * /digest 3d     → last 3 days
- * /digest 14d    → last 14 days
+ * /digest — unified knowledge report menu.
+ * Shows InlineKeyboard to choose:
+ * - 精華摘要 (digest)
+ * - 知識蒸餾 (distill)
+ * - 跨筆記洞察 (consolidate)
  */
 import type { Context } from 'telegraf';
+import { Markup } from 'telegraf';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AppConfig } from '../utils/config.js';
@@ -87,7 +89,6 @@ function groupByCategory(notes: NoteSummary[]): Record<string, NoteSummary[]> {
 async function buildDigest(
   groups: Record<string, NoteSummary[]>, days: number,
 ): Promise<string> {
-  // Build category overview for LLM
   const catSummaries: string[] = [];
   for (const [cat, notes] of Object.entries(groups).sort((a, b) => b[1].length - a[1].length)) {
     const titles = notes.map(n => `- ${n.title}${n.summary ? `：${n.summary.slice(0, 60)}` : ''}`);
@@ -130,15 +131,21 @@ function formatSimpleDigest(
   return lines.join('\n');
 }
 
+/** /digest — show report menu */
+export async function handleDigestMenu(ctx: Context, _config: AppConfig): Promise<void> {
+  await ctx.reply(
+    '選擇知識報告類型：',
+    Markup.inlineKeyboard([
+      [Markup.button.callback('📋 精華摘要', 'dg:digest')],
+      [Markup.button.callback('🧪 知識蒸餾', 'dg:distill')],
+      [Markup.button.callback('🧠 跨筆記洞察', 'dg:consolidate')],
+    ]),
+  );
+}
+
+/** dg:digest callback — recent knowledge digest */
 export async function handleDigest(ctx: Context, config: AppConfig): Promise<void> {
-  const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
-  const args = text.replace(/^\/digest\s*/, '').trim();
-
-  // Parse days
-  let days = 7;
-  const dayMatch = args.match(/^(\d+)d$/i);
-  if (dayMatch) days = Math.min(parseInt(dayMatch[1], 10), 90);
-
+  const days = 7;
   const status = await ctx.reply(`正在彙整近 ${days} 天的知識...`);
 
   try {
@@ -149,11 +156,8 @@ export async function handleDigest(ctx: Context, config: AppConfig): Promise<voi
     }
 
     const groups = groupByCategory(notes);
-
-    // Simple overview first
     const overview = formatSimpleDigest(groups, days);
 
-    // Try LLM digest
     let aiDigest = '';
     if (notes.length >= 3) {
       try {

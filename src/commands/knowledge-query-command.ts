@@ -1,6 +1,8 @@
-﻿/**
- * /recommend, /brief, /compare — query knowledge base from Telegram.
- * Pure queries on vault-knowledge.json, no API calls needed.
+/**
+ * /explore <topic> — unified knowledge exploration.
+ * Replaces /recommend, /brief, /compare.
+ * Shows mode picker (InlineKeyboard) when topic is provided.
+ * Shows entity picker when no topic is given.
  */
 import type { Context } from 'telegraf';
 import { Markup } from 'telegraf';
@@ -41,36 +43,38 @@ export function resolveCallbackToken(command: string, token: string): string | n
   const key = command + ':' + token;
   return callbackPayloadCache.get(key) ?? null;
 }
-/** /recommend <topic> — find related notes by topic */
-export async function handleRecommend(ctx: Context, _config: AppConfig): Promise<void> {
-  const topic = extractArg(ctx);
-  if (!topic) {
-    await replyWithTopicPicker(ctx, 'recommend', '請選擇主題或輸入關鍵字：');
-    return;
-  }
-  await runRecommend(ctx, topic);
-}
 
-/** /brief <topic> — aggregated knowledge briefing */
-export async function handleBrief(ctx: Context, _config: AppConfig): Promise<void> {
-  const topic = extractArg(ctx);
-  if (!topic) {
-    await replyWithTopicPicker(ctx, 'brief', '請選擇主題或輸入關鍵字：');
-    return;
-  }
-  await runBrief(ctx, topic);
-}
-
-/** /compare <A> vs <B> — entity comparison */
-export async function handleCompare(ctx: Context, _config: AppConfig): Promise<void> {
+/** /explore <topic> — main entry point */
+export async function handleExplore(ctx: Context, _config: AppConfig): Promise<void> {
   const arg = extractArg(ctx);
-  if (!arg || !arg.includes('vs')) {
-    await replyWithComparePicker(ctx);
+
+  // /explore <A> vs <B> → run compare directly
+  if (arg && arg.includes('vs')) {
+    await runCompare(ctx, arg);
     return;
   }
-  await runCompare(ctx, arg);
+
+  // /explore <topic> → show mode picker
+  if (arg) {
+    const recToken = rememberCallbackPayload('xrec', arg);
+    const brfToken = rememberCallbackPayload('xbrf', arg);
+    await ctx.reply(
+      `探索「${arg}」：`,
+      Markup.inlineKeyboard([
+        [
+          Markup.button.callback('📚 推薦筆記', `xrec:${recToken}`),
+          Markup.button.callback('🧠 知識簡報', `xbrf:${brfToken}`),
+        ],
+      ]),
+    );
+    return;
+  }
+
+  // /explore (no args) → entity picker
+  await replyWithTopicPicker(ctx, 'explore', '請選擇主題或輸入關鍵字：');
 }
 
+/** Callback handlers used by register-commands.ts */
 export async function handleRecommendByTopic(ctx: Context, topic: string): Promise<void> {
   await runRecommend(ctx, topic);
 }
@@ -82,6 +86,8 @@ export async function handleBriefByTopic(ctx: Context, topic: string): Promise<v
 export async function handleCompareByArg(ctx: Context, arg: string): Promise<void> {
   await runCompare(ctx, arg);
 }
+
+// --- Core logic ---
 
 async function runRecommend(ctx: Context, topic: string): Promise<void> {
   const knowledge = await loadAndAggregate();
@@ -159,7 +165,7 @@ async function runBrief(ctx: Context, topic: string): Promise<void> {
 async function runCompare(ctx: Context, arg: string): Promise<void> {
   const [rawA, rawB] = arg.split(/\s+vs\s+/i).map((s) => s.trim());
   if (!rawA || !rawB) {
-    await ctx.reply('格式錯誤，用法：/compare <A> vs <B>');
+    await ctx.reply('格式錯誤，用法：/explore <A> vs <B>');
     return;
   }
 
@@ -173,7 +179,6 @@ async function runCompare(ctx: Context, arg: string): Promise<void> {
   const entityB = findEntity(knowledge, rawB);
 
   const lines = [`⚖️ ${rawA} vs ${rawB}`, ''];
-
   lines.push(...formatEntitySection(knowledge, rawA, entityA));
   lines.push('');
   lines.push(...formatEntitySection(knowledge, rawB, entityB));
@@ -188,12 +193,13 @@ async function runCompare(ctx: Context, arg: string): Promise<void> {
 
   await ctx.reply(lines.join('\n'));
 }
+
 // --- Helpers ---
 
 function extractArg(ctx: Context): string | null {
   const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
   const parts = text.split(/\s+/);
-  parts.shift(); // Remove command
+  parts.shift();
   const arg = parts.join(' ').trim();
   return arg || null;
 }
@@ -205,10 +211,7 @@ async function loadAndAggregate(): Promise<VaultKnowledge | null> {
   return k;
 }
 
-
-// --- InlineKeyboard helpers ---
-
-/** Show top entities as InlineKeyboard buttons + ForceReply fallback */
+/** Show top entities as InlineKeyboard + ForceReply fallback */
 async function replyWithTopicPicker(ctx: Context, command: string, prompt: string): Promise<void> {
   const knowledge = await loadAndAggregate();
   if (!knowledge) {
@@ -228,12 +231,11 @@ async function replyWithTopicPicker(ctx: Context, command: string, prompt: strin
     return;
   }
 
-  // Build 2-column keyboard from top entities
   const buttons: Array<{ text: string; callback_data: string }[]> = [];
   for (let i = 0; i < topEntities.length; i += 2) {
-    const row = [Markup.button.callback(topEntities[i].name, buildCallbackData(command, topEntities[i].name))];
+    const row = [Markup.button.callback(topEntities[i].name, buildCallbackData('xrec', topEntities[i].name))];
     if (i + 1 < topEntities.length) {
-      row.push(Markup.button.callback(topEntities[i + 1].name, buildCallbackData(command, topEntities[i + 1].name)));
+      row.push(Markup.button.callback(topEntities[i + 1].name, buildCallbackData('xrec', topEntities[i + 1].name)));
     }
     buttons.push(row);
   }
@@ -243,42 +245,3 @@ async function replyWithTopicPicker(ctx: Context, command: string, prompt: strin
     Markup.inlineKeyboard(buttons),
   );
 }
-
-/** Show top entity pairs as InlineKeyboard for /compare */
-async function replyWithComparePicker(ctx: Context): Promise<void> {
-  const knowledge = await loadAndAggregate();
-  if (!knowledge) {
-    await ctx.reply(
-      tagForceReply('compare', '用法：/compare <A> vs <B>'),
-      forceReplyMarkup('輸入 A vs B…'),
-    );
-    return;
-  }
-
-  const topEntities = getTopEntities(knowledge, 6);
-  if (topEntities.length < 2) {
-    await ctx.reply(
-      tagForceReply('compare', '用法：/compare <A> vs <B>'),
-      forceReplyMarkup('輸入 A vs B…'),
-    );
-    return;
-  }
-
-  // Generate comparison pairs from top entities
-  const pairs: Array<[string, string]> = [];
-  for (let i = 0; i < Math.min(topEntities.length, 4); i++) {
-    for (let j = i + 1; j < Math.min(topEntities.length, 4); j++) {
-      pairs.push([topEntities[i].name, topEntities[j].name]);
-      if (pairs.length >= 3) break;
-    }
-    if (pairs.length >= 3) break;
-  }
-
-  const buttons = pairs.map(([a, b]) => [
-    Markup.button.callback(`${a} vs ${b}`, buildCallbackData('compare', `${a} vs ${b}`)),
-  ]);
-
-  await ctx.reply('選擇對比組合或輸入自訂：', Markup.inlineKeyboard(buttons));
-}
-
-

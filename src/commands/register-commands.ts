@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Centralized command registration.
  * Keeps lightweight orchestration while command groups live in dedicated modules.
  */
@@ -6,20 +6,18 @@ import type { Context, Telegraf } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { handleTimeline } from './timeline-command.js';
 import { handleMonitor, handleSearch } from './monitor-command.js';
-import { handleAnalyze, handleKnowledge, handleGaps, handleSkills } from './knowledge-command.js';
+import { handleKnowledge, handleGaps, handleSkills, handleAnalyze } from './knowledge-command.js';
 import { handlePreferences, handleDistill } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
-import { handleDiscover, handleDiscoverTrending } from './discover-command.js';
+import { handleDiscover } from './discover-command.js';
 import { handleReprocess } from './reprocess-command.js';
 import { createRetryHandler, createRetryActionHandler } from './retry-command.js';
 import { handleSubscribe } from './subscribe-command.js';
 import { handleQuality } from './quality-command.js';
-import { handleDigest } from './digest-command.js';
+import { handleDigestMenu, handleDigest } from './digest-command.js';
 import {
-  handleRecommend,
-  handleBrief,
-  handleCompare,
+  handleExplore,
   handleRecommendByTopic,
   handleBriefByTopic,
   handleCompareByArg,
@@ -72,66 +70,96 @@ export function registerCommands(
 
   registerLearningCommands(bot, config, formatErrorMessage);
 
-  // --- Camoufox-based commands ---
+  // --- Content extraction ---
   registerAsyncCommand(bot, 'timeline', 'timeline', config, handleTimeline);
   registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
-  registerAsyncCommand(bot, ['search', 'google'], 'search', config, handleSearch);
+  registerAsyncCommand(bot, 'search', 'search', config, handleSearch);
 
-  // --- Knowledge system ---
-  registerAsyncCommand(bot, 'analyze', 'analyze', config, handleAnalyze);
+  // --- Knowledge system (consolidated) ---
   registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
-  registerAsyncCommand(bot, 'recommend', 'recommend', config, handleRecommend);
-  registerAsyncCommand(bot, 'brief', 'brief', config, handleBrief);
-  registerAsyncCommand(bot, 'compare', 'compare', config, handleCompare);
-  registerAsyncCommand(bot, 'gaps', 'gaps', config, handleGaps);
-  registerAsyncCommand(bot, 'skills', 'skills', config, handleSkills);
-  registerAsyncCommand(bot, 'preferences', 'preferences', config, handlePreferences);
-  registerAsyncCommand(bot, 'distill', 'distill', config, handleDistill);
-  registerAsyncCommand(bot, 'consolidate', 'consolidate', config, handleConsolidate);
+  registerAsyncCommand(bot, 'explore', 'explore', config, handleExplore);
+  registerAsyncCommand(bot, 'digest', 'digest', config, handleDigestMenu);
   registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
-  registerAsyncCommand(bot, 'trending', 'trending', config, handleDiscoverTrending);
+
+  // --- Maintenance ---
   registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);
   registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
   registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
   registerAsyncCommand(bot, 'quality', 'quality', config, handleQuality);
-  registerAsyncCommand(bot, 'digest', 'digest', config, handleDigest);
 
-  // --- InlineKeyboard callback handlers ---
-  registerAsyncAction(bot, /^(recommend|brief):(.+)$/, 'knowledge-action', async (ctx) => {
-    const [, cmd, rawTopic] = ctx.match!;
-    const topic = resolveCallbackToken(cmd, rawTopic);
+  // --- InlineKeyboard: /knowledge sub-actions ---
+  registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
+    const mode = ctx.match![1];
     await ctx.answerCbQuery().catch(() => {});
-    if (!topic) {
-      await ctx.reply('This button has expired. Please run /recommend or /brief again.');
-      return;
-    }
-    const handler = cmd === 'recommend' ? handleRecommendByTopic : handleBriefByTopic;
-    await handler(ctx, topic);
+    const handlers: Record<string, (c: Context, cfg: AppConfig) => Promise<void>> = {
+      gaps: handleGaps,
+      skills: handleSkills,
+      preferences: handlePreferences,
+      analyze: handleAnalyze,
+    };
+    const handler = handlers[mode];
+    if (handler) await handler(ctx, config);
   });
 
-  registerAsyncAction(bot, /^retry:(.+)$/, 'retry-action', createRetryActionHandler(stats, config));
+  // --- InlineKeyboard: /explore sub-actions ---
+  registerAsyncAction(bot, /^xrec:(.+)$/, 'explore-action', async (ctx) => {
+    const token = ctx.match![1];
+    const topic = resolveCallbackToken('xrec', token);
+    await ctx.answerCbQuery().catch(() => {});
+    if (!topic) {
+      await ctx.reply('按鈕已過期，請重新執行 /explore');
+      return;
+    }
+    await handleRecommendByTopic(ctx, topic);
+  });
+
+  registerAsyncAction(bot, /^xbrf:(.+)$/, 'explore-action', async (ctx) => {
+    const token = ctx.match![1];
+    const topic = resolveCallbackToken('xbrf', token);
+    await ctx.answerCbQuery().catch(() => {});
+    if (!topic) {
+      await ctx.reply('按鈕已過期，請重新執行 /explore');
+      return;
+    }
+    await handleBriefByTopic(ctx, topic);
+  });
 
   registerAsyncAction(bot, /^compare:(.+)$/, 'compare-action', async (ctx) => {
     const rawArg = ctx.match![1];
     const arg = resolveCallbackToken('compare', rawArg);
     await ctx.answerCbQuery().catch(() => {});
     if (!arg) {
-      await ctx.reply('This button has expired. Please run /compare again.');
+      await ctx.reply('按鈕已過期，請重新執行 /explore');
       return;
     }
     await handleCompareByArg(ctx, arg);
   });
 
-  // --- ForceReply dispatch (direct handler calls, bypasses bot.command matching) ---
+  // --- InlineKeyboard: /digest sub-actions ---
+  registerAsyncAction(bot, /^dg:(.+)$/, 'digest-action', async (ctx) => {
+    const mode = ctx.match![1];
+    await ctx.answerCbQuery().catch(() => {});
+    const handlers: Record<string, (c: Context, cfg: AppConfig) => Promise<void>> = {
+      digest: handleDigest,
+      distill: handleDistill,
+      consolidate: handleConsolidate,
+    };
+    const handler = handlers[mode];
+    if (handler) await handler(ctx, config);
+  });
+
+  registerAsyncAction(bot, /^retry:(.+)$/, 'retry-action', createRetryActionHandler(stats, config));
+
+  // --- ForceReply dispatch ---
   registerForceReplyHandler('search', (ctx) =>
     runCommandTask(ctx, 'search', () => handleSearch(ctx, config), formatErrorMessage));
   registerForceReplyHandler('monitor', (ctx) =>
     runCommandTask(ctx, 'monitor', () => handleMonitor(ctx, config), formatErrorMessage));
   registerForceReplyHandler('timeline', (ctx) =>
     runCommandTask(ctx, 'timeline', () => handleTimeline(ctx, config), formatErrorMessage));
-  registerForceReplyHandler('compare', (ctx) =>
-    runCommandTask(ctx, 'compare', () => handleCompare(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('explore', (ctx) =>
+    runCommandTask(ctx, 'explore', () => handleExplore(ctx, config), formatErrorMessage));
   registerForceReplyHandler('ask', (ctx) =>
     runCommandTask(ctx, 'ask', () => handleAsk(ctx, config), formatErrorMessage));
   registerForceReplyHandler('discover', (ctx) =>
@@ -148,4 +176,3 @@ export function registerCommands(
     .setMyCommands(BOT_COMMANDS_MENU)
     .catch((err) => logger.warn('bot', 'setMyCommands failed', err));
 }
-

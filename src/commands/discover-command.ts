@@ -1,7 +1,7 @@
 /**
  * /discover — Proactive content discovery across platforms.
- * Searches GitHub trending repos by user interests, presents candidates.
- * User sends back URLs to process through the standard pipeline.
+ * /discover <keyword> — search GitHub repos by keyword.
+ * /discover (no args) — scan trending repos in default interest areas.
  */
 import { execFile } from 'node:child_process';
 import type { Context } from 'telegraf';
@@ -81,24 +81,28 @@ function formatResults(repos: GhRepo[], query: string): string {
   return lines.join('\n');
 }
 
+function getDateDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
 /* ── Command handler ─────────────────────────────────────────────────── */
 
-export async function handleDiscover(ctx: Context, config: AppConfig): Promise<void> {
+/** /discover <keyword> — search; /discover (no args) — trending */
+export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<void> {
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
   const rawQuery = text.replace(/^\/discover\s*/i, '').trim();
 
+  // No keyword → show trending
   if (!rawQuery) {
-    await ctx.reply(
-      tagForceReply('discover', '輸入搜尋關鍵字（如：ai-agent、obsidian-plugin）：'),
-      forceReplyMarkup('搜尋關鍵字…'),
-    );
+    await runTrending(ctx);
     return;
   }
 
   const status = await ctx.reply(`搜尋 GitHub…`);
 
   try {
-    // Build search query
     const query = rawQuery.includes(' stars:')
       ? rawQuery
       : `${rawQuery} stars:>50`;
@@ -117,8 +121,8 @@ export async function handleDiscover(ctx: Context, config: AppConfig): Promise<v
   }
 }
 
-/** Batch discover using default interest topics. */
-export async function handleDiscoverTrending(ctx: Context, _config: AppConfig): Promise<void> {
+/** Scan trending repos in default interest areas */
+async function runTrending(ctx: Context): Promise<void> {
   const status = await ctx.reply('掃描熱門專案中…');
 
   try {
@@ -150,10 +154,4 @@ export async function handleDiscoverTrending(ctx: Context, _config: AppConfig): 
   } finally {
     await ctx.deleteMessage(status.message_id).catch(() => {});
   }
-}
-
-function getDateDaysAgo(days: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() - days);
-  return d.toISOString().slice(0, 10);
 }
