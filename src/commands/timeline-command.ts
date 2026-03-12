@@ -82,7 +82,7 @@ function parseArgs(text: string): { username: string; platform: SupportedPlatfor
  * Scrape Threads user profile page — works without login.
  * Selectors confirmed via DOM analysis: [data-pressable-container], span[dir="auto"].
  */
-async function scrapeThreadsTimeline(username: string, count: number): Promise<ExtractedContent[]> {
+export async function scrapeThreadsTimeline(username: string, count: number): Promise<ExtractedContent[]> {
   const { page, release } = await camoufoxPool.acquire();
   const results: ExtractedContent[] = [];
   try {

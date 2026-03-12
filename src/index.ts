@@ -9,6 +9,8 @@ import { RULES_PATH } from './learning/learn-command.js';
 import { loadKnowledge, scanVaultNotes, saveKnowledge } from './knowledge/knowledge-store.js';
 import { shouldAutoConsolidate, consolidateVault } from './knowledge/consolidator.js';
 import { formatConsolidationReport, saveConsolidationNote } from './knowledge/consolidation-report.js';
+import { loadSubscriptions } from './subscriptions/subscription-store.js';
+import { startSubscriptionChecker } from './subscriptions/subscription-checker.js';
 
 const config = loadConfig();
 registerAllExtractors();
@@ -48,5 +50,12 @@ loadKnowledge()
 runVaultLearner(config.vaultPath, RULES_PATH)
   .then((patterns) => refreshFromPatterns(patterns))
   .catch((e) => logger.warn('learn', '啟動學習失敗', { message: (e as Error).message }));
+
+// Start subscription checker in background
+loadSubscriptions()
+  .then((store) => {
+    if (store.subscriptions.length > 0) startSubscriptionChecker(bot, config, store);
+  })
+  .catch((e) => logger.warn('subscribe', '載入訂閱失敗', { message: (e as Error).message }));
 
 new ProcessGuardian(bot).launch();

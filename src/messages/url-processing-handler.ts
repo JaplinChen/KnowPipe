@@ -1,4 +1,5 @@
 import type { Telegraf } from 'telegraf';
+import { createHash } from 'node:crypto';
 import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
 import type { ExtractorWithComments, ExtractorWithSeries } from '../extractors/types.js';
@@ -91,7 +92,14 @@ export function registerUrlProcessingHandler(
       } catch (err) {
         logger.error('msg', 'error processing url', { url, err });
         stats.errors++;
-        await ctx.reply(formatErrorMessage(err));
+        if (stats.failedUrls.length >= 50) stats.failedUrls.shift();
+        const urlHash = createHash('md5').update(url).digest('hex').slice(0, 12);
+        stats.failedUrls.push({ url, error: formatErrorMessage(err), timestamp: Date.now() });
+        await ctx.reply(formatErrorMessage(err), {
+          reply_markup: {
+            inline_keyboard: [[{ text: '🔄 重試', callback_data: `retry:${urlHash}` }]],
+          },
+        });
       }
 
       try {

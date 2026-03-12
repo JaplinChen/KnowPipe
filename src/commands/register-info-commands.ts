@@ -1,12 +1,9 @@
 ﻿import type { Telegraf } from 'telegraf';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
+import type { BotStats } from '../messages/types.js';
 
-export interface CommandStats {
-  urls: number;
-  saved: number;
-  errors: number;
-  recent: string[];
-}
+/** @deprecated Use BotStats directly */
+export type CommandStats = BotStats;
 
 export function registerInfoCommands(bot: Telegraf, stats: CommandStats, startTime: number): void {
   bot.command('status', async (ctx) => {

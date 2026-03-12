@@ -11,6 +11,11 @@ import { handlePreferences, handleDistill } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
 import { handleDiscover, handleDiscoverTrending } from './discover-command.js';
+import { handleReprocess } from './reprocess-command.js';
+import { createRetryHandler, createRetryActionHandler } from './retry-command.js';
+import { handleSubscribe } from './subscribe-command.js';
+import { handleQuality } from './quality-command.js';
+import { handleDigest } from './digest-command.js';
 import {
   handleRecommend,
   handleBrief,
@@ -86,6 +91,11 @@ export function registerCommands(
   registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
   registerAsyncCommand(bot, 'trending', 'trending', config, handleDiscoverTrending);
+  registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);
+  registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
+  registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
+  registerAsyncCommand(bot, 'quality', 'quality', config, handleQuality);
+  registerAsyncCommand(bot, 'digest', 'digest', config, handleDigest);
 
   // --- InlineKeyboard callback handlers ---
   registerAsyncAction(bot, /^(recommend|brief):(.+)$/, 'knowledge-action', async (ctx) => {
@@ -99,6 +109,8 @@ export function registerCommands(
     const handler = cmd === 'recommend' ? handleRecommendByTopic : handleBriefByTopic;
     await handler(ctx, topic);
   });
+
+  registerAsyncAction(bot, /^retry:(.+)$/, 'retry-action', createRetryActionHandler(stats, config));
 
   registerAsyncAction(bot, /^compare:(.+)$/, 'compare-action', async (ctx) => {
     const rawArg = ctx.match![1];
@@ -124,6 +136,10 @@ export function registerCommands(
     runCommandTask(ctx, 'ask', () => handleAsk(ctx, config), formatErrorMessage));
   registerForceReplyHandler('discover', (ctx) =>
     runCommandTask(ctx, 'discover', () => handleDiscover(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('reprocess', (ctx) =>
+    runCommandTask(ctx, 'reprocess', () => handleReprocess(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('subscribe', (ctx) =>
+    runCommandTask(ctx, 'subscribe', () => handleSubscribe(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 

@@ -7,7 +7,7 @@ import { registerForceReplyRouter } from './messages/force-reply-router.js';
 import type { BotStats } from './messages/types.js';
 
 const startTime = Date.now();
-const stats: BotStats = { urls: 0, saved: 0, errors: 0, recent: [] };
+const stats: BotStats = { urls: 0, saved: 0, errors: 0, recent: [], failedUrls: [] };
 
 /** Check if a Telegram user is allowed to use this bot */
 function isAuthorized(config: AppConfig, userId: number | undefined): boolean {
