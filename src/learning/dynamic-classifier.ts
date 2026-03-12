@@ -34,15 +34,20 @@ export function classifyWithLearnedRules(title: string, text: string): string | 
   const titleLower = title.toLowerCase();
   const textLower = text.toLowerCase();
 
-  // Pass 1: title match ??require higher confidence
+  // Skip overly short keywords (e.g. "24") — too many false positives
+  const MIN_KEYWORD_LEN = 3;
+
+  // Pass 1: title match — require higher confidence
   for (const rule of cachedRules) {
+    if (rule.keyword.length < MIN_KEYWORD_LEN) continue;
     if (rule.score >= 0.8 && titleLower.includes(rule.keyword)) {
       return rule.category;
     }
   }
 
-  // Pass 2: body match ??moderate confidence
+  // Pass 2: body match — moderate confidence
   for (const rule of cachedRules) {
+    if (rule.keyword.length < MIN_KEYWORD_LEN) continue;
     if (rule.score >= 0.75 && textLower.includes(rule.keyword)) {
       return rule.category;
     }

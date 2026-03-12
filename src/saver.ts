@@ -178,8 +178,12 @@ export async function saveToVault(
       .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ ]/g, '').trim())
       .filter(p => p.length > 0);
     const folderPath = categoryParts.join('/') || '其他';
+    // Append optional subFolder for series grouping (e.g. "Obsidian雙向連結系列教學")
+    const fullFolderPath = content.subFolder
+      ? `${folderPath}/${content.subFolder.replace(/[<>:"/\\|?*]/g, '').trim()}`
+      : folderPath;
     const baseGetThreads = resolve(join(vaultPath, 'GetThreads'));
-    const resolvedNotes = resolve(join(vaultPath, 'GetThreads', folderPath));
+    const resolvedNotes = resolve(join(vaultPath, 'GetThreads', fullFolderPath));
     const notesDir = (resolvedNotes === baseGetThreads || resolvedNotes.startsWith(baseGetThreads + sep))
       ? resolvedNotes
       : baseGetThreads;

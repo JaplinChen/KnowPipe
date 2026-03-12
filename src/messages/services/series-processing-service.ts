@@ -43,7 +43,14 @@ export async function processSeriesBatch(
     count: articles.length,
   });
 
-  // 2. Save index note (with enrichment)
+  // 2. Generate subfolder name from series title
+  const seriesFolder = seriesTitle
+    .replace(/[<>:"/\\|?*]/g, '')
+    .replace(/\s+/g, '')
+    .slice(0, 40)
+    .trim();
+
+  // 3. Save index note (with enrichment, NO subfolder — stays in main category)
   const indexContent = await extractor.extract(seriesUrl);
   await enrichExtractedContent(indexContent, config);
   const indexResult = await saveExtractedContent(indexContent, config.vaultPath);
@@ -65,6 +72,7 @@ export async function processSeriesBatch(
 
       // Classify only (skip LLM enrichment for speed)
       content.category = classifyContent(content.title, content.text);
+      content.subFolder = seriesFolder;
 
       const result = await saveExtractedContent(content, config.vaultPath);
       if (result.duplicate) {

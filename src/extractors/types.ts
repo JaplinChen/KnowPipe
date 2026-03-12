@@ -64,6 +64,8 @@ export interface ExtractedContent {
   imageDescriptions?: string;
   /** Video transcript (subtitles / STT) ??used for AI summary, not rendered in note */
   transcript?: string;
+  /** Sub-folder under category for grouping series articles (e.g. "Obsidian雙向連結系列教學") */
+  subFolder?: string;
   /** Temp directory to clean up after saving (used by TikTok extractor for local screenshots) */
   tempDir?: string;
 }
