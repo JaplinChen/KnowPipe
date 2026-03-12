@@ -199,6 +199,21 @@ npx tsc --noEmit # 型別檢查
 - URL 去重快取：避免重複儲存相同內容
 - 批次翻譯：opencc-js（簡轉繁）+ Google Translate（英翻中），無需 API key
 
+### Claude Code Skills（開發輔助）
+
+13 個自訂技能，涵蓋開發全流程：
+
+| 類別 | 技能 | 用途 |
+|------|------|------|
+| 開發流程 | `/design` `/dev` `/ship` | 架構確認 → 開發 → 驗證提交推送 |
+| Session | `/resume` `/handoff` | 自動啟動 / 交接記錄 |
+| 測試 | `/test` | classify / extractor / smoke / status |
+| 重構 | `/refactor` | 影響分析 → 遷移 → 模組化拆分 |
+| Vault | `/vault` | 維護 / 修復 / 知識萃取 |
+| Bot 管理 | `/launch` | 啟動 / 停止 / 診斷 409 |
+| 維護 | `/health` `/weekly` | 即時快照 / 週維護（含依賴檢查） |
+| 新平台 | `/new-platform` | 腳手架 → 實作 → 測試 → 提交 |
+
 ### 設計原則
 
 - 所有 TypeScript 檔案 **≤ 300 行**
