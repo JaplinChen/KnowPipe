@@ -8,6 +8,14 @@ const AI_SUBCATEGORY_REFINEMENT: Array<{ name: string; keywords: string[] }> = [
     keywords: ['claude code', 'cowork', 'claude cowork', 'openwork', '辦公協作'],
   },
   {
+    name: 'AI/OpenAI',
+    keywords: ['codex', 'openai codex', 'gpt-5', 'chatgpt'],
+  },
+  {
+    name: 'AI/Google',
+    keywords: ['gemini', 'notebooklm', 'notebook lm', 'nano banana', 'google ai'],
+  },
+  {
     name: 'AI/OpenClaw',
     keywords: ['openclaw', 'open claw', 'clawbot', '龍蝦'],
   },
@@ -93,6 +101,18 @@ const CATEGORIES: Array<{ name: string; keywords: string[] }> = [
     ],
   },
   {
+    name: 'AI/OpenAI',
+    keywords: [
+      'codex', 'openai codex', 'gpt-5', 'chatgpt',
+    ],
+  },
+  {
+    name: 'AI/Google',
+    keywords: [
+      'gemini', 'notebooklm', 'notebook lm', 'nano banana', 'google ai',
+    ],
+  },
+  {
     name: 'AI/OpenClaw',
     keywords: [
       'openclaw', 'open claw', 'openclaws', 'clawbot',
@@ -161,27 +181,24 @@ const CATEGORIES: Array<{ name: string; keywords: string[] }> = [
   { // 通用 AI（兜底）
     name: 'AI',
     keywords: [
-      'ai', 'gpt', 'llm', 'claude', 'gemini', 'openai', 'anthropic',
+      'ai', 'gpt', 'llm', 'claude', 'openai', 'anthropic',
       'copilot', 'diffusion', 'chatbot', '人工智慧', '大語言模型',
       '大语言模型', '機器學習', 'machine learning', 'deep learning',
     ],
   },
 
   // ── 其他頂層分類 ──
+  { // Apple 產品排在通用科技之前
+    name: '科技/Apple',
+    keywords: ['macbook', 'iphone', 'ipad', 'macos', 'apple silicon', 'apple watch', 'ios ', 'mac mini', 'mac studio', 'mac pro', 'imac', 'macwhisper', 'orbstack'],
+  },
   {
     name: '科技',
-    keywords: [
-      'hardware', 'chip', 'semiconductor', '晶片', '半導體',
-      '硬體', '科技新聞', 'apple silicon', '休眠機制',
-    ],
+    keywords: ['hardware', 'chip', 'semiconductor', '晶片', '半導體', '硬體', '科技新聞', '休眠機制'],
   },
   {
     name: '程式設計',
-    keywords: [
-      'programming', 'javascript', 'typescript',
-      'python', 'rust', 'react', 'nextjs',
-      '程式設計', 'backend', 'frontend', 'database', '訂閱管理',
-    ],
+    keywords: ['programming', 'javascript', 'typescript', 'python', 'rust', 'react', 'nextjs', '程式設計', 'backend', 'frontend', 'database', '訂閱管理'],
   },
   {
     name: '投資理財',
@@ -201,27 +218,15 @@ const CATEGORIES: Array<{ name: string; keywords: string[] }> = [
   },
   {
     name: '設計',
-    keywords: [
-      'ux design', 'ui design', 'figma', 'typography', 'brand design', 'logo',
-      'visual design', '排版', '品牌設計', '視覺設計', 'prototype', 'wireframe',
-    ],
+    keywords: ['ux design', 'ui design', 'figma', 'typography', 'brand design', 'logo', 'visual design', '排版', '品牌設計', '視覺設計', 'prototype', 'wireframe'],
   },
   {
     name: '行銷',
-    keywords: [
-      'marketing', 'seo', 'google ads', 'facebook ads', 'growth hack', 'content marketing',
-      'social media marketing', 'campaign', '行銷', '廣告', '流量', 'viral',
-    ],
+    keywords: ['marketing', 'seo', 'google ads', 'facebook ads', 'growth hack', 'content marketing', 'social media marketing', 'campaign', '行銷', '廣告', '流量', 'viral'],
   },
   {
     name: '中文媒體',
-    keywords: [
-      '微博', 'weibo',
-      '小紅書', '小红书', 'xiaohongshu', '紅書', 'xhs',
-      'bilibili', 'b站', '嗶哩嗶哩', '哔哩哔哩',
-      '抖音', 'douyin', '今日頭條', '今日头条', 'toutiao', 'tiktok',
-      '知乎', 'zhihu', '豆瓣', 'douban',
-    ],
+    keywords: ['微博', 'weibo', '小紅書', '小红书', 'xiaohongshu', '紅書', 'xhs', 'bilibili', 'b站', '嗶哩嗶哩', '哔哩哔哩', '抖音', 'douyin', '今日頭條', '今日头条', 'toutiao', 'tiktok', '知乎', 'zhihu', '豆瓣', 'douban'],
   },
   {
     name: '生產力',
@@ -232,10 +237,7 @@ const CATEGORIES: Array<{ name: string; keywords: string[] }> = [
   },
   {
     name: '新聞時事',
-    keywords: [
-      'news', 'breaking', 'report', 'election', 'government', 'policy',
-      'war', '新聞', '時事', '政策', '政府', '選舉', '戰爭', '國際',
-    ],
+    keywords: ['news', 'breaking', 'report', 'election', 'government', 'policy', 'war', '新聞', '時事', '政策', '政府', '選舉', '戰爭', '國際'],
   },
   {
     name: '生活',
