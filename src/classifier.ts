@@ -5,7 +5,7 @@ import { classifyWithLearnedRules } from './learning/dynamic-classifier.js';
 const AI_SUBCATEGORY_REFINEMENT: Array<{ name: string; keywords: string[] }> = [
   {
     name: 'AI/Claude',
-    keywords: ['claude code', 'cowork', 'claude cowork'],
+    keywords: ['claude code', 'cowork', 'claude cowork', 'openwork', '辦公協作'],
   },
   {
     name: 'AI/OpenClaw',
@@ -89,7 +89,7 @@ const CATEGORIES: Array<{ name: string; keywords: string[] }> = [
   {
     name: 'AI/Claude',
     keywords: [
-      'claude code', 'cowork', 'claude cowork',
+      'claude code', 'cowork', 'claude cowork', 'openwork', '辦公協作',
     ],
   },
   {
