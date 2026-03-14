@@ -16,6 +16,7 @@ interface QualityIssue {
 
 interface QualityReport {
   totalNotes: number;
+  issueNoteCount: number;
   issueBreakdown: Record<string, number>;
   worstOffenders: QualityIssue[];
 }
@@ -100,7 +101,7 @@ async function generateReport(vaultPath: string): Promise<QualityReport> {
   // Sort by most issues
   issues.sort((a, b) => b.issues.length - a.issues.length);
 
-  return { totalNotes, issueBreakdown: breakdown, worstOffenders: issues.slice(0, 10) };
+  return { totalNotes, issueNoteCount: issues.length, issueBreakdown: breakdown, worstOffenders: issues.slice(0, 10) };
 }
 
 export async function handleQuality(ctx: Context, config: AppConfig): Promise<void> {
@@ -119,8 +120,7 @@ export async function handleQuality(ctx: Context, config: AppConfig): Promise<vo
     if (breakdownEntries.length === 0) {
       lines.push('✅ 所有筆記品質良好！');
     } else {
-      const totalIssueNotes = report.worstOffenders.length;
-      lines.push(`問題筆記：${new Set(report.worstOffenders.map(w => w.file)).size + (report.issueBreakdown['空白摘要'] ?? 0) > report.worstOffenders.length ? '...' : ''}`);
+      lines.push(`問題筆記：${report.issueNoteCount} 篇${report.issueNoteCount > report.worstOffenders.length ? '（顯示前 ' + report.worstOffenders.length + ' 篇）' : ''}`);
       lines.push('');
       for (const [issue, count] of breakdownEntries) {
         const bar = '█'.repeat(Math.min(Math.round(count / report.totalNotes * 20), 20));
