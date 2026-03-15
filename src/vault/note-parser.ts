@@ -56,9 +56,14 @@ export function parseVaultNote(rawMarkdown: string): ParsedNote | null {
   const sourceLabel = fm(frontmatter, 'source');
   const platform = LABEL_TO_PLATFORM[sourceLabel.toLowerCase()] ?? 'web';
 
-  // Extract text: content between frontmatter and first ## section header
+  // Extract text: content between frontmatter and first enriched section header
+  // Stop before any enriched sections (摘要/分析/重點/Key Points/Analysis/Summary)
+  // to avoid previous enrichment output contaminating reclassification
+  const enrichedSectionRe = /^## (?:摘要|分析|重點|關鍵觀點|Key Points|Analysis|Summary|AI 摘要)/m;
+  const enrichIdx = body.search(enrichedSectionRe);
   const sectionIdx = body.search(/^## /m);
-  const rawText = sectionIdx >= 0 ? body.slice(0, sectionIdx) : body;
+  const cutoff = enrichIdx >= 0 ? enrichIdx : (sectionIdx >= 0 ? sectionIdx : body.length);
+  const rawText = body.slice(0, cutoff);
   // Clean: remove author line (> **@...**), translation tags, empty lines
   const text = rawText
     .replace(/^>\s*\*\*@.*$/gm, '')
