@@ -10,6 +10,7 @@ import { saveToVault, isDuplicateUrl } from '../saver.js';
 import { classifyContent } from '../classifier.js';
 import { findExtractor } from '../utils/url-parser.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
+import { enrichExtractedContent } from '../messages/services/enrich-content-service.js';
 
 /** Hosts excluded from /monitor results (auth-required, content not accessible). */
 const MONITOR_SKIP_HOSTS = new Set([
@@ -69,7 +70,7 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
     let saved = 0;
     for (const post of posts) {
       try {
-        post.category = classifyContent(post.title, post.text);
+        await enrichExtractedContent(post, config);
         const r = await saveToVault(post, config.vaultPath);
         if (!r.duplicate) saved++;
       } catch { /* skip */ }
