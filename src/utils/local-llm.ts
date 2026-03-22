@@ -1,14 +1,13 @@
 /**
  * LLM prompt runner with multi-model routing.
- * Priority: oMLX (local HTTP, 25s cap) → opencode CLI (remote) → DDG AI Chat.
- * Translation also calls oMLX directly via translator.ts for guaranteed fast path.
+ * Priority: opencode CLI (remote) → DDG AI Chat.
+ * oMLX is reserved for translation only (called directly in translator.ts)
+ * to avoid resource contention with enrichment in concurrent batches.
  */
 import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
-import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
 
 const CLI_TIMEOUT_MS = 90_000;
-const OMLX_TIMEOUT_CAP_MS = 25_000;
 
 /** Available free models ranked by capability. */
 export const LLM_MODELS = {
@@ -64,25 +63,18 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
 
 /**
  * Run a prompt against LLM providers.
- * Priority: oMLX (local, 25s cap) → opencode CLI (remote) → DDG AI Chat.
+ * Priority: opencode CLI (remote) → DDG AI Chat.
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const tier = options.model ?? 'standard';
   const model = LLM_MODELS[tier];
 
-  // 1) Try oMLX local inference (25s cap — short tasks succeed, long tasks fall back)
-  if (await isOmlxAvailable()) {
-    const omlxTimeout = Math.min(timeoutMs, OMLX_TIMEOUT_CAP_MS);
-    const omlxResult = await omlxChatCompletion(prompt, { model: tier, timeoutMs: omlxTimeout });
-    if (omlxResult) return omlxResult;
-  }
-
-  // 2) Try opencode CLI with selected model
+  // 1) Try opencode CLI with selected model
   const cliResult = await runViaCli(prompt, timeoutMs, model);
   if (cliResult) return cliResult;
 
-  // 3) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
+  // 2) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
   const ddgResult = await runViaDdgChat(prompt, timeoutMs);
   if (ddgResult) return ddgResult;
 
