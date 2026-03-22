@@ -1,5 +1,18 @@
 ﻿import { logger } from '../../core/logger.js';
+import { classifyError } from '../../core/errors.js';
+import type { ErrorCode } from '../../core/errors.js';
 import type { ExtractedContent, ExtractorWithComments } from '../../extractors/types.js';
+import { webExtractor } from '../../extractors/web-extractor.js';
+
+/** Error codes eligible for web-extractor fallback */
+const FALLBACK_ELIGIBLE: Set<ErrorCode> = new Set([
+  'TIMEOUT', 'FORBIDDEN', 'NETWORK', 'UNKNOWN',
+]);
+
+function shouldFallbackToWeb(err: unknown, platform: string): boolean {
+  if (platform === 'web') return false;
+  return FALLBACK_ELIGIBLE.has(classifyError(err));
+}
 
 /** Filter out noise: too short, pure emoji, or generic one-word reactions */
 function isMeaningfulComment(c: { text: string }): boolean {
@@ -22,8 +35,28 @@ export async function extractContentWithComments(
     hasComments ? extractor.extractComments(url, 30) : Promise.resolve([]),
   ]);
 
-  if (contentResult.status === 'rejected') throw contentResult.reason as Error;
-  const content = contentResult.value;
+  let content: ExtractedContent;
+
+  if (contentResult.status === 'rejected') {
+    const originalError = contentResult.reason as Error;
+
+    if (shouldFallbackToWeb(originalError, extractor.platform)) {
+      logger.warn('extract', `${extractor.platform} 失敗，嘗試 web-extractor 降級`, {
+        error: originalError.message.slice(0, 100),
+      });
+      try {
+        content = await webExtractor.extract(url);
+        logger.info('extract', `web-extractor 降級成功：${url}`);
+      } catch {
+        throw originalError;
+      }
+    } else {
+      throw originalError;
+    }
+  } else {
+    content = contentResult.value;
+  }
+
   logger.info('msg', 'extracted', { title: content.title });
 
   if (commentsResult.status === 'fulfilled' && commentsResult.value.length > 0) {

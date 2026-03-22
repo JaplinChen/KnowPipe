@@ -35,6 +35,7 @@ import { registerLearningCommands } from './register-learning-commands.js';
 import { registerInfoCommands } from './register-info-commands.js';
 import type { BotStats } from '../messages/types.js';
 import { handleLogs, handleHealth, handleRestart } from './admin-command.js';
+import { handleDoctor } from './doctor-command.js';
 
 export { formatErrorMessage };
 
@@ -91,6 +92,7 @@ export function registerCommands(
   registerAsyncCommand(bot, 'logs', 'logs', config, handleLogs);
   registerAsyncCommand(bot, 'health', 'health', config, handleHealth);
   registerAsyncCommand(bot, 'restart', 'restart', config, handleRestart);
+  registerAsyncCommand(bot, 'doctor', 'doctor', config, handleDoctor);
 
   // --- Maintenance ---
   registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);

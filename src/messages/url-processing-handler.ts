@@ -110,7 +110,8 @@ export function registerUrlProcessingHandler(
       try {
         const t0 = Date.now();
         const content = await extractContentWithComments(url, extractor as ExtractorWithComments);
-        logger.info('perf', 'extract', { ms: Date.now() - t0 });
+        const wasFallback = extractor.platform !== 'web' && content.platform === 'web';
+        logger.info('perf', 'extract', { ms: Date.now() - t0, wasFallback });
 
         updateProgress('enriching');
         const t1 = Date.now();
@@ -134,7 +135,8 @@ export function registerUrlProcessingHandler(
 
         stopTyping();
         react(ctx, '✅');
-        await ctx.reply(formatSavedSummary(content, result));
+        const fallbackNote = wasFallback ? '\n⚠️ 平台擷取失敗，已使用通用網頁擷取' : '';
+        await ctx.reply(formatSavedSummary(content, result) + fallbackNote);
 
         // 回傳 .md 檔案到 Telegram
         try {

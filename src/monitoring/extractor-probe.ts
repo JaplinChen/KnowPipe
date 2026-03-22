@@ -7,9 +7,18 @@ import { logger } from '../core/logger.js';
 
 /** Probe URLs — lightweight, public, stable content for each platform */
 const PROBE_URLS: Record<string, string> = {
-  github: 'https://github.com/anthropics/claude-code',
+  x: 'https://x.com/elonmusk/status/1585341984679469056',
+  threads: 'https://www.threads.net/@zuck/post/CuVGBSxsuaJ',
   youtube: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+  github: 'https://github.com/anthropics/claude-code',
   reddit: 'https://www.reddit.com/r/programming/comments/1a',
+  bilibili: 'https://www.bilibili.com/video/BV1GJ411x7h7',
+  weibo: 'https://weibo.com/2803301701/4976424138269810',
+  xiaohongshu: 'https://www.xiaohongshu.com/explore/6548d6b2000000001f0066ab',
+  douyin: 'https://www.douyin.com/video/7294556955546986752',
+  tiktok: 'https://www.tiktok.com/@tiktok/video/7106594312292453674',
+  ithome: 'https://ithelp.ithome.com.tw/articles/10290464',
+  web: 'https://example.com',
 };
 
 /** Test a single extractor by attempting to extract a known URL */
@@ -45,7 +54,7 @@ async function probeExtractor(
 
 /** Run health probes for all configured extractors */
 export async function probeAllExtractors(
-  extractors: Array<{ platform: string; extract: (url: string) => Promise<unknown> }>,
+  extractors: ReadonlyArray<{ platform: string; extract: (url: string) => Promise<unknown> }>,
   previousHealth: Record<string, ExtractorHealth>,
 ): Promise<Record<string, ExtractorHealth>> {
   const results: Record<string, ExtractorHealth> = {};
