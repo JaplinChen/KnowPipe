@@ -14,11 +14,16 @@ function getApiKey(): string {
   return process.env['OMLX_API_KEY'] ?? '';
 }
 
-/** Map model tiers to oMLX model directory names. */
+/**
+ * Map model tiers to oMLX model directory names.
+ * All tiers use 9B for local inference — 27B is too slow for concurrent
+ * batch processing (90s+ with 3 workers). Deep tier falls back to
+ * opencode CLI when oMLX 9B quality is insufficient.
+ */
 const OMLX_MODELS: Record<ModelTier, string> = {
   flash: 'Qwen3.5-9B-MLX-4bit',
   standard: 'Qwen3.5-9B-MLX-4bit',
-  deep: 'Qwen3.5-27B-4bit',
+  deep: 'Qwen3.5-9B-MLX-4bit',
 };
 
 /** Build common headers (Content-Type + optional Authorization). */

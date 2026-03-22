@@ -9,6 +9,13 @@ import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
 
 const CLI_TIMEOUT_MS = 90_000;
 
+/**
+ * Cap oMLX timeout so long-running tasks (enrichment, 300-word analysis)
+ * fail fast and fall back to remote CLI. Translation (~2-5s) succeeds;
+ * enrichment (~77s on 9B) times out and falls back gracefully.
+ */
+const OMLX_TIMEOUT_CAP_MS = 25_000;
+
 /** Available free models ranked by capability. */
 export const LLM_MODELS = {
   flash: 'opencode/mimo-v2-flash-free',       // fast, keyword/title extraction
@@ -71,9 +78,10 @@ export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}
   const tier = options.model ?? 'standard';
   const model = LLM_MODELS[tier];
 
-  // 1) Try oMLX local inference (fastest, no subprocess spawn)
+  // 1) Try oMLX local inference (fastest for short tasks like translation)
   if (await isOmlxAvailable()) {
-    const omlxResult = await omlxChatCompletion(prompt, { model: tier, timeoutMs });
+    const omlxTimeout = Math.min(timeoutMs, OMLX_TIMEOUT_CAP_MS);
+    const omlxResult = await omlxChatCompletion(prompt, { model: tier, timeoutMs: omlxTimeout });
     if (omlxResult) return omlxResult;
     console.warn('[llm] oMLX failed, falling back to opencode CLI');
   }
