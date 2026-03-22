@@ -36,6 +36,8 @@ import { registerInfoCommands } from './register-info-commands.js';
 import type { BotStats } from '../messages/types.js';
 import { handleLogs, handleHealth, handleRestart } from './admin-command.js';
 import { handleDoctor } from './doctor-command.js';
+import { handleFind } from './find-command.js';
+import { handlePatrol } from './patrol-command.js';
 
 export { formatErrorMessage };
 
@@ -80,6 +82,7 @@ export function registerCommands(
   registerAsyncCommand(bot, 'timeline', 'timeline', config, handleTimeline);
   registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
   registerAsyncCommand(bot, 'search', 'search', config, handleSearch);
+  registerAsyncCommand(bot, 'find', 'find', config, handleFind);
 
   // --- Knowledge system (consolidated) ---
   registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
@@ -102,6 +105,7 @@ export function registerCommands(
   registerAsyncCommand(bot, 'suggest', 'suggest', config, handleSuggest);
   registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
   registerAsyncCommand(bot, 'benchmark', 'benchmark', config, handleBenchmark);
+  registerAsyncCommand(bot, 'patrol', 'patrol', config, handlePatrol);
 
   // --- InlineKeyboard: /knowledge sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
@@ -191,6 +195,8 @@ export function registerCommands(
     runCommandTask(ctx, 'reprocess', () => handleReprocess(ctx, config), formatErrorMessage));
   registerForceReplyHandler('subscribe', (ctx) =>
     runCommandTask(ctx, 'subscribe', () => handleSubscribe(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('find', (ctx) =>
+    runCommandTask(ctx, 'find', () => handleFind(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 
