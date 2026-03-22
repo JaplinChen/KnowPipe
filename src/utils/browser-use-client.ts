@@ -2,14 +2,33 @@
  * Browser Use CLI client — wraps `browser-use` commands via execFileAsync.
  * Pattern matches existing yt-dlp / ffmpeg CLI integration style.
  * Each client instance uses a named session for isolation.
+ *
+ * CLI reference (verified against browser-use 0.12.x):
+ *   open <url>         — navigate
+ *   get text <idx>     — element text by index
+ *   get html           — full page HTML (no arg)
+ *   get title          — page title
+ *   state              — interactive element list
+ *   eval <js>          — execute JavaScript
+ *   click <idx>        — click element
+ *   screenshot [path]  — capture screenshot
+ *   cookies import/export <file>
+ *   close              — close session
+ *
+ * Requires: --headed for visible browser, --profile <name> for Chrome profile
  */
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { join } from 'node:path';
+import { homedir } from 'node:os';
 
 const execFileAsync = promisify(execFile);
 
 const DEFAULT_TIMEOUT = 30_000;
 const MAX_BUFFER = 5 * 1024 * 1024;
+
+/** Resolved path to the browser-use binary inside the venv */
+const BROWSER_USE_BIN = join(homedir(), '.browser-use-env', 'bin', 'browser-use');
 
 /** Parsed element from `browser-use state` output */
 export interface BrowserElement {
@@ -20,34 +39,46 @@ export interface BrowserElement {
 
 export class BrowserUseClient {
   private readonly session: string;
+  private readonly headed: boolean;
 
-  constructor(session = 'getthreads') {
+  constructor(session = 'getthreads', headed = false) {
     this.session = session;
+    this.headed = headed;
   }
 
   /** Check if browser-use CLI is installed */
   async isAvailable(): Promise<boolean> {
     try {
-      await execFileAsync('browser-use', ['--version'], { timeout: 5_000 });
+      await execFileAsync(BROWSER_USE_BIN, ['doctor'], { timeout: 10_000 });
       return true;
     } catch {
       return false;
     }
   }
 
-  /** Navigate to a URL and wait for the page to load */
+  /** Navigate to a URL */
   async open(url: string): Promise<string> {
     return this.exec(['open', url]);
   }
 
-  /** Get visible text content of the current page */
+  /** Get page text via JavaScript eval (browser-use has no bare `text` command) */
   async text(): Promise<string> {
-    return this.exec(['text']);
+    const raw = await this.exec(['eval', 'document.body?.innerText ?? ""']);
+    // Output format: "result: <text>"
+    return raw.replace(/^result:\s*/i, '').trim();
   }
 
-  /** Get page HTML source */
+  /** Get full page HTML via `get html` */
   async html(): Promise<string> {
-    return this.exec(['html'], 15_000);
+    const raw = await this.exec(['get', 'html'], 15_000);
+    // Output format: "html: <content>"
+    return raw.replace(/^html:\s*/i, '');
+  }
+
+  /** Get page title */
+  async title(): Promise<string> {
+    const raw = await this.exec(['get', 'title']);
+    return raw.replace(/^title:\s*/i, '').trim();
   }
 
   /** Get interactive elements on the page (index + tag + text) */
@@ -56,9 +87,10 @@ export class BrowserUseClient {
     return this.parseState(raw);
   }
 
-  /** Take a screenshot and save to file */
-  async screenshot(outputPath: string): Promise<string> {
-    return this.exec(['screenshot', outputPath]);
+  /** Take a screenshot */
+  async screenshot(outputPath?: string): Promise<string> {
+    const args = outputPath ? ['screenshot', outputPath] : ['screenshot'];
+    return this.exec(args);
   }
 
   /** Click an element by its index from `state()` */
@@ -66,9 +98,9 @@ export class BrowserUseClient {
     return this.exec(['click', String(index)]);
   }
 
-  /** Type text into the focused element or element by index */
+  /** Type text into an element by index */
   async type(index: number, value: string): Promise<string> {
-    return this.exec(['type', String(index), value]);
+    return this.exec(['input', String(index), value]);
   }
 
   /** Scroll the page */
@@ -76,15 +108,16 @@ export class BrowserUseClient {
     return this.exec(['scroll', direction, String(amount)]);
   }
 
-  /** Get current page URL */
+  /** Get current page URL via eval */
   async url(): Promise<string> {
-    const raw = await this.exec(['url']);
-    return raw.trim();
+    const raw = await this.exec(['eval', 'window.location.href']);
+    return raw.replace(/^result:\s*/i, '').trim();
   }
 
   /** Execute arbitrary JavaScript in the page context */
   async evaluate(script: string): Promise<string> {
-    return this.exec(['execute', script]);
+    const raw = await this.exec(['eval', script]);
+    return raw.replace(/^result:\s*/i, '').trim();
   }
 
   /** Import cookies from a JSON file */
@@ -109,10 +142,13 @@ export class BrowserUseClient {
   // ── Internal ──────────────────────────────────────────────
 
   private async exec(args: string[], timeout = DEFAULT_TIMEOUT): Promise<string> {
+    const baseArgs = ['--session', this.session];
+    if (this.headed) baseArgs.push('--headed');
+
     try {
       const { stdout } = await execFileAsync(
-        'browser-use',
-        ['--session', this.session, ...args],
+        BROWSER_USE_BIN,
+        [...baseArgs, ...args],
         { timeout, maxBuffer: MAX_BUFFER },
       );
       return stdout;
@@ -130,10 +166,10 @@ export class BrowserUseClient {
   /** Parse `browser-use state` output into structured elements */
   private parseState(raw: string): BrowserElement[] {
     const elements: BrowserElement[] = [];
-    // Format: "[index] <tag> text..."
+    // Format: "[index]<tag attr=val /> text"
     const lines = raw.split('\n').filter(Boolean);
     for (const line of lines) {
-      const m = line.match(/^\[(\d+)]\s*<(\w+)>\s*(.*)/);
+      const m = line.match(/^\[(\d+)]<(\w+)\b[^/]*\/?>?\s*(.*)/);
       if (m) {
         elements.push({
           index: parseInt(m[1], 10),
