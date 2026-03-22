@@ -1,166 +1,128 @@
-# GetThreads — AI Coding Agent Instructions
+# AGENTS.md
 
-> 適用於 Codex CLI / OpenCode。專案規則 + 13 個開發技能的濃縮版。
+This file provides guidance to WARP (warp.dev) when working with code in this repository.
 
-## 專案概況
+## Project Overview
 
-- **用途**：Telegram Bot，抓取社群內容存到 Obsidian Vault
-- **語言**：TypeScript（Telegraf + tsx）
-- **架構**：extractor → classifier → formatter → saver 管線
-- **路徑**：`C:\Works\GetThreads`
+GetThreads is a Telegram Bot that extracts content from 10+ social platforms (X, Threads, Reddit, Bilibili, YouTube, TikTok, GitHub, 微博, 小紅書, 抖音, generic web) and saves it as Markdown notes into an Obsidian Vault. It uses Telegraf, TypeScript/ESM, and a `tsx`-based dev runtime. LLM enrichment is done via an external CLI (OpenCode/Claude/Codex) — no Anthropic/OpenAI SDK is used.
 
-## 核心規則
+## Commands
 
-### Build & Verification
-- 修改任何 `.ts` 後必須 `npx tsc --noEmit` 零錯誤
-- 所有 TypeScript 檔案 **≤ 300 行**
-
-### Windows 環境
-- BAT 檔：CP950 編碼 + CRLF + 無 BOM，`echo` 中不可用 `||`
-- 進程管理用 `tasklist` / `taskkill`
-- 路徑用 `path.join()`
-
-### 架構原則
-- 新功能整合進 URL 處理 pipeline，不另建 command
-- 遵循 extractor → formatter → saver 管線
-- 不使用任何 API SDK（無 Anthropic/OpenAI SDK）
-- 不使用本地 LLM / Ollama
-
-### Post-Fix Checklist
-- 修改 extractor/formatter 後，必須檢查已存在的 Vault 筆記
-- 修改 classifier 後，跑回歸測試（注意 substring 匹配陷阱）
-
-### Git
-- Commit message 繁體中文：`<type>: <描述>`
-- 功能完成後 commit + push
-- 顯著變更時同步更新 README
-
----
-
-## 開發技能速查
-
-### /ship — 驗證 + 提交 + 推送
-
-```
-自動偵測範圍（≥3 檔案=深度，<3=快速）
-快速驗證：tsc + 行數 + secrets + dead imports（並行）
-深度追加：分類器回歸 + 搜尋引擎 + 管線冒煙
-調試碼掃描 → Vault 影響評估 → commit → README → push
+```bash
+npm run dev          # Start bot in dev mode (tsx, no build step needed)
+npm run build        # Compile TypeScript to dist/
+npm start            # Run compiled output (requires build first)
+npx tsc --noEmit     # Type-check only — MUST pass zero errors after any .ts change
+npm run lint         # ESLint
+npm run lint:fix     # ESLint with auto-fix
+npm run test         # Run all tests (vitest)
+npm run test:watch   # Run tests in watch mode
 ```
 
-### /test — 統一測試
-
-```
-/test classify    — 分類器回歸（10+ 案例，表格輸出）
-/test extractor   — 單 URL 真實抓取（30s timeout）
-/test smoke       — 管線冒煙（X + GitHub + Reddit）
-/test smoke --full — 全平台（+ Threads + Bilibili + Web）
-/test status      — 所有 extractor 健康檢查（match + parseId + extract）
+Run a single test file:
+```bash
+npx vitest run -c vitest.config.ts src/path/to/file.test.ts
 ```
 
-### /refactor — 重構全流程
-
-```
-Phase 1：影響分析（grep 依賴圖 → 輸出影響圖）
-Phase 2：遷移計畫（型別→生產者→消費者）
-Phase 3：逐步執行（每步 tsc --noEmit）
-Phase 4：冒煙測試
-Phase 5：提交
---modularize：掃描 >300 行檔案，批次拆分
---dry-run：僅分析不修改
+Pre-commit check (all three must pass):
+```bash
+npm run lint && npm run test && npm run build
 ```
 
-### /vault — Vault 管理
-
-```
-/vault maintain          — 健康報告 + 分類評估 + metadata
-/vault maintain --report — 唯讀報告
-/vault fix               — 偵測 6 種品質問題並修復（HTML殘留/壞連結/缺欄位）
-/vault analyze           — 知識萃取（實體/洞察/關係→vault-knowledge.json）
-/vault analyze --full    — 全量重新分析
+First-time setup for platforms requiring a browser (Threads, 小紅書, 抖音):
+```bash
+npx camoufox-js fetch
 ```
 
-### /launch — Bot 管理
+## Architecture
 
-```
-/launch           — 標準：kill → tsc → npm run dev → 監控 15s
-/launch --force   — 強制：殺所有 node → 等 5s → tsc → start → 409 重試
-/launch --diagnose — WMIC 進程分析 → 精確 kill → 網路連線 → deleteWebhook
-/launch --stop    — 安全停止：taskkill → 驗證 → 清 lockfile
-409 持續 → 自動升級：標準 → force → diagnose
-```
+### Boot Sequence
 
-### /dev — 功能開發全流程
+`src/index.ts` boots config, extractors, knowledge cache, and ProcessGuardian → `src/bot.ts` registers Telegraf commands and message handlers.
 
-```
-Phase 1：設計確認（/design 核心邏輯）
-Phase 2：實作（每步 tsc 驗證）
-Phase 3：冒煙測試（/test smoke）
-Phase 4：驗證提交（/ship）
-```
+### URL Processing Pipeline
 
-### /design — 架構確認
+Incoming URLs flow through:
 
-```
-用戶描述 → 研究現有程式碼 → 提出方案 → POC 驗證 → 確認後實作
-```
+1. `src/messages/force-reply-router.ts` — rewrites ForceReply inputs into command text
+2. `src/messages/url-processing-handler.ts` — orchestrates the full pipeline
+3. `src/extractors/<platform>-extractor.ts` — fetches and normalizes platform content into `ExtractedContent` (defined in `src/extractors/types.ts`)
+4. `src/messages/services/enrich-content-service.ts` — classifies (`src/classifier.ts`), AI-enriches via LLM CLI, and post-processes
+5. `src/messages/services/save-content-service.ts` → `src/saver.ts` — writes Markdown note to the Obsidian Vault
 
-### /new-platform — 新平台支援
+`ExtractedContent` is the **system boundary contract**. It must be fully platform-normalized before entering enrichment or saver. Never introduce platform-specific fields into pipeline modules — extend `ExtractedContent` first.
 
-```
-Phase 1：收集資訊（URL模式 + API類型 + 測試URL）
-Phase 2：腳手架（types.ts + extractor + index.ts 註冊）
-Phase 3：填入抓取邏輯
-Phase 4：/test extractor + /test smoke
-Phase 5：提交
---scaffold-only：只生成腳手架
-```
+### Command Layer
 
-### /health — 即時快照
+- `src/commands/register-commands.ts` — top-level command + callback action wiring (keep this as orchestration only, no business logic)
+- `src/commands/command-runner.ts` — shared async wrapper with unified error handling (`runCommandTask`)
+- Adding a command: implement logic in `src/commands/<feature>-command.ts`, register via `registerAsyncCommand` / `registerAsyncAction`, use `runCommandTask` + `formatErrorMessage` for all errors
 
-```
-並行 5 項：tsc 編譯 + 行數 + 進程 + Bot 狀態 + Git
-10 秒內完成
-```
+### Core Shared Modules
 
-### /weekly — 週維護
+- `src/core/errors.ts` — exception classification and user-facing fallback messages
+- `src/core/logger.ts` — structured logging; **no raw `console.*`** anywhere else in the codebase
+- `src/utils/config.ts` — env parsing and startup validation
+- `src/utils/url-canonicalizer.ts` — canonical URL normalization for dedup; never reimplement elsewhere
+- `src/utils/camoufox-pool.ts` — shared browser pool for login-required platforms (max 2, idle 10 min)
 
-```
-並行 4 項：專案健康 + Vault 報告 + 程式碼審計 + 依賴檢查
---full 追加：全平台 extractor 測試 + 搜尋引擎 + Vault 分類評估
-全部唯讀，不修改檔案
-```
+### Formatter Registry
 
-### /resume — Session 啟動
+`src/formatters/index.ts` maps platform → formatter. `src/formatters/base.ts` assembles frontmatter + body + stats. Add a new platform formatter here instead of branching inside saver.
 
-```
-讀取交接記錄 → 完整健康報告 → 環境掃描 → 30 秒進入工作狀態
-```
+### Background Systems
 
-### /handoff — Session 交接
+- `src/knowledge/` — entity extraction, knowledge graph, gap analysis, preference model, distillation, memory consolidation
+- `src/radar/` — scheduled content search (DDG, GitHub Trending, RSS) → Vault
+- `src/proactive/` — scheduled digest + trend keyword alerts pushed to Telegram
+- `src/monitoring/` — Vault auto-repair, extractor health probing, enrichment benchmark scoring
 
-```
-同步記憶 → 寫交接記錄（進度/未完成/注意事項）
-```
+Long-running operations (timeline, monitor, learn, reclassify) use fire-and-forget: reply "processing" immediately, run in background, notify on completion.
 
----
+### Telegram Callback Data
 
-## 測試 URL 參考
+Telegram limits `callback_data` length. Use `buildCallbackData` / `resolveCallbackPayload` from `knowledge-query-command.ts`. Never put long strings directly in `callback_data`.
 
-| 平台 | 穩定 URL |
-|------|---------|
-| X | `https://x.com/elikiiii__/status/1863393037671014626` |
-| GitHub | `https://github.com/anthropics/claude-code` |
-| Reddit | `https://www.reddit.com/r/ClaudeAI/comments/1i2578u/claude_code_best_practices/` |
-| Threads | `https://www.threads.net/@zuck/post/DTa3-B1EbTp` |
-| Bilibili | `https://www.bilibili.com/video/BV1GJ411x7h7` |
+## Key Rules
 
-## 常見問題
+- **Type-check after every `.ts` change**: `npx tsc --noEmit` must report zero errors before the task is complete.
+- **File size limit**: All TypeScript files ≤ 300 lines. Split overlong files rather than exceeding this.
+- **No API SDKs**: Do not add the Anthropic SDK, OpenAI SDK, or equivalent. LLM calls go through the external CLI (`src/utils/local-llm.ts`) with DDG Chat as fallback.
+- **Type-only imports**: Use `import type` for type-only imports.
+- **No `any`**: Avoid unless there is truly no alternative.
+- **New features go into the pipeline**: Integrate into the URL processing pipeline rather than creating standalone commands, unless the user explicitly requests a new command.
+- **Post-fix obligation**: After modifying an extractor or formatter, also update affected already-saved Vault notes. After modifying the classifier, run regression tests and watch for substring-matching false positives (e.g. `ads` matching `attachments`).
+- **No unrelated refactors in same commit**: Do not refactor unrelated modules in the same commit or PR.
+- **Commit messages in Traditional Chinese**: `<type>: <描述>`. Update `README.md` on significant changes.
 
-| 症狀 | 處理 |
-|------|------|
-| 409 Telegram Conflict | `/launch --force`，仍失敗用 `--diagnose` |
-| tsc 編譯錯誤 | 修復後重新驗證 |
-| 抓取失敗 | 先 curl 手動測目標 URL |
-| 行數超標 | `/refactor --modularize` |
-| 分類器 regression | `/test classify` 定位 → 修復 |
+## Tests
+
+Test files live at `src/**/*.test.ts`. Key files to update when touching related code:
+- `src/utils/url-canonicalizer.test.ts` — URL normalization
+- `src/commands/knowledge-query-command.test.ts` — callback token/payload mapping
+- `src/messages/*.test.ts` and `src/messages/services/*.test.ts` — message pipeline
+
+Always add or update tests when touching URL normalization, callback payloads, or message pipeline behavior.
+
+## Environment
+
+Required `.env` keys (see `.env.example`):
+- `BOT_TOKEN` — Telegram Bot Token (from @BotFather)
+- `VAULT_PATH` — Absolute path to the Obsidian Vault
+
+Optional:
+- `ALLOWED_USER_IDS` — Comma-separated Telegram user IDs (empty = allow all)
+- `ENABLE_TRANSLATION` — `true` to enable Simplified → Traditional Chinese translation
+- `MAX_LINKED_URLS` — Max external URLs to fetch per post (default: 5)
+- `SAVE_VIDEOS` — `false` (default) skips saving videos to Vault
+- `LLM_PROVIDER` — `opencode` / `claude` / `codex`
+
+## Troubleshooting
+
+| Symptom | Action |
+|---------|--------|
+| 409 Telegram Conflict | ProcessGuardian auto-heals (exponential backoff → logOut + cooldown). If persistent, kill the node process manually and restart. |
+| tsc errors | Fix before marking task complete — do not skip or suppress. |
+| Fetch failure | `curl` the target URL manually to check reachability before modifying extractor logic. |
+| File over 300 lines | Split into focused modules before adding more code. |
+| Classifier regression | Check for substring-matching false positives; use word boundaries. |

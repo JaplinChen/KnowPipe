@@ -18,7 +18,7 @@ Telegram Bot，將使用者傳送的 URL 內容抓取、分類、AI 摘要後存
 
 ```
 GetThreads/
-├── src/                    ← 所有原始碼（81 檔，~8,200 行）
+├── src/                    ← 所有原始碼
 │   ├── index.ts            ← 主入口：啟動 config、extractor、guardian
 │   ├── bot.ts              ← Telegraf Bot 組裝
 │   ├── classifier.ts       ← 內容分類器（規則式）
@@ -29,7 +29,7 @@ GetThreads/
 │   ├── commands/           ← Telegram 指令（/monitor, /timeline, /knowledge 等）
 │   ├── messages/           ← 訊息處理管線（URL 偵測 → 抓取 → 豐富 → 存檔）
 │   │   └── services/       ← 管線各階段純函式
-│   ├── extractors/         ← 平台提取器（12 個）
+│   ├── extractors/         ← 平台提取器
 │   │   ├── threads-extractor.ts
 │   │   ├── youtube-extractor.ts
 │   │   ├── reddit-extractor.ts
@@ -55,7 +55,8 @@ GetThreads/
 │
 ├── docs/                   ← 架構文件
 │   └── architecture.md
-├── scripts/                ← 本地輔助腳本（不進 git）
+├── scripts/                ← 本地輔助腳本（大部分不進 git）
+│   ├── loop.mjs            ← 自動重啟包裝器（進 git，搭配 /restart 指令）
 │   ├── reprocess-vault.ts  ← Vault 批次重處理
 │   ├── migrate-*.ts        ← 遷移腳本
 │   └── test-*.ts           ← 手動測試腳本
@@ -84,6 +85,8 @@ Telegram 訊息 → URL 偵測 → Extractor 抓取 → Classifier 分類
 
 ## 開發規範
 
+> 完整規則見 `CLAUDE.md`，以下為快速參考。
+
 | 規範 | 說明 |
 |------|------|
 | 行數限制 | 所有 `.ts` 檔案 ≤ 300 行 |
@@ -94,10 +97,10 @@ Telegram 訊息 → URL 偵測 → Extractor 抓取 → Classifier 分類
 
 ## 不進 git 的大型目錄
 
-| 目錄 | 大小 | 用途 |
-|------|------|------|
-| `node_modules/` | ~144 MB | npm 依賴 |
-| `models/` | ~466 MB | 本地模型資料 |
-| `data/` | ~210 MB | 知識庫 JSON |
-| `tools/` | ~10 MB | Camoufox 等 |
-| `dist/` | ~1.2 MB | 編譯輸出 |
+| 目錄 | 用途 |
+|------|------|
+| `node_modules/` | npm 依賴 |
+| `models/` | 本地模型資料 |
+| `data/` | 知識庫 JSON |
+| `tools/` | Camoufox 等 |
+| `dist/` | 編譯輸出 |

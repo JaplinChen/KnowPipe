@@ -32,7 +32,9 @@ import { logger } from '../core/logger.js';
 import { registerForceReplyHandler } from '../messages/force-reply-router.js';
 import { BOT_COMMANDS_MENU, HELP_TEXT } from './command-help.js';
 import { registerLearningCommands } from './register-learning-commands.js';
-import { registerInfoCommands, type CommandStats } from './register-info-commands.js';
+import { registerInfoCommands } from './register-info-commands.js';
+import type { BotStats } from '../messages/types.js';
+import { handleLogs, handleHealth, handleRestart } from './admin-command.js';
 
 export { formatErrorMessage };
 
@@ -65,7 +67,7 @@ function registerAsyncAction(
 export function registerCommands(
   bot: Telegraf,
   config: AppConfig,
-  stats: CommandStats,
+  stats: BotStats,
   startTime: number,
 ): void {
   bot.start((ctx) => ctx.reply(HELP_TEXT));
@@ -84,6 +86,11 @@ export function registerCommands(
   registerAsyncCommand(bot, 'digest', 'digest', config, handleDigestMenu);
   registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
+
+  // --- Admin & maintenance ---
+  registerAsyncCommand(bot, 'logs', 'logs', config, handleLogs);
+  registerAsyncCommand(bot, 'health', 'health', config, handleHealth);
+  registerAsyncCommand(bot, 'restart', 'restart', config, handleRestart);
 
   // --- Maintenance ---
   registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);

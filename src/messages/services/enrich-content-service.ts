@@ -55,7 +55,21 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
   const finalText = imageContext
     ? `${textForAI}\n\n[圖片視覺描述]\n${imageContext}`
     : textForAI;
-  const enriched = await enrichContent(content.title, finalText, hints);
+
+  // AI 豐富化 與 postProcess（連結補充 + 翻譯）並行——兩者互不依賴
+  const originalTitle = content.title;
+  const [enriched] = await Promise.all([
+    enrichContent(content.title, finalText, hints),
+    postProcess(content, {
+      enrichPostLinks: true,
+      enrichCommentLinks: true,
+      translate: config.enableTranslation,
+      maxLinkedUrls: config.maxLinkedUrls,
+    }).catch((err: Error) => {
+      logger.warn('post-process', 'post process failed', { message: err.message });
+    }),
+  ]);
+
   if (enriched.keywords) content.enrichedKeywords = enriched.keywords;
   if (enriched.summary) content.enrichedSummary = enriched.summary;
   if (enriched.analysis) content.enrichedAnalysis = enriched.analysis;
@@ -65,7 +79,7 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
 
   // Benchmark: score enrichment quality (non-blocking)
   try {
-    const score = computeEnrichmentScore(enriched, content.title, finalText);
+    const score = computeEnrichmentScore(enriched, originalTitle, finalText);
     const benchData = await loadBenchmarkData();
     benchData.scores[content.url] = {
       score,
@@ -77,16 +91,5 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
     logger.info('benchmark', '品質評分', { url: content.url, score: score.overall });
   } catch {
     // Non-critical, silent fallback
-  }
-
-  try {
-    await postProcess(content, {
-      enrichPostLinks: true,
-      enrichCommentLinks: true,
-      translate: config.enableTranslation,
-      maxLinkedUrls: config.maxLinkedUrls,
-    });
-  } catch (err) {
-    logger.warn('post-process', 'post process failed', { message: (err as Error).message });
   }
 }

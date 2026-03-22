@@ -1,28 +1,36 @@
-﻿import type { ExtractedContent } from '../extractors/types.js';
+import type { ExtractedContent } from '../extractors/types.js';
 import type { SaveResult } from '../saver.js';
 
 export function formatUnsupportedUrlMessage(url: string): string {
-  return `\u4e0d\u652f\u63f4\u7684\u9023\u7d50\uff1a${url}`;
+  return `不支援的連結：${url}`;
 }
 
-export function formatProcessingMessage(platform: string): string {
-  return `\u6b63\u5728\u8655\u7406 ${platform} \u9023\u7d50...`;
+/** Processing stages with emoji indicators */
+export const STAGE = {
+  extracting: '🔍 擷取內容中…',
+  enriching: '🧠 AI 豐富化中…',
+  saving: '💾 儲存至 Vault…',
+} as const;
+
+export function formatProcessingMessage(platform: string, stage?: keyof typeof STAGE): string {
+  const stageText = stage ? `\n${STAGE[stage]}` : '';
+  return `⏳ 正在處理 ${platform} 連結…${stageText}`;
 }
 
 export function formatDuplicateMessage(mdPath: string): string {
-  return `\u5df2\u5132\u5b58\u904e\uff0c\u7565\u904e\uff1a\n${mdPath}`;
+  return `📋 已儲存過，略過：\n${mdPath}`;
 }
 
 export function formatSavedSummary(content: ExtractedContent, result: SaveResult): string {
   return [
-    `\u5df2\u5132\u5b58\uff1a${content.author} (${content.authorHandle})`,
-    `\u5206\u985e\uff1a${content.category}`,
+    `✅ 已儲存：${content.author} (${content.authorHandle})`,
+    `📂 分類：${content.category}`,
     '',
     content.text.length > 200 ? content.text.slice(0, 200) + '...' : content.text,
     '',
-    `\u5716\u7247\uff1a${result.imageCount} | \u5f71\u7247\uff1a${result.videoCount}${content.comments?.length ? ` | \u8a55\u8ad6\uff1a${content.comments.length}` : ''}`,
-    `\u6a94\u6848\uff1a${result.mdPath}`,
+    `🖼 圖片：${result.imageCount} | 🎬 影片：${result.videoCount}${content.comments?.length ? ` | 💬 評論：${content.comments.length}` : ''}`,
+    `📄 檔案：${result.mdPath}`,
   ].join('\n');
 }
 
-export const AI_TRANSCRIPT_PREFIX = '\n\n\u6587\u5b57\u7a3f\uff1a';
+export const AI_TRANSCRIPT_PREFIX = '\n\n文字稿：';

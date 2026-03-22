@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "dev:loop": "node scripts/loop.mjs --dev",
+    "start:loop": "node scripts/loop.mjs",
     "restart": "tsx scripts/restart-bot.ts",
     "build": "tsc",
     "start": "node dist/index.js",

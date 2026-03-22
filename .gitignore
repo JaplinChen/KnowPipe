@@ -25,7 +25,8 @@ claude_stderr.txt
 .opencode/
 
 # Local helper scripts (not part of runtime build)
-scripts/
+scripts/*
+!scripts/loop.mjs
 test.ts
 
 # External tools and local models

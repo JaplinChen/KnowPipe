@@ -82,13 +82,20 @@ export function registerUrlProcessingHandler(
       };
 
       try {
+        const t0 = Date.now();
         const content = await extractContentWithComments(url, extractor as ExtractorWithComments);
+        logger.info('perf', 'extract', { ms: Date.now() - t0 });
 
         updateProgress('enriching');
+        const t1 = Date.now();
         await enrichExtractedContent(content, config);
+        logger.info('perf', 'enrich', { ms: Date.now() - t1 });
 
         updateProgress('saving');
+        const t2 = Date.now();
         const result = await saveExtractedContent(content, config.vaultPath, { saveVideos: config.saveVideos });
+        logger.info('perf', 'save', { ms: Date.now() - t2 });
+        logger.info('perf', 'total', { ms: Date.now() - t0 });
 
         if (result.duplicate) {
           await ctx.reply(formatDuplicateMessage(result.mdPath));

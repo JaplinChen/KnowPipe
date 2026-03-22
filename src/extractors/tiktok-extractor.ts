@@ -93,8 +93,7 @@ async function whisperTranscribe(videoPath: string, tmpDir: string): Promise<str
     ], { timeout: 30_000 });
   } catch { logger.warn('tiktok', 'ffmpeg audio extraction failed'); return null; }
 
-  const localWhisper = join(process.cwd(), 'tools', 'whisper', 'Release', 'whisper-cli.exe');
-  for (const cmd of [localWhisper, 'whisper-cli', 'whisper']) {
+  for (const cmd of ['whisper-cli', 'whisper']) {
     try {
       const { stdout } = await execFileAsync(cmd, [
         '-m', join(process.cwd(), 'models', 'ggml-small.bin'),

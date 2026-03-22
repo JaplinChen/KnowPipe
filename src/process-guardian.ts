@@ -39,6 +39,11 @@ export class ProcessGuardian {
     }
   }
 
+  /** Force-kill a process by PID */
+  private killProcess(pid: number): void {
+    try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ }
+  }
+
   /** Force mode: kill existing bot process referenced in PID file */
   private forceKillExisting(): void {
     if (!existsSync(PID_FILE)) return;
@@ -55,11 +60,7 @@ export class ProcessGuardian {
 
       if (this.isProcessAlive(pid)) {
         logger.info('guardian', 'force killing existing process', { pid });
-        try {
-          execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
-        } catch {
-          try { process.kill(pid, 'SIGKILL'); } catch { /* ignore */ }
-        }
+        this.killProcess(pid);
       }
     } catch {
       /* ignore */
@@ -94,30 +95,28 @@ export class ProcessGuardian {
     }
   }
 
-  /** Kill orphaned node.exe processes that have no parent (zombie cleanup) */
+  /** Kill orphaned node processes that have no parent (zombie cleanup) */
   private cleanOrphanProcesses(): number {
     try {
-      const csv = execSync(
-        'wmic process where "name=\'node.exe\'" get ProcessId,ParentProcessId /format:csv',
-        { encoding: 'utf-8', timeout: 5_000 },
-      );
+      const raw = execSync('ps -eo pid,ppid,comm', { encoding: 'utf-8', timeout: 5_000 });
       const myPid = process.pid;
       let killed = 0;
 
-      for (const line of csv.split('\n')) {
-        const parts = line.trim().split(',');
-        if (parts.length < 3) continue;
-        const parentPid = Number(parts[1]);
-        const pid = Number(parts[2]);
+      for (const line of raw.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith('PID')) continue;
+        const [pidStr, ppidStr, comm] = trimmed.split(/\s+/, 3);
+        if (!comm || !comm.includes('node')) continue;
+        const pid = Number(pidStr);
+        const parentPid = Number(ppidStr);
+
         if (!pid || pid === myPid) continue;
 
         // Check if parent is dead → orphan
         if (parentPid && !this.isProcessAlive(parentPid)) {
           logger.info('guardian', 'killing orphan node process', { pid, parentPid });
-          try {
-            execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
-            killed++;
-          } catch { /* ignore */ }
+          this.killProcess(pid);
+          killed++;
         }
       }
 
@@ -162,11 +161,10 @@ export class ProcessGuardian {
   }
 
   private attempt(): void {
-    this.bot.launch({ dropPendingUpdates: true })
-      .then(() => {
-        logger.info('guardian', '✅ bot launched', { pid: process.pid });
-      })
-      .catch(async (err: unknown) => {
+    this.bot.launch(
+      { dropPendingUpdates: true },
+      () => { logger.info('guardian', '✅ bot launched', { pid: process.pid }); },
+    ).catch(async (err: unknown) => {
         if (!this.is409(err)) {
           logger.error('guardian', 'fatal error', err);
           this.clearPid();

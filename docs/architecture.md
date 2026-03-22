@@ -19,13 +19,14 @@ This document defines the current module boundaries, data flow, and engineering 
 - `src/commands/register-commands.ts`: top-level command wiring and callback action wiring.
 - `src/commands/command-help.ts`: help text and menu metadata.
 - `src/commands/register-learning-commands.ts`: `/learn`, `/reclassify`, `/translate`.
-- `src/commands/register-info-commands.ts`: `/status`, `/recent`.
+- `src/commands/register-info-commands.ts`: `/status`, `/clear`.
+- `src/commands/admin-command.ts`: `/logs`, `/health`, `/restart` — remote bot management via Telegram.
 - `src/commands/command-runner.ts`: common async command wrapper with unified error handling.
 
 ## Core Shared Modules
 
 - `src/core/errors.ts`: exception classification and user-facing fallback messages.
-- `src/core/logger.ts`: shared structured logging.
+- `src/core/logger.ts`: shared structured logging with in-memory ring buffer (200 entries, queryable via `getRecent`).
 - `src/utils/config.ts`: environment parsing and startup validation.
 - `src/utils/url-canonicalizer.ts`: canonical URL normalization for dedup and knowledge indexing.
 

@@ -26,14 +26,10 @@ export async function analyzeImage(
   timeoutMs = VISION_TIMEOUT_MS,
 ): Promise<string | null> {
   return new Promise((resolve) => {
-    const args =
-      process.platform === 'win32'
-        ? ['/c', 'opencode', 'run', '-m', VISION_MODEL, '-f', imagePath]
-        : ['run', '-m', VISION_MODEL, '-f', imagePath];
     const proc = spawn(
-      process.platform === 'win32' ? 'cmd.exe' : 'opencode',
-      args,
-      { timeout: timeoutMs, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+      'opencode',
+      ['run', '-m', VISION_MODEL, '-f', imagePath],
+      { timeout: timeoutMs, stdio: ['pipe', 'pipe', 'pipe'] },
     );
 
     let stdout = '';

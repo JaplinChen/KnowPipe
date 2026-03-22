@@ -36,7 +36,7 @@ function isAuthorized(req: IncomingMessage): boolean {
   return req.headers['x-session-token'] === SESSION_TOKEN;
 }
 
-// è§?? .env æª”æ?
+// ï¿½?? .env æª”ï¿½?
 function readEnv(): Record<string, string> {
   if (!existsSync(ENV_PATH)) return {};
   const content = readFileSync(ENV_PATH, 'utf-8');
@@ -48,7 +48,7 @@ function readEnv(): Record<string, string> {
   return result;
 }
 
-// å¯«å…¥ .env æª”æ?
+// å¯«å…¥ .env æª”ï¿½?
 function writeEnv(data: Record<string, string>): void {
   const lines = Object.entries(data)
     .filter(([, v]) => v)
@@ -57,7 +57,7 @@ function writeEnv(data: Record<string, string>): void {
   writeFileSync(ENV_PATH, lines + '\n', 'utf-8');
 }
 
-// ?ƒæ? Obsidian Vaultï¼ˆå« .obsidian è³‡æ?å¤¾ç??®é?ï¼?
+// ?ï¿½ï¿½? Obsidian Vaultï¼ˆå« .obsidian è³‡ï¿½?å¤¾ï¿½??ï¿½ï¿½?ï¿½?
 function findVaults(): string[] {
   const home = homedir();
   const searchPaths = [
@@ -78,7 +78,7 @@ function findVaults(): string[] {
           vaults.push(vaultPath.replace(/\\/g, '/'));
         }
       }
-    } catch { /* è·³é??¡æ??ç›®??*/ }
+    } catch { /* è·³ï¿½??ï¿½ï¿½??ï¿½ç›®??*/ }
   }
   return vaults;
 }
@@ -91,9 +91,9 @@ async function testToken(token: string): Promise<{ ok: boolean; username?: strin
     });
     const data = await res.json() as { ok: boolean; result?: { username: string } };
     if (data.ok && data.result) return { ok: true, username: data.result.username };
-    return { ok: false, error: 'Token ?¡æ?ï¼Œè?ç¢ºè??¯å¦è¤‡è£½å®Œæ•´' };
+    return { ok: false, error: 'Token ?ï¿½ï¿½?ï¼Œï¿½?ç¢ºï¿½??ï¿½å¦è¤‡è£½å®Œæ•´' };
   } catch {
-    return { ok: false, error: '???å¤±æ?ï¼Œè?ç¢ºè?ç¶²è·¯???' };
+    return { ok: false, error: '???å¤±ï¿½?ï¼Œï¿½?ç¢ºï¿½?ç¶²è·¯???' };
   }
 }
 
@@ -106,14 +106,14 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-// ?‹å??è¦½?¨ï?Windowsï¼‰â€?ä½¿ç”¨ spawn ?¿å? shell æ³¨å…¥
+// ?ï¿½ï¿½??ï¿½è¦½?ï¿½ï¿½?Windowsï¼‰ï¿½?ä½¿ç”¨ spawn ?ï¿½ï¿½? shell æ³¨å…¥
 function openBrowser(url: string): void {
   try {
-    new URL(url); // é©—è? URL ?¼å?
+    new URL(url); // é©—ï¿½? URL ?ï¿½ï¿½?
   } catch {
     return;
   }
-  // cmd /c start "" <url> ??ç©ºå?ä¸?title ?¿å? start èª¤åˆ¤ URL ?«ç‰¹æ®Šå???  spawn('cmd.exe', ['/c', 'start', '', url], { stdio: 'ignore', detached: true }).unref();
+  spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
 }
 
 const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
@@ -122,21 +122,21 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  // è¨­å??é¢ï¼ˆä??€ token ??HTML è¼‰å…¥å¾Œæ?å¾?URL ?–å? tokenï¼?
+  // è¨­ï¿½??ï¿½é¢ï¼ˆï¿½??ï¿½ token ??HTML è¼‰å…¥å¾Œï¿½?ï¿½?URL ?ï¿½ï¿½? tokenï¿½?
   if (url === '/' && method === 'GET') {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.end(UI_HTML);
     return;
   }
 
-  // ?€??/api/ ç«¯é??€è¦æ??ˆç? session token
+  // ?ï¿½??/api/ ç«¯ï¿½??ï¿½è¦ï¿½??ï¿½ï¿½? session token
   if (url.startsWith('/api/') && !isAuthorized(req)) {
     res.statusCode = 403;
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return;
   }
 
-  // è®€?–ç¾?‰è¨­å®šï?Token ?®è”½é¡¯ç¤ºï¼?
+  // è®€?ï¿½ç¾?ï¿½è¨­å®šï¿½?Token ?ï¿½è”½é¡¯ç¤ºï¿½?
   if (url === '/api/config' && method === 'GET') {
     const env = readEnv();
     res.end(JSON.stringify({
@@ -147,7 +147,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
-  // ?²å?è¨­å?
+  // ?ï¿½ï¿½?è¨­ï¿½?
   if (url === '/api/config' && method === 'POST') {
     const body = await readBody(req);
     const data = JSON.parse(body) as {
@@ -169,7 +169,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
-  // ?ƒæ? Obsidian Vaults
+  // ?ï¿½ï¿½? Obsidian Vaults
   if (url === '/api/vaults' && method === 'GET') {
     res.end(JSON.stringify({ vaults: findVaults() }));
     return;
@@ -189,8 +189,8 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`\n??è¨­å??é¢å·²é??Ÿï?http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
-  console.log('   ï¼ˆè‹¥?è¦½?¨æœª?ªå??‹å?ï¼Œè??‹å??å?ä¸Šæ–¹ç¶²å?ï¼‰\n');
+  console.log(`\n??è¨­ï¿½??ï¿½é¢å·²ï¿½??ï¿½ï¿½?http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
+  console.log('   ï¼ˆè‹¥?ï¿½è¦½?ï¿½æœª?ï¿½ï¿½??ï¿½ï¿½?ï¼Œï¿½??ï¿½ï¿½??ï¿½ï¿½?ä¸Šæ–¹ç¶²ï¿½?ï¼‰\n');
   openBrowser(`http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
 });
 

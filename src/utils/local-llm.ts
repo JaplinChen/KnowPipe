@@ -34,21 +34,15 @@ export function cleanOpenCodeOutput(raw: string): string {
   return lines.join('\n').trim();
 }
 
-/**
- * Run prompt via OpenCode CLI using stdin pipe.
- * Windows .cmd files cannot be executed via execFile (EINVAL),
- * so we spawn cmd.exe /c and pipe the prompt via stdin.
- */
+/** Run prompt via OpenCode CLI using stdin pipe. */
 async function runViaCli(prompt: string, timeoutMs: number, model: string): Promise<string | null> {
   const timeout = Math.min(timeoutMs, CLI_TIMEOUT_MS);
 
   return new Promise((resolve) => {
     const proc = spawn(
-      process.platform === 'win32' ? 'cmd.exe' : 'opencode',
-      process.platform === 'win32'
-        ? ['/c', 'opencode', 'run', '-m', model]
-        : ['run', '-m', model],
-      { timeout, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] },
+      'opencode',
+      ['run', '-m', model],
+      { timeout, stdio: ['pipe', 'pipe', 'pipe'] },
     );
 
     let stdout = '';
