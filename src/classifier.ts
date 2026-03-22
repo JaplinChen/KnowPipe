@@ -1,6 +1,7 @@
-/** Keyword-based content classifier — returns a Traditional Chinese category label */
+/** Keyword-based content classifier with optional LLM fallback via oMLX */
 import { classifyWithLearnedRules } from './learning/dynamic-classifier.js';
 import { CATEGORIES, type CategoryRule } from './classifier-categories.js';
+import { logger } from './core/logger.js';
 
 /** 短 ASCII 關鍵字（≤3 字元）用 word boundary，避免 'ai' 匹配 'Aitken' 等 substring 誤判 */
 function keywordMatch(h: string, kw: string): boolean {
@@ -24,15 +25,11 @@ function scoreCategory(cat: CategoryRule, titleH: string, bodyH: string): number
   return score;
 }
 
-export function classifyContent(title: string, text: string): string {
-  // Step 0：優先使用 vault 學習到的規則（信心 >= 0.75）
-  const learned = classifyWithLearnedRules(title, text);
-  if (learned) return learned;
-
+/** Keyword scoring logic (synchronous) */
+function keywordClassify(title: string, text: string): { category: string; score: number } {
   const titleH = title.toLowerCase();
   const bodyH = text.toLowerCase();
 
-  // 計分制：遍歷所有分類，累加分數，最高分勝出
   const scores = new Map<string, { score: number; order: number }>();
 
   for (let i = 0; i < CATEGORIES.length; i++) {
@@ -44,13 +41,12 @@ export function classifyContent(title: string, text: string): string {
 
     const existing = scores.get(cat.name);
     if (existing) {
-      existing.score += score; // 同名分類累加
+      existing.score += score;
     } else {
       scores.set(cat.name, { score, order: i });
     }
   }
 
-  // 最高分勝出，同分按 CATEGORIES 順序（越前面優先級越高）
   let bestName = '';
   let bestScore = 0;
   let bestOrder = Infinity;
@@ -63,7 +59,90 @@ export function classifyContent(title: string, text: string): string {
     }
   }
 
-  return bestName || '其他';
+  return { category: bestName || '其他', score: bestScore };
+}
+
+/** Top-level category names for LLM prompt (deduplicated) */
+function getTopLevelCategories(): string[] {
+  const seen = new Set<string>();
+  for (const cat of CATEGORIES) {
+    const topLevel = cat.name.split('/').slice(0, 2).join('/');
+    seen.add(topLevel);
+  }
+  return [...seen];
+}
+
+/**
+ * LLM-based classification fallback. Only called when keyword scoring
+ * returns "其他" (no match). Uses oMLX local inference for zero-cost classification.
+ */
+async function llmClassify(title: string, text: string): Promise<string | null> {
+  try {
+    const { runLocalLlmPrompt } = await import('./utils/local-llm.js');
+    const categories = getTopLevelCategories().slice(0, 30).join('、');
+    const snippet = text.slice(0, 500);
+
+    const prompt = [
+      '你是內容分類器。根據以下標題和內容片段，從分類列表中選出最合適的一個分類。',
+      '只回答分類名稱，不要加任何解釋。',
+      '',
+      `分類列表：${categories}`,
+      '',
+      `標題：${title}`,
+      `內容：${snippet}`,
+      '',
+      '分類：',
+    ].join('\n');
+
+    const result = await runLocalLlmPrompt(prompt, { timeoutMs: 15_000, model: 'flash' });
+    if (!result) return null;
+
+    // Validate: must match one of our categories (partial match allowed)
+    const cleaned = result.trim().replace(/^分類[：:]\s*/, '');
+    const topLevels = getTopLevelCategories();
+    const match = topLevels.find((c) => cleaned.includes(c) || c.includes(cleaned));
+    return match ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function classifyContent(title: string, text: string): string {
+  // Step 0：優先使用 vault 學習到的規則（信心 >= 0.75）
+  const learned = classifyWithLearnedRules(title, text);
+  if (learned) return learned;
+
+  // Step 1：關鍵字計分
+  const { category, score } = keywordClassify(title, text);
+
+  // If keyword scoring found a match, use it
+  if (category !== '其他') return category;
+
+  // Step 2：「其他」分類時，嘗試 LLM fallback（非同步，但不阻塞）
+  // Note: classifyContent is sync, so LLM fallback is deferred to classifyContentAsync
+  return category;
+}
+
+/**
+ * Async classifier with LLM fallback. Use this when you can await.
+ * Falls back to keyword-only result if LLM is unavailable.
+ */
+export async function classifyContentAsync(title: string, text: string): Promise<string> {
+  const learned = classifyWithLearnedRules(title, text);
+  if (learned) return learned;
+
+  const { category, score } = keywordClassify(title, text);
+  if (category !== '其他') return category;
+
+  // Try LLM classification (oMLX local → opencode → DDG)
+  logger.info('classifier', 'keyword scoring returned 其他, trying LLM fallback');
+  const llmResult = await llmClassify(title, text);
+  if (llmResult) {
+    logger.info('classifier', 'LLM classified as', { category: llmResult });
+    return llmResult;
+  }
+
+  return '其他';
 }
 
 /** 從內容中提取命中的所有關鍵詞（最多 5 個），供 frontmatter keywords 欄位使用 */

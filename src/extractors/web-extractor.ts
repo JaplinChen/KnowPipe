@@ -1,8 +1,10 @@
-﻿export const JINA_REMOVE_SELECTORS = '';
+export const JINA_REMOVE_SELECTORS = '';
 import type { ExtractedContent, Extractor } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { stripHtmlTags } from './web-cleaner.js';
-import { htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse } from '../utils/html-to-markdown.js';
+import { htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse, htmlToMarkdownWithAuthBrowser } from '../utils/html-to-markdown.js';
+import { needsAuth } from './auth-domains.js';
+import { logger } from '../core/logger.js';
 
 function decodeHtml(s: string): string {
   return s
@@ -57,6 +59,42 @@ function absolutizeImage(url: string, pageUrl: string): string {
   }
 }
 
+function getDomain(url: string): string {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return url;
+  }
+}
+
+/** Build ExtractedContent from parsed title + text (shared by auth and standard paths) */
+function buildResult(url: string, title: string, text: string, html: string): ExtractedContent {
+  const imageSet = new Set<string>();
+  if (html) {
+    const ogImage = extractMeta(html, 'og:image');
+    if (ogImage) imageSet.add(absolutizeImage(ogImage, url));
+    const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+    for (const m of imgMatches) {
+      const src = m[1];
+      if (!src || src.startsWith('data:') || src.startsWith('blob:')) continue;
+      imageSet.add(absolutizeImage(src, url));
+      if (imageSet.size >= 8) break;
+    }
+  }
+
+  return {
+    platform: 'web',
+    author: getDomain(url),
+    authorHandle: getDomain(url),
+    title,
+    text: text || '[No readable text]',
+    images: [...imageSet],
+    videos: [],
+    date: new Date().toISOString().split('T')[0],
+    url,
+  };
+}
+
 export const webExtractor: Extractor = {
   platform: 'web',
 
@@ -73,6 +111,20 @@ export const webExtractor: Extractor = {
   },
 
   async extract(url: string): Promise<ExtractedContent> {
+    // Auth-aware path: paywalled/login-required domains try Browser Use CLI first
+    if (needsAuth(url)) {
+      logger.info('web', 'auth domain detected, trying Browser Use CLI first', { url });
+      try {
+        const authParsed = await htmlToMarkdownWithAuthBrowser(url);
+        if (authParsed) {
+          return buildResult(url, authParsed.title, authParsed.markdown, '');
+        }
+      } catch {
+        // Auth browser failed — fall through to standard path
+      }
+      logger.warn('web', 'auth browser unavailable, falling back to standard fetch', { url });
+    }
+
     const res = await fetchWithTimeout(url, 30_000, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (GetThreads Bot)',
@@ -106,52 +158,18 @@ export const webExtractor: Extractor = {
       }
     }
 
-    let title: string;
-    let text: string;
-
+    const resolvedUrl = res.url || url;
     if (parsed) {
-      title = parsed.title || extractTitle(html);
+      const title = parsed.title || extractTitle(html);
       const description = extractMeta(html, 'description') || extractMeta(html, 'og:description');
-      text = [description, parsed.markdown].filter(Boolean).join('\n\n').trim();
-    } else {
-      title = extractTitle(html);
-      const description = extractMeta(html, 'description') || extractMeta(html, 'og:description');
-      const body = extractBodyFallback(html);
-      text = [description, body].filter(Boolean).join('\n\n').trim();
+      const text = [description, parsed.markdown].filter(Boolean).join('\n\n').trim();
+      return buildResult(resolvedUrl, title, text, html);
     }
 
-    if (!text) text = '[No readable text]';
-
-    const imageSet = new Set<string>();
-    const ogImage = extractMeta(html, 'og:image');
-    if (ogImage) imageSet.add(absolutizeImage(ogImage, res.url || url));
-
-    const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
-    for (const m of imgMatches) {
-      const src = m[1];
-      if (!src || src.startsWith('data:') || src.startsWith('blob:')) continue;
-      imageSet.add(absolutizeImage(src, res.url || url));
-      if (imageSet.size >= 8) break;
-    }
-
-    let domain = url;
-    try {
-      domain = new URL(res.url || url).hostname.replace(/^www\./, '');
-    } catch {
-      // keep original
-    }
-
-    return {
-      platform: 'web',
-      author: domain,
-      authorHandle: domain,
-      title,
-      text,
-      images: [...imageSet],
-      videos: [],
-      date: new Date().toISOString().split('T')[0],
-      url,
-    };
+    const title = extractTitle(html);
+    const description = extractMeta(html, 'description') || extractMeta(html, 'og:description');
+    const body = extractBodyFallback(html);
+    const text = [description, body].filter(Boolean).join('\n\n').trim();
+    return buildResult(resolvedUrl, title, text, html);
   },
 };
-

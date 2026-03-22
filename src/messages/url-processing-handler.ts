@@ -138,6 +138,11 @@ export function registerUrlProcessingHandler(
         const fallbackNote = wasFallback ? '\n⚠️ 平台擷取失敗，已使用通用網頁擷取' : '';
         await ctx.reply(formatSavedSummary(content, result) + fallbackNote);
 
+        // Topic accumulation alert
+        if (result.topicAlert) {
+          await ctx.reply(result.topicAlert);
+        }
+
         // 回傳 .md 檔案到 Telegram
         try {
           const fullPath = join(config.vaultPath, result.mdPath);

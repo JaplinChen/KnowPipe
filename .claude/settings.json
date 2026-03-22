@@ -1,0 +1,54 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pgrep -f 'src/index.ts|dist/index.js' >/dev/null 2>&1 && echo '⚠️  [Hook] 偵測到 Bot 進程運行中，如要啟動 Bot 請先確認是否需要 /launch --force' || true"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f tsconfig.json ] && echo '🔍 TypeScript 檢查中...' && npx tsc --noEmit 2>&1 | head -30 || true"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'extractors/'; then echo '📋 Extractor 已修改 → 建議執行 /test extractor <url> 驗證，並檢查已存在的 vault 筆記'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'formatter'; then echo '📋 Formatter 已修改 → 請檢查並修復已存在的 vault 筆記（Post-Fix Checklist）'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'classifier.ts'; then echo '📋 Classifier 已修改 → 建議執行 /test classify 驗證回歸'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'monitor-command.ts\\|search-service.ts'; then echo '📋 搜尋模組已修改 → 建議測試搜尋功能'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'saver.ts'; then echo '📋 Saver 已修改 → 建議測試存檔流程'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'bot.ts'; then echo '📋 Bot 已修改 → 建議執行 /launch 重啟測試'; fi"
+          },
+          {
+            "type": "command",
+            "command": "if echo \"$CLAUDE_TOOL_INPUT\" | grep -q 'camoufox-pool.ts'; then echo '📋 Camoufox Pool 已修改 → 建議執行 /test extractor 驗證'; fi"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,4 +1,4 @@
-import { classifyContent } from '../../classifier.js';
+import { classifyContentAsync } from '../../classifier.js';
 import { logger } from '../../core/logger.js';
 import { postProcess } from '../../enrichment/post-processor.js';
 import type { ExtractedContent } from '../../extractors/types.js';
@@ -13,7 +13,7 @@ import { ocrContentImages, isLikelyScreenshot } from '../../enrichment/ocr-servi
 import { cleanTitle } from '../../utils/content-cleaner.js';
 
 export async function enrichExtractedContent(content: ExtractedContent, config: AppConfig): Promise<void> {
-  content.category = classifyContent(content.title, content.text);
+  content.category = await classifyContentAsync(content.title, content.text);
   logger.info('msg', 'category', { category: content.category });
 
   const hints = getTopKeywordsForCategory(content.category);

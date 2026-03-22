@@ -6,6 +6,7 @@ import { formatAsMarkdown } from './formatter.js';
 import { fetchWithTimeout } from './utils/fetch-with-timeout.js';
 import { canonicalizeUrl } from './utils/url-canonicalizer.js';
 import { getAllMdFiles } from './vault/frontmatter-utils.js';
+import { trackTopic } from './utils/topic-tracker.js';
 
 // In-memory URL index: normalizedUrl → filePath (built on first use)
 let urlIndex: Map<string, string> | null = null;
@@ -93,6 +94,8 @@ export interface SaveResult {
   imageCount: number;
   videoCount: number;
   duplicate?: boolean;
+  /** Topic accumulation alert (when a category exceeds threshold) */
+  topicAlert?: string;
 }
 
 /** Build URL index by scanning all .md files (runs once, then cached in memory). */
@@ -232,7 +235,16 @@ export async function saveToVault(
     // Update in-memory index
     if (urlIndex) urlIndex.set(normUrl, mdPath);
 
-    return { mdPath, imageCount: localImagePaths.length, videoCount: content.videos.length };
+    // Track topic accumulation (fire-and-forget, don't block save)
+    const keywords = content.enrichedKeywords ?? [];
+    const alert = await trackTopic(vaultPath, rawCategory, keywords).catch(() => null);
+
+    return {
+      mdPath,
+      imageCount: localImagePaths.length,
+      videoCount: content.videos.length,
+      topicAlert: alert?.message,
+    };
   } finally {
     processingUrls.delete(normUrl);
   }
