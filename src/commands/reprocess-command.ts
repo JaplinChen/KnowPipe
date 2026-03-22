@@ -115,7 +115,8 @@ async function reprocessBatch(
   const result = { total: targets.length, success: 0, failed: 0, errors: [] as string[] };
   let processed = 0;
 
-  // Concurrent processing with limiter
+  // Phase 1: Concurrent processing
+  const failedNotes: typeof targets = [];
   const queue = [...targets];
   const workers = Array.from({ length: BATCH_CONCURRENCY }, async () => {
     while (queue.length > 0) {
@@ -125,8 +126,7 @@ async function reprocessBatch(
       if (res.success) {
         result.success++;
       } else {
-        result.failed++;
-        result.errors.push(`${note.title}: ${res.error}`);
+        failedNotes.push(note);
       }
 
       processed++;
@@ -135,8 +135,22 @@ async function reprocessBatch(
       }
     }
   });
-
   await Promise.all(workers);
+
+  // Phase 2: Retry failed notes sequentially (no resource contention)
+  if (failedNotes.length > 0) {
+    logger.info('reprocess', `並發失敗 ${failedNotes.length} 筆，序列重試中`);
+    for (const note of failedNotes) {
+      const res = await reprocessSingle(note.filePath, config, refetch);
+      if (res.success) {
+        result.success++;
+      } else {
+        result.failed++;
+        result.errors.push(`${note.title}: ${res.error}`);
+      }
+    }
+  }
+
   return result;
 }
 
