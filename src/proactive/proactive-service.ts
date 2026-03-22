@@ -112,28 +112,42 @@ async function generateDigestInsight(digest: ProactiveDigest): Promise<string | 
   }
 }
 
+/** Check if current time is within the configured digest hour (±30 min window). */
+function isDigestHour(digestHour: number): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  const minute = now.getMinutes();
+  // Match the target hour: from HH:00 to HH:30
+  return hour === digestHour && minute <= 30;
+}
+
+/** Check if digest was already sent today. */
+function alreadySentToday(lastDigestAt: string | null): boolean {
+  if (!lastDigestAt) return false;
+  const last = new Date(lastDigestAt);
+  const now = new Date();
+  return last.getFullYear() === now.getFullYear()
+    && last.getMonth() === now.getMonth()
+    && last.getDate() === now.getDate();
+}
+
 /** Run proactive digest cycle */
 async function runDigestCycle(
   bot: Telegraf,
   config: AppConfig,
   pConfig: ProactiveConfig,
 ): Promise<void> {
-  const now = Date.now();
-  const intervalMs = pConfig.digestIntervalHours * 3_600_000;
-
-  // Check if enough time has passed
-  if (pConfig.lastDigestAt) {
-    const lastTs = new Date(pConfig.lastDigestAt).getTime();
-    if (now - lastTs < intervalMs) return;
-  }
+  // Fixed daily schedule: only fire during digestHour window, once per day
+  if (!isDigestHour(pConfig.digestHour)) return;
+  if (alreadySentToday(pConfig.lastDigestAt)) return;
 
   logger.info('proactive', '開始生成主動摘要');
 
   try {
     const { notes, trends, gaps } = await analyzeVaultTrends(config.vaultPath);
 
-    // Count recent notes (last digestIntervalHours)
-    const recentCutoff = now - intervalMs;
+    // Count recent notes (last 24 hours)
+    const recentCutoff = Date.now() - 24 * 3_600_000;
     const recentNotes = notes.filter(n => new Date(n.date).getTime() >= recentCutoff);
 
     if (recentNotes.length < pConfig.minNotesForDigest) {
@@ -258,7 +272,7 @@ export async function startProactiveService(
   setTimeout(() => { runDigestCycle(bot, config, pConfig).catch(() => {}); }, 5 * 60 * 1000);
 
   logger.info('proactive', '主動推理服務啟動', {
-    digestInterval: `${pConfig.digestIntervalHours}h`,
+    digestTime: `每日 ${String(pConfig.digestHour).padStart(2, '0')}:00`,
     trendInterval: `${pConfig.trendIntervalHours}h`,
   });
 

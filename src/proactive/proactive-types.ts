@@ -9,6 +9,8 @@ export interface ProactiveConfig {
   trendIntervalHours: number;
   /** Minimum notes to trigger digest (default: 3) */
   minNotesForDigest: number;
+  /** Hour of day (0-23) to send daily digest (default: 9 = 09:00) */
+  digestHour: number;
   /** Last digest push timestamp */
   lastDigestAt: string | null;
   /** Last trend check timestamp */
@@ -41,6 +43,7 @@ export const DEFAULT_PROACTIVE_CONFIG: ProactiveConfig = {
   digestIntervalHours: 24,
   trendIntervalHours: 6,
   minNotesForDigest: 3,
+  digestHour: 9,
   lastDigestAt: null,
   lastTrendAt: null,
 };

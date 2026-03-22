@@ -32,7 +32,10 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 - **相關筆記推薦** — 兩層演算法（實體圖譜 → 關鍵字比對）自動在筆記底部附加 `[[wikilink]]` 連結 + 生成索引
 - **內容雷達** — 根據 Vault 高頻關鍵字自動搜尋新內容（DDG + GitHub Trending + RSS），定期存入 Vault 並推送 Telegram 通知
 - **工具情報牆** — 自動追蹤已收藏 AI 工具的活躍/沉睡狀態，新工具入庫時 Jaccard 比對已有工具推送「可取代/補強」建議
-- **主動推理** — 每日自動生成知識摘要 + 趨勢關鍵字警報 + 久未更新分類提醒，推送到 Telegram
+- **主動推理** — 每日 09:00 自動推送知識摘要 + 趨勢關鍵字警報 + 久未更新分類提醒到 Telegram
+- **Vault 搜尋** — `/find` 在本地 Vault 筆記中搜尋（frontmatter 加權匹配：標題 > 關鍵字 > 分類/摘要）
+- **自動巡邏** — `/patrol` 自動抓取 GitHub Trending 專案存入 Vault，支援手動觸發或定時巡邏
+- **oMLX 本地推理** — 可選配 Apple Silicon 本地推理伺服器，零 API 成本、完全離線可用
 - **處理進度串流** — URL 處理時即時顯示目前階段（擷取 → 豐富化 → 儲存），Telegram 訊息原地更新
 - **遠端管理** — 在 Telegram 裡查看 log、系統健康、重啟 Bot，搭配 loop 模式自動恢復
 - **自我修復** — 排程掃描 Vault 自動修復 HTML 殘留/壞路徑，Extractor 健康探測 + 降級告警
@@ -42,7 +45,7 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 - **OCR 文字辨識** — 截圖類圖片自動 OCR 提取文字，提升 AI 分析品質（需安裝 tesseract.js）
 - **分類回饋學習** — 用戶手動重分類時自動記錄校正，強化動態分類器準確度
 - **互動式指令** — 缺參數時自動引導輸入，知識類指令提供快捷按鈕
-- **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 免費模型，兼顧速度與品質
+- **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 免費模型，兼顧速度與品質；可選 oMLX 本地推理優先
 - **批次翻譯** — 英文/簡中筆記自動翻譯為繁體中文
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV，Windows / Mac / iPhone 三端同步
 
@@ -114,6 +117,8 @@ ENABLE_TRANSLATION=true             # 啟用簡轉繁翻譯
 MAX_LINKED_URLS=5                   # 單則貼文最多抓取的外部連結數
 SAVE_VIDEOS=false                   # 影片存入 Vault（預設 false，僅保留原始連結）
 LLM_PROVIDER=opencode                # LLM CLI（預設 OpenCode + MiniMax M2.5 Free，DDG Chat 為備援）
+OMLX_BASE_URL=http://localhost:10240/v1  # oMLX 本地推理（選配，優先於 opencode）
+OMLX_MODEL=                          # oMLX 模型名稱（如 mlx-community/Qwen2.5-7B-Instruct-4bit）
 ```
 
 ```bash
@@ -134,6 +139,7 @@ npx camoufox-js fetch
 |------|------|
 | 傳送 URL | 自動擷取內容與評論，分類後存到 Vault |
 | 傳送 PDF | 自動擷取文字、AI 摘要、分類存入 Vault |
+| `/find <關鍵字>` | 搜尋 Vault 筆記（frontmatter 加權匹配） |
 | `/search <查詢>` | 網頁搜尋（DuckDuckGo） |
 | `/monitor <關鍵字>` | 跨平台搜尋提及（Reddit + DuckDuckGo） |
 | `/timeline @用戶 [數量]` | 抓取用戶最近貼文（支援 Threads） |
@@ -149,6 +155,7 @@ npx camoufox-js fetch
 | `/quality` | Vault 品質報告 |
 | `/benchmark` | enrichment 品質基準報告（評分趨勢/平台成功率） |
 | `/suggest` | 相關筆記推薦（自動連結，寫入筆記底部 + 索引） |
+| `/patrol` | 自動巡邏 GitHub Trending（`/patrol auto` 啟用定時） |
 | `/radar` | 內容雷達（自動搜尋+存入，on/off/auto/run/add/remove/wall） |
 | `/status` | Bot 運行狀態與本次儲存統計 |
 | `/health` | 系統健康報告（記憶體 / Extractor / Vault） |
@@ -215,7 +222,7 @@ npx tsc --noEmit   # 型別檢查
 - **Telegraf** — Telegram Bot API（ForceReply + InlineKeyboard 互動式指令）
 - **Camoufox** — 反偵測瀏覽器（Firefox 基底），處理需 JS 渲染的平台
 - **ProcessGuardian** — 三段式 409 自癒（指數退避 → 自動 logOut + 冷卻 → 退出）+ 殭屍進程自動清理
-- **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash（MIMO v2）/ standard（MiniMax M2.5）/ deep（Nemotron 3 Super），全免費
+- **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash（MIMO v2）/ standard（MiniMax M2.5）/ deep（Nemotron 3 Super），全免費；可選 oMLX 本地推理優先
 - **知識系統** — 實體萃取、知識圖譜、缺口分析、Skill 自動生成、用戶偏好萃取、知識蒸餾、記憶整合
 - 所有長任務（timeline / monitor / learn / reclassify）採 fire-and-forget：先回覆「處理中」→ 背景執行 → 完成通知
 - 評論自動篩選：過濾純 emoji 和過短反應，只保留有意義的討論
@@ -224,11 +231,11 @@ npx tsc --noEmit   # 型別檢查
 
 ### Claude Code Skills（開發輔助）
 
-13 個自訂技能，涵蓋開發全流程：
+14 個自訂技能，涵蓋開發全流程：
 
 | 類別 | 技能 | 用途 |
 |------|------|------|
-| 開發流程 | `/design` `/dev` `/ship` | 架構確認 → 開發 → 驗證提交推送 |
+| 開發流程 | `/design` `/dev` `/ship` `/improve` | 架構確認 → 開發 → 驗證提交推送 → 審計改善 |
 | Session | `/resume` `/handoff` | 自動啟動 / 交接記錄 |
 | 測試 | `/test` | classify / extractor / smoke / status |
 | 重構 | `/refactor` | 影響分析 → 遷移 → 模組化拆分 |
@@ -241,7 +248,7 @@ npx tsc --noEmit   # 型別檢查
 
 - 所有 TypeScript 檔案 **≤ 300 行**
 - **不使用任何 API SDK**（無 Anthropic SDK、無 OpenAI SDK）
-- LLM enrichment 來源：OpenCode CLI 多模型路由（flash / standard / deep，全免費）→ DDG AI Chat（免費備援）
+- LLM enrichment 來源：oMLX 本地推理（選配）→ OpenCode CLI 多模型路由（flash / standard / deep，全免費）→ DDG AI Chat（免費備援）
 - Enrichment 輸出過濾廢話與廣告語，保持中性專業語氣
 - 外部呼叫必須有 timeout（HTTP 30s / yt-dlp 120s / Obsidian 10s）
 - **輕量 Vault** — 影片預設不存入 Vault（`SAVE_VIDEOS=false`），僅保留原始 URL 連結
@@ -266,6 +273,8 @@ src/
 │   ├── discover-command.ts     # /discover GitHub 探索（含熱門掃描）
 │   ├── suggest-command.ts     # /suggest 相關筆記推薦
 │   ├── radar-command.ts       # /radar 內容雷達管理
+│   ├── find-command.ts        # /find Vault 筆記搜尋
+│   ├── patrol-command.ts      # /patrol GitHub Trending 巡邏
 │   ├── admin-command.ts       # /logs /health /restart 遠端管理
 │   └── doctor-command.ts      # /doctor 全面即時診斷
 ├── extractors/                 # 各平台內容擷取器
@@ -310,6 +319,10 @@ src/
 │   ├── radar-store.ts          # 設定持久化 + 自動查詢生成
 │   ├── radar-service.ts        # 背景排程引擎（多來源 → Vault）
 │   └── sources/                # 可擴展來源（DDG、GitHub Trending、RSS）
+├── patrol/                     # 自動巡邏（GitHub Trending 定時抓取）
+│   ├── patrol-service.ts       # 巡邏引擎（HTML 解析 + pipeline 整合）
+│   ├── patrol-store.ts         # 設定持久化
+│   └── patrol-types.ts         # 型別定義
 ├── proactive/                  # 主動推理（排程摘要 + 趨勢警報）
 │   ├── proactive-service.ts    # 排程推送 digest + 趨勢通知
 │   ├── trend-detector.ts       # 關鍵字頻率突增偵測 + 分類缺口
@@ -334,7 +347,7 @@ src/
     ├── fetch-with-timeout.ts   # 帶超時的 HTTP 請求
     ├── search-service.ts       # 搜尋服務（DDG + Camoufox）
     ├── ddg-chat.ts             # DuckDuckGo AI Chat 介面
-    ├── local-llm.ts            # LLM 統一入口（多模型路由 → DDG Chat 備援）
+    ├── local-llm.ts            # LLM 統一入口（oMLX → 多模型路由 → DDG Chat 三層降級）
     ├── vision-llm.ts           # 圖片辨識（OpenCode gpt-5-nano）
     ├── url-canonicalizer.ts    # URL 正規化（去重用）
     └── camoufox-pool.ts        # 反偵測瀏覽器池（max 2, idle 10min）

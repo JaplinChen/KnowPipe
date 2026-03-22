@@ -6,6 +6,7 @@ export const HELP_TEXT = [
   '微博 / B站 / 小紅書 / 抖音 / 任何網頁',
   '',
   '指令：',
+  '/find <關鍵字> — 搜尋 Vault 筆記（frontmatter）',
   '/search <查詢> — 網頁搜尋',
   '/monitor <關鍵字> — 跨平台搜尋提及',
   '/timeline @用戶 — 抓取用戶最近貼文',
@@ -22,6 +23,7 @@ export const HELP_TEXT = [
   '/suggest — 相關筆記推薦（自動連結）',
   '/radar — 內容雷達（自動搜尋+存入）',
   '/radar wall — AI 工具情報牆（活躍/沉寂/匹配）',
+  '/patrol — 自動巡邏 GitHub Trending（/patrol auto 啟用定時）',
   '/benchmark — 品質基準報告（評分趨勢/平台成功率）',
   '/status — Bot 狀態與本次儲存',
   '/health — 系統健康報告（記憶體/Extractor/Vault）',
@@ -34,6 +36,7 @@ export const HELP_TEXT = [
 
 export const BOT_COMMANDS_MENU = [
   { command: 'start', description: '顯示 Bot 說明' },
+  { command: 'find', description: '搜尋 Vault 筆記' },
   { command: 'search', description: '網頁搜尋' },
   { command: 'monitor', description: '跨平台搜尋提及' },
   { command: 'timeline', description: '抓取用戶最近貼文' },
@@ -49,6 +52,7 @@ export const BOT_COMMANDS_MENU = [
   { command: 'quality', description: 'Vault 品質報告' },
   { command: 'suggest', description: '相關筆記推薦' },
   { command: 'radar', description: '內容雷達' },
+  { command: 'patrol', description: '自動巡邏 GitHub Trending' },
   { command: 'benchmark', description: '品質基準報告' },
   { command: 'status', description: 'Bot 狀態' },
   { command: 'health', description: '系統健康報告' },
