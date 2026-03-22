@@ -76,10 +76,10 @@ export async function postProcess(
       ? withTimeout(enrichLinkedUrls(urlEntries), 30_000, '連結補充')
       : Promise.resolve(null),
     shouldTranslate
-      ? withTimeout(translateIfNeeded(content.title, content.text), 45_000, '翻譯')
+      ? translateIfNeeded(content.title, content.text)
       : Promise.resolve(null),
     shouldTranslate && content.body
-      ? withTimeout(translateBodyIfNeeded(content.body), 45_000, 'Body 翻譯')
+      ? translateBodyIfNeeded(content.body)
       : Promise.resolve(null),
   ]);
 
