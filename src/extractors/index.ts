@@ -9,6 +9,7 @@ import { redditExtractor } from './reddit-extractor.js';
 import { bilibiliExtractor } from './bilibili-extractor.js';
 import { weiboExtractor } from './weibo-extractor.js';
 import { xiaohongshuExtractor } from './xiaohongshu-extractor.js';
+import { xiaohongshuBrowserUseExtractor } from './xiaohongshu-browseruse-extractor.js';
 import { douyinExtractor } from './douyin-extractor.js';
 import { tiktokExtractor } from './tiktok-extractor.js';
 import { ithomeExtractor } from './ithome-extractor.js';
@@ -24,7 +25,10 @@ export function registerAllExtractors(): void {
   registerExtractor(redditExtractor);
   registerExtractor(bilibiliExtractor);
   registerExtractor(weiboExtractor);
-  registerExtractor(xiaohongshuExtractor);
+  const xhsExtractor = process.env.USE_BROWSER_USE === '1'
+    ? xiaohongshuBrowserUseExtractor
+    : xiaohongshuExtractor;
+  registerExtractor(xhsExtractor);
   registerExtractor(douyinExtractor);
   registerExtractor(tiktokExtractor);
   registerExtractor(ithomeExtractor);
