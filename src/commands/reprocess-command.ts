@@ -6,7 +6,7 @@
  */
 import type { Context } from 'telegraf';
 import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import type { AppConfig } from '../utils/config.js';
 import { logger } from '../core/logger.js';
 import { parseVaultNote, parsedNoteToExtractedContent } from '../vault/note-parser.js';
@@ -15,6 +15,7 @@ import { saveToVault } from '../saver.js';
 import { scanVaultNotes } from '../knowledge/knowledge-store.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 import { findExtractor } from '../utils/url-parser.js';
+import { deleteOldFileIfMoved, cleanEmptyDirs } from '../vault/reprocess-helpers.js';
 import type { ExtractorWithComments } from '../extractors/types.js';
 
 interface ParsedArgs {
@@ -74,7 +75,13 @@ async function reprocessSingle(
     }
 
     await enrichExtractedContent(content, config);
-    await saveToVault(content, config.vaultPath, { forceOverwrite: true, saveVideos: config.saveVideos });
+    const result = await saveToVault(content, config.vaultPath, { forceOverwrite: true, saveVideos: config.saveVideos });
+
+    // Delete old file if reprocess produced a different path (slug/category changed)
+    if (result.mdPath && result.mdPath !== filePath) {
+      await deleteOldFileIfMoved(filePath, result.mdPath);
+      await cleanEmptyDirs(dirname(filePath));
+    }
 
     return { success: true, title: content.title };
   } catch (err) {

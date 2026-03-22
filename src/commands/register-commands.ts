@@ -12,6 +12,7 @@ import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
 import { handleDiscover } from './discover-command.js';
 import { handleReprocess } from './reprocess-command.js';
+import { handleDedup } from './dedup-command.js';
 import { createRetryHandler, createRetryActionHandler } from './retry-command.js';
 import { handleSubscribe } from './subscribe-command.js';
 import { handleQuality } from './quality-command.js';
@@ -96,6 +97,7 @@ export function registerCommands(
 
   // --- Maintenance ---
   registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);
+  registerAsyncCommand(bot, 'dedup', 'dedup', config, handleDedup);
   registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
   registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
   registerAsyncCommand(bot, 'quality', 'quality', config, handleQuality);
