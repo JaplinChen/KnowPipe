@@ -1,0 +1,167 @@
+/**
+ * oMLX local inference client.
+ * Calls the OpenAI-compatible REST API served by `omlx serve`.
+ * No SDK — pure native fetch.
+ */
+import { fetchWithTimeout } from './fetch-with-timeout.js';
+import type { ModelTier } from './local-llm.js';
+
+const OMLX_BASE = 'http://127.0.0.1:8000';
+const AVAILABILITY_CACHE_MS = 30_000;
+
+/** Map model tiers to oMLX model directory names. */
+const OMLX_MODELS: Record<ModelTier, string> = {
+  flash: 'Qwen3.5-9B-MLX-4bit',
+  standard: 'Qwen3.5-9B-MLX-4bit',
+  deep: 'Qwen3.5-27B-4bit',
+};
+
+/* ── Availability probe with cache ──────────────────────────────────── */
+
+let _available: boolean | null = null;
+let _checkedAt = 0;
+
+/** Check whether oMLX serve is running (cached for 30 s). */
+export async function isOmlxAvailable(): Promise<boolean> {
+  const now = Date.now();
+  if (_available !== null && now - _checkedAt < AVAILABILITY_CACHE_MS) {
+    return _available;
+  }
+
+  try {
+    const res = await fetchWithTimeout(`${OMLX_BASE}/v1/models`, 3_000);
+    _available = res.ok;
+  } catch {
+    _available = false;
+  }
+  _checkedAt = now;
+  return _available;
+}
+
+/** Reset availability cache (e.g. after oMLX goes down mid-request). */
+function invalidateCache(): void {
+  _available = null;
+  _checkedAt = 0;
+}
+
+/* ── Model selection ────────────────────────────────────────────────── */
+
+/** Get the oMLX model ID for a given tier. */
+export function getOmlxModelId(tier: ModelTier): string {
+  return OMLX_MODELS[tier];
+}
+
+const OMLX_VISION_MODEL = 'Qwen2.5-VL-7B-Instruct-4bit';
+
+/* ── Chat completion ────────────────────────────────────────────────── */
+
+interface OmlxOptions {
+  model?: ModelTier;
+  timeoutMs?: number;
+  temperature?: number;
+  maxTokens?: number;
+}
+
+/**
+ * Send a prompt to oMLX and return the assistant reply.
+ * Returns null on any error (caller should fallback).
+ */
+export async function omlxChatCompletion(
+  prompt: string,
+  options: OmlxOptions = {},
+): Promise<string | null> {
+  const tier = options.model ?? 'standard';
+  const modelId = getOmlxModelId(tier);
+  const timeoutMs = options.timeoutMs ?? 30_000;
+
+  const body = JSON.stringify({
+    model: modelId,
+    messages: [{ role: 'user', content: prompt }],
+    temperature: options.temperature ?? 0.3,
+    max_tokens: options.maxTokens ?? 4096,
+  });
+
+  try {
+    const res = await fetchWithTimeout(`${OMLX_BASE}/v1/chat/completions`, timeoutMs, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+
+    if (!res.ok) {
+      console.error(`[omlx] HTTP ${res.status} for model ${modelId}`);
+      invalidateCache();
+      return null;
+    }
+
+    const json = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = json.choices?.[0]?.message?.content?.trim();
+    return content || null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    // AbortError = timeout; ECONNREFUSED = server down
+    if (msg.includes('abort') || msg.includes('ECONNREFUSED')) {
+      invalidateCache();
+    }
+    console.error(`[omlx] error: ${msg}`);
+    return null;
+  }
+}
+
+/* ── Vision completion ──────────────────────────────────────────────── */
+
+/**
+ * Analyze a local image via oMLX vision model (Qwen2.5-VL).
+ * Reads the file as base64 and sends via OpenAI vision API format.
+ * Returns null on any error (caller should fallback).
+ */
+export async function omlxVisionCompletion(
+  imageBase64: string,
+  mimeType: string,
+  prompt: string,
+  timeoutMs = 30_000,
+): Promise<string | null> {
+  const dataUrl = `data:${mimeType};base64,${imageBase64}`;
+
+  const body = JSON.stringify({
+    model: OMLX_VISION_MODEL,
+    messages: [{
+      role: 'user',
+      content: [
+        { type: 'text', text: prompt },
+        { type: 'image_url', image_url: { url: dataUrl } },
+      ],
+    }],
+    temperature: 0.3,
+    max_tokens: 1024,
+  });
+
+  try {
+    const res = await fetchWithTimeout(`${OMLX_BASE}/v1/chat/completions`, timeoutMs, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+
+    if (!res.ok) {
+      console.error(`[omlx-vision] HTTP ${res.status}`);
+      invalidateCache();
+      return null;
+    }
+
+    const json = (await res.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+    const content = json.choices?.[0]?.message?.content?.trim();
+    return content || null;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('abort') || msg.includes('ECONNREFUSED')) {
+      invalidateCache();
+    }
+    console.error(`[omlx-vision] error: ${msg}`);
+    return null;
+  }
+}

@@ -1,15 +1,17 @@
 /**
- * Vision-capable LLM runner using OpenCode + gpt-5-nano.
+ * Vision-capable LLM runner.
+ * Priority: oMLX Qwen2.5-VL (local HTTP) → OpenCode gpt-5-nano (remote CLI).
  * Downloads images to temp dir, analyzes with vision model, cleans up.
  */
 import { spawn } from 'node:child_process';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomBytes } from 'node:crypto';
 import { logger } from '../core/logger.js';
 import { fetchWithTimeout } from './fetch-with-timeout.js';
 import { cleanOpenCodeOutput } from './local-llm.js';
+import { isOmlxAvailable, omlxVisionCompletion } from './omlx-client.js';
 
 const VISION_MODEL = 'opencode/gpt-5-nano';
 const VISION_TIMEOUT_MS = 30_000;
@@ -19,11 +21,39 @@ const VISION_PROMPT = `Describe this image in Traditional Chinese (zh-TW) in 2-3
 Focus on: what tool/product/concept is shown, key visual elements, any text visible in the image.
 Be factual and concise. Do not describe decorative elements.`;
 
-/** Analyze a single local image via opencode gpt-5-nano vision. */
-export async function analyzeImage(
+/** Map file extension to MIME type. */
+function extToMime(ext: string): string {
+  const map: Record<string, string> = {
+    '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+    '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+  };
+  return map[ext.toLowerCase()] ?? 'image/jpeg';
+}
+
+/* ── oMLX vision (local, fast) ──────────────────────────────────────── */
+
+async function runViaOmlx(
   imagePath: string,
-  prompt = VISION_PROMPT,
-  timeoutMs = VISION_TIMEOUT_MS,
+  prompt: string,
+  timeoutMs: number,
+): Promise<string | null> {
+  try {
+    const buf = await readFile(imagePath);
+    const base64 = buf.toString('base64');
+    const ext = imagePath.match(/\.(jpe?g|png|gif|webp)/i)?.[0] ?? '.jpg';
+    const mime = extToMime(ext);
+    return await omlxVisionCompletion(base64, mime, prompt, timeoutMs);
+  } catch {
+    return null;
+  }
+}
+
+/* ── OpenCode CLI vision (remote, fallback) ─────────────────────────── */
+
+async function runViaCli(
+  imagePath: string,
+  prompt: string,
+  timeoutMs: number,
 ): Promise<string | null> {
   return new Promise((resolve) => {
     const proc = spawn(
@@ -44,6 +74,28 @@ export async function analyzeImage(
     proc.stdin.write(prompt);
     proc.stdin.end();
   });
+}
+
+/* ── Public API ─────────────────────────────────────────────────────── */
+
+/**
+ * Analyze a single local image.
+ * Priority: oMLX Qwen2.5-VL → opencode gpt-5-nano.
+ */
+export async function analyzeImage(
+  imagePath: string,
+  prompt = VISION_PROMPT,
+  timeoutMs = VISION_TIMEOUT_MS,
+): Promise<string | null> {
+  // 1) Try oMLX vision (local, no subprocess spawn)
+  if (await isOmlxAvailable()) {
+    const result = await runViaOmlx(imagePath, prompt, timeoutMs);
+    if (result) return result;
+    logger.warn('vision', 'oMLX vision failed, falling back to opencode CLI');
+  }
+
+  // 2) Fallback to opencode CLI
+  return runViaCli(imagePath, prompt, timeoutMs);
 }
 
 /**

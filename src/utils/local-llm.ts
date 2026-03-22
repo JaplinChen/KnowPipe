@@ -1,10 +1,11 @@
 /**
  * LLM prompt runner with multi-model routing.
- * Models: flash (mimo-v2) → standard (minimax-m2.5) → deep (nemotron-3).
- * Fallback: DDG AI Chat (Camoufox, free).
+ * Priority: oMLX (local HTTP) → opencode CLI (remote) → DDG AI Chat.
+ * Models: flash (9B) → standard (9B) → deep (27B).
  */
 import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
+import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
 
 const CLI_TIMEOUT_MS = 90_000;
 
@@ -62,7 +63,7 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
 
 /**
  * Run a prompt against LLM providers.
- * Priority: opencode run (selected model) → DDG AI Chat (Camoufox, free).
+ * Priority: oMLX (local HTTP) → opencode CLI (remote) → DDG AI Chat.
  * Returns null when no provider succeeds.
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
@@ -70,11 +71,18 @@ export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}
   const tier = options.model ?? 'standard';
   const model = LLM_MODELS[tier];
 
-  // 1) Try opencode CLI with selected model
+  // 1) Try oMLX local inference (fastest, no subprocess spawn)
+  if (await isOmlxAvailable()) {
+    const omlxResult = await omlxChatCompletion(prompt, { model: tier, timeoutMs });
+    if (omlxResult) return omlxResult;
+    console.warn('[llm] oMLX failed, falling back to opencode CLI');
+  }
+
+  // 2) Try opencode CLI with selected model
   const cliResult = await runViaCli(prompt, timeoutMs, model);
   if (cliResult) return cliResult;
 
-  // 2) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
+  // 3) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
   const ddgResult = await runViaDdgChat(prompt, timeoutMs);
   if (ddgResult) return ddgResult;
 
