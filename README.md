@@ -36,6 +36,8 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 - **處理進度串流** — URL 處理時即時顯示目前階段（擷取 → 豐富化 → 儲存），Telegram 訊息原地更新
 - **遠端管理** — 在 Telegram 裡查看 log、系統健康、重啟 Bot，搭配 loop 模式自動恢復
 - **自我修復** — 排程掃描 Vault 自動修復 HTML 殘留/壞路徑，Extractor 健康探測 + 降級告警
+- **即時診斷** — `/doctor` 一鍵探測全部 12 個平台 + 外部工具檢查 + 瀏覽器池狀態 + Vault 統計
+- **自動降級擷取** — 平台 Extractor 失敗時自動 fallback 到通用網頁擷取，最大化內容可及性
 - **品質基準** — enrichment 品質自動評分、平台成功率追蹤、`/benchmark` 查看品質報告
 - **OCR 文字辨識** — 截圖類圖片自動 OCR 提取文字，提升 AI 分析品質（需安裝 tesseract.js）
 - **分類回饋學習** — 用戶手動重分類時自動記錄校正，強化動態分類器準確度
@@ -65,7 +67,7 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 | YouTube | ✅ | yt-dlp，字幕擷取 + 播放清單（影片預設不存，連結回原始 URL） |
 | TikTok | ✅ | yt-dlp + whisper.cpp STT 逐字稿（影片預設不存） |
 | GitHub | ✅ | Repo / Issue / PR |
-| 通用網頁 | ✅ | Jina Reader fallback |
+| 通用網頁 | ✅ | 4 層降級（Readability → Camoufox → Browser Use → Regex），平台擷取失敗時自動 fallback |
 | PDF 文件 | ✅ | 直接傳檔到 Telegram，自動擷取文字 |
 
 ### 需登入平台
@@ -150,6 +152,7 @@ npx camoufox-js fetch
 | `/radar` | 內容雷達（自動搜尋+存入，on/off/auto/run/add/remove/wall） |
 | `/status` | Bot 運行狀態與本次儲存統計 |
 | `/health` | 系統健康報告（記憶體 / Extractor / Vault） |
+| `/doctor` | 全面即時診斷（探測所有平台 + 工具檢查 + Vault 統計） |
 | `/logs [n] [error]` | 查看最近 log（可指定數量與級別） |
 | `/restart` | 遠端重啟 Bot（需搭配 loop 模式） |
 | `/clear` | 清除處理佇列與統計 |
@@ -263,7 +266,8 @@ src/
 │   ├── discover-command.ts     # /discover GitHub 探索（含熱門掃描）
 │   ├── suggest-command.ts     # /suggest 相關筆記推薦
 │   ├── radar-command.ts       # /radar 內容雷達管理
-│   └── admin-command.ts       # /logs /health /restart 遠端管理
+│   ├── admin-command.ts       # /logs /health /restart 遠端管理
+│   └── doctor-command.ts      # /doctor 全面即時診斷
 ├── extractors/                 # 各平台內容擷取器
 │   ├── x-extractor.ts          # Twitter/X（fxTweet API）
 │   ├── threads-extractor.ts    # Threads（Camoufox，topic tag 偵測）
@@ -275,7 +279,7 @@ src/
 │   ├── weibo-extractor.ts      # 微博（API + Camoufox）
 │   ├── xiaohongshu-extractor.ts # 小紅書（Camoufox）
 │   ├── douyin-extractor.ts     # 抖音（Camoufox）
-│   └── web-extractor.ts        # 通用網頁（Jina Reader）
+│   └── web-extractor.ts        # 通用網頁（4 層降級 + 平台失敗自動 fallback）
 ├── formatters/                 # 按平台分離的 Markdown 格式化
 │   ├── index.ts                # Registry：platform → formatter
 │   ├── base.ts                 # 組裝器（frontmatter + body + stats）
@@ -313,7 +317,7 @@ src/
 │   └── proactive-types.ts      # 型別定義
 ├── monitoring/                 # 自我修復 + 品質基準
 │   ├── vault-healer.ts         # Vault 自動修復（HTML/路徑/空行）
-│   ├── extractor-probe.ts      # Extractor 健康探測
+│   ├── extractor-probe.ts      # Extractor 健康探測（12 平台全覆蓋）
 │   ├── monitor-service.ts      # 排程監控服務
 │   ├── benchmark-scorer.ts     # enrichment 品質評分
 │   ├── benchmark-store.ts      # 品質資料持久化 + 報告生成
