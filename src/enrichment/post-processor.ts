@@ -1,7 +1,7 @@
 ﻿/**
  * Post-processing pipeline: runs after extract + AI enrich, before save.
  * Enriches linked URLs and translates non-zh-TW content in parallel.
- * Each step has its own timeout (links: 18s, translation: 15s) to avoid mutual interference.
+ * Each step has its own timeout (links: 30s, translation: 45s) to avoid mutual interference.
  */
 
 import type { ExtractedContent } from '../extractors/types.js';
@@ -73,13 +73,13 @@ export async function postProcess(
 
   const [linkedResult, translationResult, bodyTranslationResult] = await Promise.allSettled([
     urlEntries.length > 0
-      ? withTimeout(enrichLinkedUrls(urlEntries), 18_000, '連結補充')
+      ? withTimeout(enrichLinkedUrls(urlEntries), 30_000, '連結補充')
       : Promise.resolve(null),
     shouldTranslate
-      ? withTimeout(translateIfNeeded(content.title, content.text), 15_000, '翻譯')
+      ? withTimeout(translateIfNeeded(content.title, content.text), 45_000, '翻譯')
       : Promise.resolve(null),
     shouldTranslate && content.body
-      ? withTimeout(translateBodyIfNeeded(content.body), 15_000, 'Body 翻譯')
+      ? withTimeout(translateBodyIfNeeded(content.body), 45_000, 'Body 翻譯')
       : Promise.resolve(null),
   ]);
 
