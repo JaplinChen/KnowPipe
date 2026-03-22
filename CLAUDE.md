@@ -8,8 +8,8 @@
 - 所有 TypeScript 檔案 **≤ 300 行**，超過必須拆分。
 
 ### 程式碼品質
-- **不使用任何 API SDK**（無 Anthropic SDK / OpenAI SDK / 任何 LLM SDK）。LLM 呼叫走外部 CLI。
-- **不使用本地 LLM / Ollama**。
+- **不使用任何 API SDK**（無 Anthropic SDK / OpenAI SDK / 任何 LLM SDK）。LLM 呼叫走外部 CLI 或本地 HTTP API。
+- **本地 LLM 僅限 oMLX**（透過 HTTP fetch 呼叫，不引入 SDK）。
 - 使用 `import type` 處理純型別引入。
 - 避免使用 `any`，除非真的無替代方案。
 - 不在同一 commit 做無關重構。

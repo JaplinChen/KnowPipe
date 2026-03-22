@@ -1,14 +1,16 @@
 /**
- * LLM prompt runner with multi-model routing.
- * Models: flash (mimo-v2) → standard (minimax-m2.5) → deep (nemotron-3).
- * Fallback: DDG AI Chat (Camoufox, free).
+ * LLM prompt runner with multi-provider routing.
+ * Priority: oMLX (local) → OpenCode CLI (remote) → DDG AI Chat (fallback).
+ * Models: flash → standard → deep per tier.
  */
 import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
+import { omlxTextPrompt, getOmlxConfig } from './omlx-client.js';
+import { logger } from '../core/logger.js';
 
 const CLI_TIMEOUT_MS = 90_000;
 
-/** Available free models ranked by capability. */
+/** Available free models ranked by capability (OpenCode CLI). */
 export const LLM_MODELS = {
   flash: 'opencode/mimo-v2-flash-free',       // fast, keyword/title extraction
   standard: 'opencode/minimax-m2.5-free',      // balanced, general enrichment
@@ -23,7 +25,22 @@ interface RunOptions {
   model?: ModelTier;
 }
 
-/* ── CLI provider (OpenCode + multi-model routing) ───────────────────── */
+/* ── oMLX provider (local, fastest) ───────────────────────────────── */
+
+/** Run prompt via oMLX local inference server. */
+async function runViaOmlx(prompt: string, timeoutMs: number, tier: ModelTier): Promise<string | null> {
+  const config = getOmlxConfig();
+  if (!config.enabled) return null;
+
+  const model = config.models[tier];
+  const result = await omlxTextPrompt(prompt, model, timeoutMs);
+  if (result) {
+    logger.info('llm', 'omlx-ok', { tier, chars: result.length });
+  }
+  return result;
+}
+
+/* ── CLI provider (OpenCode + multi-model routing) ───────────────── */
 
 /** Strip ANSI escape codes and opencode banner lines from output. */
 export function cleanOpenCodeOutput(raw: string): string {
@@ -60,21 +77,27 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
   });
 }
 
+/* ── Main entry point ─────────────────────────────────────────────── */
+
 /**
  * Run a prompt against LLM providers.
- * Priority: opencode run (selected model) → DDG AI Chat (Camoufox, free).
+ * Priority: oMLX (local) → opencode CLI → DDG AI Chat (Camoufox, free).
  * Returns null when no provider succeeds.
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const tier = options.model ?? 'standard';
-  const model = LLM_MODELS[tier];
 
-  // 1) Try opencode CLI with selected model
+  // 1) Try oMLX local inference (fastest, no network)
+  const omlxResult = await runViaOmlx(prompt, timeoutMs, tier);
+  if (omlxResult) return omlxResult;
+
+  // 2) Try opencode CLI with selected model
+  const model = LLM_MODELS[tier];
   const cliResult = await runViaCli(prompt, timeoutMs, model);
   if (cliResult) return cliResult;
 
-  // 2) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
+  // 3) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
   const ddgResult = await runViaDdgChat(prompt, timeoutMs);
   if (ddgResult) return ddgResult;
 

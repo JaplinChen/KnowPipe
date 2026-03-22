@@ -42,7 +42,7 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 - **OCR 文字辨識** — 截圖類圖片自動 OCR 提取文字，提升 AI 分析品質（需安裝 tesseract.js）
 - **分類回饋學習** — 用戶手動重分類時自動記錄校正，強化動態分類器準確度
 - **互動式指令** — 缺參數時自動引導輸入，知識類指令提供快捷按鈕
-- **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 免費模型，兼顧速度與品質
+- **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 模型，支援 oMLX 本地推理（Apple Silicon）與 OpenCode 遠端免費模型三層降級
 - **批次翻譯** — 英文/簡中筆記自動翻譯為繁體中文
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV，Windows / Mac / iPhone 三端同步
 
@@ -114,6 +114,11 @@ ENABLE_TRANSLATION=true             # 啟用簡轉繁翻譯
 MAX_LINKED_URLS=5                   # 單則貼文最多抓取的外部連結數
 SAVE_VIDEOS=false                   # 影片存入 Vault（預設 false，僅保留原始連結）
 LLM_PROVIDER=opencode                # LLM CLI（預設 OpenCode + MiniMax M2.5 Free，DDG Chat 為備援）
+
+# oMLX 本地推理（Apple Silicon，選配）
+OMLX_ENABLED=true                    # 啟用後優先使用本地推理，失敗自動降級到 OpenCode
+OMLX_BASE_URL=http://localhost:8000/v1
+OMLX_API_KEY=your_omlx_api_key
 ```
 
 ```bash
@@ -215,7 +220,7 @@ npx tsc --noEmit   # 型別檢查
 - **Telegraf** — Telegram Bot API（ForceReply + InlineKeyboard 互動式指令）
 - **Camoufox** — 反偵測瀏覽器（Firefox 基底），處理需 JS 渲染的平台
 - **ProcessGuardian** — 三段式 409 自癒（指數退避 → 自動 logOut + 冷卻 → 退出）+ 殭屍進程自動清理
-- **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash（MIMO v2）/ standard（MiniMax M2.5）/ deep（Nemotron 3 Super），全免費
+- **三層 LLM 降級** — oMLX 本地推理（Apple Silicon，SSD KV 快取加速）→ OpenCode CLI 遠端免費模型 → DDG AI Chat 備援
 - **知識系統** — 實體萃取、知識圖譜、缺口分析、Skill 自動生成、用戶偏好萃取、知識蒸餾、記憶整合
 - 所有長任務（timeline / monitor / learn / reclassify）採 fire-and-forget：先回覆「處理中」→ 背景執行 → 完成通知
 - 評論自動篩選：過濾純 emoji 和過短反應，只保留有意義的討論
@@ -241,7 +246,7 @@ npx tsc --noEmit   # 型別檢查
 
 - 所有 TypeScript 檔案 **≤ 300 行**
 - **不使用任何 API SDK**（無 Anthropic SDK、無 OpenAI SDK）
-- LLM enrichment 來源：OpenCode CLI 多模型路由（flash / standard / deep，全免費）→ DDG AI Chat（免費備援）
+- LLM enrichment 來源：oMLX 本地推理（Apple Silicon）→ OpenCode CLI 多模型路由 → DDG AI Chat，三層自動降級
 - Enrichment 輸出過濾廢話與廣告語，保持中性專業語氣
 - 外部呼叫必須有 timeout（HTTP 30s / yt-dlp 120s / Obsidian 10s）
 - **輕量 Vault** — 影片預設不存入 Vault（`SAVE_VIDEOS=false`），僅保留原始 URL 連結
@@ -302,7 +307,7 @@ src/
 │   ├── dynamic-classifier.ts   # 動態分類規則快取
 │   ├── vault-learner.ts        # Vault 掃描學習
 │   ├── learn-command.ts        # /learn 指令
-│   ├── ai-enricher.ts          # OpenCode + MiniMax AI 摘要
+│   ├── ai-enricher.ts          # AI 摘要（oMLX / OpenCode 多模型路由）
 │   ├── reclassify-command.ts   # 重新分類（由 /learn 按鈕觸發）
 │   └── batch-translator.ts     # 批次翻譯（由 /learn 按鈕觸發）
 ├── radar/                      # 內容雷達（自動搜尋+存入）
@@ -334,8 +339,9 @@ src/
     ├── fetch-with-timeout.ts   # 帶超時的 HTTP 請求
     ├── search-service.ts       # 搜尋服務（DDG + Camoufox）
     ├── ddg-chat.ts             # DuckDuckGo AI Chat 介面
-    ├── local-llm.ts            # LLM 統一入口（多模型路由 → DDG Chat 備援）
-    ├── vision-llm.ts           # 圖片辨識（OpenCode gpt-5-nano）
+    ├── omlx-client.ts          # oMLX 本地推理 HTTP client（text + vision）
+    ├── local-llm.ts            # LLM 統一入口（oMLX → OpenCode → DDG Chat 三層降級）
+    ├── vision-llm.ts           # 圖片辨識（oMLX VLM → OpenCode gpt-5-nano）
     ├── url-canonicalizer.ts    # URL 正規化（去重用）
     └── camoufox-pool.ts        # 反偵測瀏覽器池（max 2, idle 10min）
 ```
