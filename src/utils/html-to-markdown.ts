@@ -170,6 +170,29 @@ export async function htmlToMarkdownWithBrowserUse(url: string): Promise<HtmlToM
 }
 
 /**
+ * Auth-aware extraction: use Browser Use CLI with headed mode (preserves login
+ * session cookies). Used for paywalled sites like Medium, WeChat, Substack etc.
+ * Falls back to null if Browser Use CLI is unavailable.
+ */
+export async function htmlToMarkdownWithAuthBrowser(url: string): Promise<HtmlToMarkdownResult | null> {
+  const { BrowserUseClient } = await import('./browser-use-client.js');
+  const client = new BrowserUseClient('getthreads-auth', true /* headed */);
+  try {
+    const available = await client.isAvailable();
+    if (!available) return null;
+
+    await client.open(url);
+    // Longer wait for auth-walled content to fully render
+    await new Promise((r) => setTimeout(r, 5000));
+    const html = await client.html();
+    if (!html || html.length < 200) return null;
+    return htmlToMarkdown(html, url, true);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Convert an HTML fragment (not a full page) to Markdown.
  * Used for pre-extracted content like GitHub README <article> blocks.
  * @param baseUrl — optional source URL for resolving relative links/images

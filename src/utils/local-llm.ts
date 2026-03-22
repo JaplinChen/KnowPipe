@@ -1,12 +1,17 @@
 /**
  * LLM prompt runner with multi-model routing.
+ * Priority: oMLX (local Apple Silicon) → opencode CLI → DDG AI Chat.
  * Models: flash (mimo-v2) → standard (minimax-m2.5) → deep (nemotron-3).
- * Fallback: DDG AI Chat (Camoufox, free).
  */
 import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
+import { logger } from '../core/logger.js';
 
 const CLI_TIMEOUT_MS = 90_000;
+
+/** oMLX local server configuration */
+const OMLX_BASE_URL = process.env.OMLX_URL ?? 'http://localhost:8000';
+const OMLX_MODEL = process.env.OMLX_MODEL ?? 'default';
 
 /** Available free models ranked by capability. */
 export const LLM_MODELS = {
@@ -21,6 +26,8 @@ interface RunOptions {
   timeoutMs?: number;
   /** Model tier for routing. Default: 'standard'. */
   model?: ModelTier;
+  /** Skip oMLX local inference (e.g. for tasks requiring large models). */
+  skipLocal?: boolean;
 }
 
 /* ── CLI provider (OpenCode + multi-model routing) ───────────────────── */
@@ -60,15 +67,71 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
   });
 }
 
+/* ── oMLX local provider (Apple Silicon, OpenAI-compatible API) ──────── */
+
+/** Check if oMLX server is running */
+let omlxAvailable: boolean | null = null;
+
+async function checkOmlxAvailable(): Promise<boolean> {
+  if (omlxAvailable !== null) return omlxAvailable;
+  try {
+    const res = await fetch(`${OMLX_BASE_URL}/v1/models`, {
+      signal: AbortSignal.timeout(3_000),
+    });
+    omlxAvailable = res.ok;
+  } catch {
+    omlxAvailable = false;
+  }
+  // Re-check availability every 5 minutes
+  setTimeout(() => { omlxAvailable = null; }, 5 * 60_000);
+  return omlxAvailable;
+}
+
+/** Run prompt via oMLX local server (OpenAI-compatible chat completions) */
+async function runViaOmlx(prompt: string, timeoutMs: number): Promise<string | null> {
+  if (!await checkOmlxAvailable()) return null;
+
+  try {
+    const res = await fetch(`${OMLX_BASE_URL}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: OMLX_MODEL,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 1024,
+        temperature: 0.3,
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+
+    if (!res.ok) return null;
+
+    const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const content = data.choices?.[0]?.message?.content?.trim();
+    return content || null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Run a prompt against LLM providers.
- * Priority: opencode run (selected model) → DDG AI Chat (Camoufox, free).
+ * Priority: oMLX (local) → opencode CLI → DDG AI Chat (Camoufox, free).
  * Returns null when no provider succeeds.
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const tier = options.model ?? 'standard';
   const model = LLM_MODELS[tier];
+
+  // 0) Try oMLX local server (fastest, zero API cost)
+  if (!options.skipLocal) {
+    const omlxResult = await runViaOmlx(prompt, Math.min(timeoutMs, 30_000));
+    if (omlxResult) {
+      logger.info('llm', 'oMLX local inference succeeded');
+      return omlxResult;
+    }
+  }
 
   // 1) Try opencode CLI with selected model
   const cliResult = await runViaCli(prompt, timeoutMs, model);

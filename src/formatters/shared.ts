@@ -91,6 +91,7 @@ export function buildFrontmatter(
     `summary: "${escape(stripMarkdown(content.enrichedSummary ?? displayText).replace(/\{\{VIDEO:\d+\}\}/g, '').slice(0, 150)).replace(/\n/g, ' ')}"`,
   ];
   if (content.stars != null) lines.push(`stars: ${content.stars}`);
+  if (content.language) lines.push(`language: ${content.language}`);
   lines.push('---');
   return lines;
 }

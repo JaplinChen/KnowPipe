@@ -1,8 +1,10 @@
 /**
  * One-command bot restart: kill → wait → compile → start --force
  * Usage: npx tsx scripts/restart-bot.ts [--skip-wait]
+ * Platform: macOS (Apple Silicon)
  */
 import { execSync, spawn } from 'node:child_process';
+import { existsSync, unlinkSync } from 'node:fs';
 
 const WAIT_SECONDS = 8;
 const skipWait = process.argv.includes('--skip-wait');
@@ -12,39 +14,69 @@ function log(msg: string): void {
   console.log(`[${ts}] ${msg}`);
 }
 
-function killAllNode(): number {
+function findBotProcesses(): number[] {
   try {
-    const list = execSync('tasklist /FI "IMAGENAME eq node.exe" /FO CSV', {
-      encoding: 'utf-8',
-    });
-    const lines = list.split('\n').filter((l) => l.includes('node.exe'));
-    if (lines.length === 0) return 0;
-
-    execSync('taskkill /F /IM node.exe', { stdio: 'ignore' });
-    return lines.length;
+    const raw = execSync('ps -eo pid,command', { encoding: 'utf-8', timeout: 5_000 });
+    const pids: number[] = [];
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      // Match tsx/node processes running our bot
+      if (trimmed.includes('src/index.ts') || trimmed.includes('dist/index.js')) {
+        const pid = Number(trimmed.split(/\s+/)[0]);
+        if (pid && pid !== process.pid) pids.push(pid);
+      }
+    }
+    return pids;
   } catch {
-    return 0;
+    return [];
   }
+}
+
+function killProcesses(pids: number[]): number {
+  let killed = 0;
+  for (const pid of pids) {
+    try {
+      process.kill(pid, 'SIGTERM');
+      killed++;
+    } catch {
+      // Process may already be dead
+    }
+  }
+  // Give SIGTERM a moment, then SIGKILL survivors
+  if (killed > 0) {
+    try { execSync('sleep 1'); } catch { /* ignore */ }
+    for (const pid of pids) {
+      try {
+        process.kill(pid, 0); // Check if alive
+        process.kill(pid, 'SIGKILL');
+      } catch {
+        // Already dead
+      }
+    }
+  }
+  return killed;
 }
 
 function cleanOrphanNodeProcesses(): number {
   try {
-    const csv = execSync(
-      'wmic process where "name=\'node.exe\'" get ProcessId,ParentProcessId /format:csv',
-      { encoding: 'utf-8', timeout: 5_000 },
-    );
+    const raw = execSync('ps -eo pid,ppid,comm', { encoding: 'utf-8', timeout: 5_000 });
     let killed = 0;
-    for (const line of csv.split('\n')) {
-      const parts = line.trim().split(',');
-      if (parts.length < 3) continue;
-      const parentPid = Number(parts[1]);
-      const pid = Number(parts[2]);
+    for (const line of raw.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith('PID')) continue;
+      const [pidStr, ppidStr, comm] = trimmed.split(/\s+/, 3);
+      if (!comm || !comm.includes('node')) continue;
+      const pid = Number(pidStr);
+      const parentPid = Number(ppidStr);
       if (!pid || pid === process.pid) continue;
 
-      // Check if parent is dead
-      try { process.kill(parentPid, 0); } catch {
+      // Check if parent is dead → orphan
+      try {
+        process.kill(parentPid, 0);
+      } catch {
         try {
-          execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
+          process.kill(pid, 'SIGKILL');
           killed++;
         } catch { /* ignore */ }
       }
@@ -59,7 +91,7 @@ function cleanLockfiles(): void {
   const files = ['.bot.pid', '.bot.lock', 'bot.pid'];
   for (const f of files) {
     try {
-      execSync(`del /q "${f}"`, { stdio: 'ignore', cwd: process.cwd() });
+      if (existsSync(f)) unlinkSync(f);
     } catch {
       /* ignore */
     }
@@ -99,10 +131,11 @@ async function main(): Promise<void> {
   const orphans = cleanOrphanNodeProcesses();
   if (orphans > 0) log(`🧹 清除 ${orphans} 個殭屍 node 進程`);
 
-  // Step 1: Kill
-  const killed = killAllNode();
+  // Step 1: Find and kill bot processes (targeted, not all node)
+  const botPids = findBotProcesses();
+  const killed = killProcesses(botPids);
   cleanLockfiles();
-  log(`🗑️  清除 ${killed} 個 node 進程 + lockfiles`);
+  log(`🗑️  清除 ${killed} 個 bot 進程 + lockfiles`);
 
   // Step 2: Wait for Telegram to release polling connection
   if (killed > 0 && !skipWait) {
