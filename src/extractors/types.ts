@@ -72,6 +72,17 @@ export interface ExtractedContent {
   subFolder?: string;
   /** Temp directory to clean up after saving (used by TikTok extractor for local screenshots) */
   tempDir?: string;
+  /** Pipeline 處理日誌——記錄擷取管線各階段的執行資訊 */
+  processingLog?: ProcessingLog;
+}
+
+/** Pipeline 處理日誌 */
+export interface ProcessingLog {
+  extractorUsed: string;
+  wasFallback?: boolean;
+  classifierConfidence?: number;
+  processingTimeMs?: number;
+  enrichmentScore?: number;
 }
 
 /** Lightweight metadata fetched from a URL found in content or comments */
