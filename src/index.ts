@@ -16,6 +16,7 @@ import { startRadarChecker } from './radar/radar-service.js';
 import { startProactiveService } from './proactive/proactive-service.js';
 import { startMonitorService } from './monitoring/monitor-service.js';
 import { startWallService } from './radar/wall-service.js';
+import { startPatrolService } from './patrol/patrol-service.js';
 import { registerTimers } from './core/service-registry.js';
 
 const config = loadConfig();
@@ -89,6 +90,11 @@ startMonitorService(bot, config)
 startWallService(bot, config)
   .then((ts) => registerTimers(...ts))
   .catch((e) => logger.warn('wall', '啟動情報牆失敗', { message: (e as Error).message }));
+
+// Start content patrol service (GitHub Trending auto-fetch)
+startPatrolService(bot, config)
+  .then((ts) => registerTimers(...ts))
+  .catch((e) => logger.warn('patrol', '啟動巡邏服務失敗', { message: (e as Error).message }));
 
 const forceMode = process.argv.includes('--force');
 new ProcessGuardian(bot, forceMode).launch();
