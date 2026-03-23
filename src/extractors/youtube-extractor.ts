@@ -10,128 +10,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { mkdir, rm, access, readFile, readdir } from 'node:fs/promises';
 import type { ExtractedContent, Extractor, VideoInfo } from './types.js';
+import {
+  buildVideoText, buildPlaylistText, formatDate, fetchTranscriptWithDefuddle,
+} from './youtube-helpers.js';
+import type { YtDlpOutput, YtDlpPlaylistOutput } from './youtube-helpers.js';
 
 const execFileAsync = promisify(execFile);
 
 const VIDEO_PATTERN = /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|shorts\/|embed\/|v\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/i;
 const PLAYLIST_PATTERN = /youtube\.com\/playlist\?(?:.*&)?list=([\w-]+)/i;
-
-interface YtDlpOutput {
-  id: string;
-  title: string;
-  description?: string;
-  uploader?: string;
-  channel?: string;
-  upload_date?: string; // YYYYMMDD
-  thumbnail?: string;
-  duration_string?: string;
-  view_count?: number;
-  like_count?: number;
-  tags?: string[];
-  webpage_url: string;
-}
-
-interface YtDlpPlaylistEntry {
-  id: string;
-  title: string;
-  url: string;
-  webpage_url?: string;
-  duration?: number;
-  duration_string?: string;
-  view_count?: number;
-  thumbnail?: string;
-  description?: string;
-  upload_date?: string;
-}
-
-interface YtDlpPlaylistOutput {
-  title: string;
-  uploader?: string;
-  channel?: string;
-  description?: string;
-  webpage_url: string;
-  entries: YtDlpPlaylistEntry[];
-}
-
-function formatDate(uploadDate?: string): string {
-  if (!uploadDate || uploadDate.length !== 8) return new Date().toISOString().split('T')[0];
-  return `${uploadDate.slice(0, 4)}-${uploadDate.slice(4, 6)}-${uploadDate.slice(6, 8)}`;
-}
-
-function formatDuration(seconds?: number): string {
-  if (!seconds) return '';
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  const s = seconds % 60;
-  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  return `${m}:${String(s).padStart(2, '0')}`;
-}
-
-/** Build Markdown text from single video metadata */
-function buildVideoText(data: YtDlpOutput): string {
-  const lines: string[] = [];
-
-  if (data.duration_string) lines.push(`**Duration:** ${data.duration_string}`);
-
-  const stats: string[] = [];
-  if (data.view_count != null) stats.push(`Views: ${data.view_count.toLocaleString()}`);
-  if (stats.length > 0) lines.push(`**Stats:** ${stats.join(' | ')}`);
-
-  if (data.tags && data.tags.length > 0) {
-    lines.push(`**Tags:** ${data.tags.slice(0, 10).join(', ')}`);
-  }
-
-  lines.push('');
-
-  if (data.description) {
-    const desc = data.description.length > 2000
-      ? data.description.slice(0, 2000) + '\n...'
-      : data.description;
-    lines.push('## Description', '', desc);
-  }
-
-  return lines.join('\n');
-}
-
-/** Clean video description: remove promo links, timestamps, social media spam */
-function cleanDescription(desc?: string): string {
-  if (!desc) return '';
-  const lines = desc.split('\n').filter(line => {
-    const t = line.trim();
-    if (!t) return false;
-    // Remove promo lines (👉, social links, subscribe)
-    if (/^👉|^🔗|^📌|^▶/.test(t)) return false;
-    if (/facebook\.com|instagram\.com|substack\.com|twitter\.com|x\.com|linktr\.ee/i.test(t)) return false;
-    if (/訂閱|subscribe|追蹤|follow/i.test(t)) return false;
-    // Remove timestamp lines (00:00 ...)
-    if (/^\d{1,2}:\d{2}/.test(t)) return false;
-    // Remove separator lines
-    if (/^[-=_]{3,}$/.test(t)) return false;
-    return true;
-  });
-  const cleaned = lines.join('\n').trim();
-  return cleaned.length > 500 ? cleaned.slice(0, 500) + '...' : cleaned;
-}
-
-/** Build Markdown text from playlist metadata (title + video + summary) */
-function buildPlaylistText(data: YtDlpPlaylistOutput): string {
-  const lines: string[] = [];
-  lines.push(`**影片數量：** ${data.entries.length}`);
-  lines.push('');
-
-  for (let i = 0; i < data.entries.length; i++) {
-    const e = data.entries[i];
-    const dur = e.duration_string ?? formatDuration(e.duration);
-    const durStr = dur ? ` (${dur})` : '';
-
-    lines.push(`### ${i + 1}. ${e.title}${durStr}`, '');
-    lines.push(`{{VIDEO:${i}}}`, '');
-    const summary = cleanDescription(e.description);
-    if (summary) lines.push(summary, '');
-  }
-
-  return lines.join('\n');
-}
 
 function isPlaylistUrl(url: string): boolean {
   return PLAYLIST_PATTERN.test(url);
@@ -176,7 +63,6 @@ async function extractVideo(url: string): Promise<ExtractedContent> {
   const data = JSON.parse(stdout) as YtDlpOutput;
   const uploader = data.channel ?? data.uploader ?? 'Unknown';
 
-  // Download video file (720p max, mp4)
   const tmpDir = join(tmpdir(), `getthreads-yt-${data.id}`);
   await mkdir(tmpDir, { recursive: true });
   const videoPath = join(tmpDir, 'video.mp4');
@@ -195,8 +81,11 @@ async function extractVideo(url: string): Promise<ExtractedContent> {
     logger.warn('youtube', 'video download failed', { message: msg.slice(0, 200) });
   }
 
-  // Fetch subtitles (reuses tmpDir, ~5s with --skip-download)
-  const transcript = await fetchSubtitles(url, tmpDir);
+  // Fetch subtitles: yt-dlp first, Defuddle CLI as fallback
+  let transcript = await fetchSubtitles(url, tmpDir);
+  if (!transcript) {
+    transcript = await fetchTranscriptWithDefuddle(url);
+  }
 
   if (!localPath) {
     await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
@@ -237,7 +126,6 @@ async function extractPlaylist(url: string): Promise<ExtractedContent> {
   const data = JSON.parse(stdout) as YtDlpPlaylistOutput;
   const uploader = data.channel ?? data.uploader ?? 'Unknown';
 
-  // Download all playlist videos (720p max, mp4)
   const tmpDir = join(tmpdir(), `getthreads-yt-pl-${Date.now()}`);
   await mkdir(tmpDir, { recursive: true });
 

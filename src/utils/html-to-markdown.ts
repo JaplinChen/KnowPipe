@@ -1,8 +1,9 @@
 /**
- * HTML → Markdown conversion using Readability + Turndown.
+ * HTML → Markdown conversion using Defuddle CLI / Readability + Turndown.
  *
- * Provides three entry points:
- *   - htmlToMarkdown(): full-page article extraction via Readability + Turndown
+ * Provides entry points:
+ *   - htmlToMarkdownWithDefuddle(): Defuddle CLI for direct URL→Markdown (preferred)
+ *   - htmlToMarkdown(): full-page article extraction via Readability + Turndown (fallback)
  *   - htmlToMarkdownWithBrowser(): Camoufox fallback for JS-rendered pages
  *   - htmlFragmentToMarkdown(): direct Turndown on an HTML snippet (e.g. GitHub README)
  */
@@ -13,12 +14,18 @@ import TurndownService from 'turndown';
 // @ts-expect-error — no type declarations for turndown-plugin-gfm
 import { gfm } from 'turndown-plugin-gfm';
 import { camoufoxPool } from './camoufox-pool.js';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+
+const execFileAsync = promisify(execFile);
 
 export interface HtmlToMarkdownResult {
   title: string;
   markdown: string;
   excerpt: string;
   byline: string | null;
+  publishedDate?: string;
+  siteName?: string;
 }
 
 const MAX_MARKDOWN_LENGTH = 8000;
@@ -164,6 +171,39 @@ export async function htmlToMarkdownWithBrowserUse(url: string): Promise<HtmlToM
     const html = await client.html();
     if (!html || html.length < 200) return null;
     return htmlToMarkdown(html, url, true);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract article content from a URL using Defuddle CLI (npx defuddle parse).
+ * Returns structured result with Markdown content, or null if Defuddle fails.
+ * Defuddle is preferred over Readability: better noise removal, direct Markdown output.
+ */
+export async function htmlToMarkdownWithDefuddle(url: string): Promise<HtmlToMarkdownResult | null> {
+  try {
+    const { stdout } = await execFileAsync('npx', ['defuddle', 'parse', url, '--json'], {
+      timeout: 30_000,
+      maxBuffer: 5 * 1024 * 1024,
+    });
+    const data = JSON.parse(stdout) as {
+      contentMarkdown?: string; content?: string; title?: string;
+      author?: string; published?: string; site?: string; description?: string;
+    };
+    const markdown = data.contentMarkdown || '';
+    if (!markdown || markdown.length < 50) return null;
+
+    return {
+      title: (data.title || '').slice(0, 100),
+      markdown: markdown.length > MAX_MARKDOWN_LENGTH
+        ? markdown.slice(0, MAX_MARKDOWN_LENGTH) + '\n\n...(truncated)'
+        : markdown,
+      excerpt: (data.description || '').slice(0, 300),
+      byline: data.author || null,
+      publishedDate: data.published || undefined,
+      siteName: data.site || undefined,
+    };
   } catch {
     return null;
   }

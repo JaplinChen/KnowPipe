@@ -19,6 +19,16 @@ const SUPPORTED_TYPES = ['application/pdf'];
 /* ── PDF text extraction ─────────────────────────────────────────────── */
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
+  // Tier 1: Kreuzberg (Rust core, supports OCR for scanned PDFs)
+  try {
+    const { extractBytes } = await import('@kreuzberg/node');
+    const result = await extractBytes(new Uint8Array(buffer), 'application/pdf');
+    if (result.content && result.content.trim().length >= 20) return result.content.trim();
+  } catch {
+    // Kreuzberg unavailable or failed — fallback to pdf-parse
+  }
+
+  // Tier 2: pdf-parse (legacy fallback)
   const { PDFParse } = await import('pdf-parse');
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   const result = await parser.getText();
@@ -79,7 +89,7 @@ export function registerDocumentHandler(
       // Extract text
       const text = await extractPdfText(buffer);
       if (!text || text.length < 20) {
-        await ctx.reply('PDF 文字內容不足，無法處理。可能是掃描圖檔，需 OCR。');
+        await ctx.reply('PDF 文字內容不足，無法處理（已嘗試 OCR）。');
         return;
       }
 

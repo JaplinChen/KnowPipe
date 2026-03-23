@@ -193,6 +193,33 @@ function isWellFormatted(text: string): boolean {
 }
 
 /**
+ * Rule 5: CJK/Latin mixed text spacing (pangu-style).
+ * Adds spaces between CJK characters and Latin letters/digits.
+ * Also compresses repeated Chinese punctuation.
+ */
+function spaceCjkLatinMixed(text: string): string {
+  // Protect markdown syntax from modification
+  const protectedParts: string[] = [];
+  let result = text
+    .replace(/`[^`]+`/g, (m) => { protectedParts.push(m); return `\x02P${protectedParts.length - 1}\x02`; })
+    .replace(/\[[^\]]*\]\([^)]*\)/g, (m) => { protectedParts.push(m); return `\x02P${protectedParts.length - 1}\x02`; })
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, (m) => { protectedParts.push(m); return `\x02P${protectedParts.length - 1}\x02`; });
+
+  // CJK + Latin/digit: add space
+  // CJK ranges: \u4e00-\u9fff (unified), \u3400-\u4dbf (ext-A), \uf900-\ufaff (compat)
+  const CJK = '\\u4e00-\\u9fff\\u3400-\\u4dbf\\uf900-\\ufaff';
+  result = result.replace(new RegExp(`([${CJK}])([A-Za-z0-9])`, 'g'), '$1 $2');
+  result = result.replace(new RegExp(`([A-Za-z0-9])([${CJK}])`, 'g'), '$1 $2');
+
+  // Compress repeated Chinese punctuation: ！！！ → ！
+  result = result.replace(/([！？。，；：])\1+/g, '$1');
+
+  // Restore protected parts
+  result = result.replace(/\x02P(\d+)\x02/g, (_, i) => protectedParts[Number(i)]);
+  return result;
+}
+
+/**
  * Main entry: reformat body text for better readability.
  * Safe to call on already-formatted text — returns unchanged if not needed.
  */
@@ -201,6 +228,7 @@ export function reformatBody(text: string): string {
 
   let result = text;
   result = normalizeNumbering(result);
+  result = spaceCjkLatinMixed(result);
   result = breakInlineStructure(result);
   result = breakInlineNumberedItems(result);
   result = breakLongParagraphs(result);
@@ -208,6 +236,9 @@ export function reformatBody(text: string): string {
   result = normalizeBlankLines(result);
   return result;
 }
+
+/** Standalone CJK spacing for use outside reformatBody (e.g. vault-healer) */
+export { spaceCjkLatinMixed };
 
 /**
  * Reformat only the body section of a vault note (between frontmatter and first ## heading).

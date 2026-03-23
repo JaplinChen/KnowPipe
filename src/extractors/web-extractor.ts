@@ -2,7 +2,10 @@
 import type { ExtractedContent, Extractor } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { stripHtmlTags } from './web-cleaner.js';
-import { htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse } from '../utils/html-to-markdown.js';
+import {
+  htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse,
+  htmlToMarkdownWithDefuddle,
+} from '../utils/html-to-markdown.js';
 
 function decodeHtml(s: string): string {
   return s
@@ -88,22 +91,48 @@ export const webExtractor: Extractor = {
     const html = await res.text();
     if (!html || html.length < 100) throw new Error('Web page returned empty content');
 
+    const finalUrl = res.url || url;
+
+    // Tier 0: Defuddle CLI (direct URL→Markdown, best quality)
     // Tier 1: Readability + Turndown on raw HTML
     // Tier 2: Camoufox browser rendering (JS-rendered pages, anti-fingerprint)
     // Tier 3: Browser Use CLI rendering (lightweight headless Chromium fallback)
     // Tier 4: Regex extraction (final fallback)
-    let parsed = htmlToMarkdown(html, res.url || url);
+    let parsed = await htmlToMarkdownWithDefuddle(finalUrl);
+    if (!parsed) {
+      parsed = htmlToMarkdown(html, finalUrl);
+    }
     if (!parsed) {
       try {
-        parsed = await htmlToMarkdownWithBrowser(res.url || url);
+        parsed = await htmlToMarkdownWithBrowser(finalUrl);
       } catch {
-        // Camoufox unavailable — try Browser Use CLI
-        try {
-          parsed = await htmlToMarkdownWithBrowserUse(res.url || url);
-        } catch {
-          // Browser Use CLI also unavailable — continue with regex fallback
+        // Tier 2.5: OpenCLI (reuses Chrome login state)
+        const { fetchHtmlWithOpenCli } = await import('../utils/opencli-client.js');
+        const ocHtml = await fetchHtmlWithOpenCli(finalUrl);
+        if (ocHtml) parsed = htmlToMarkdown(ocHtml, finalUrl, true);
+      }
+    }
+    if (!parsed) {
+      {
+        // Tier 2.8: pinchtab (lightweight Go headless browser)
+        const { fetchHtmlWithPinchtab } = await import('../utils/pinchtab-client.js');
+        const ptHtml = await fetchHtmlWithPinchtab(finalUrl);
+        if (ptHtml) parsed = htmlToMarkdown(ptHtml, finalUrl, true);
+
+        if (!parsed) {
+          try {
+            parsed = await htmlToMarkdownWithBrowserUse(finalUrl);
+          } catch {
+            // All browser fallbacks unavailable
+          }
         }
       }
+    }
+    // Tier 3.5: Cloudflare Browser Rendering (needs API key in .env)
+    if (!parsed) {
+      const { fetchHtmlWithCloudflare } = await import('../utils/cloudflare-crawler.js');
+      const cfHtml = await fetchHtmlWithCloudflare(finalUrl);
+      if (cfHtml) parsed = htmlToMarkdown(cfHtml, finalUrl, true);
     }
 
     let title: string;
@@ -124,32 +153,36 @@ export const webExtractor: Extractor = {
 
     const imageSet = new Set<string>();
     const ogImage = extractMeta(html, 'og:image');
-    if (ogImage) imageSet.add(absolutizeImage(ogImage, res.url || url));
+    if (ogImage) imageSet.add(absolutizeImage(ogImage, finalUrl));
 
     const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
     for (const m of imgMatches) {
       const src = m[1];
       if (!src || src.startsWith('data:') || src.startsWith('blob:')) continue;
-      imageSet.add(absolutizeImage(src, res.url || url));
+      imageSet.add(absolutizeImage(src, finalUrl));
       if (imageSet.size >= 8) break;
     }
 
     let domain = url;
     try {
-      domain = new URL(res.url || url).hostname.replace(/^www\./, '');
+      domain = new URL(finalUrl).hostname.replace(/^www\./, '');
     } catch {
       // keep original
     }
 
+    // Use Defuddle metadata when available
+    const author = parsed?.byline || domain;
+    const date = parsed?.publishedDate || new Date().toISOString().split('T')[0];
+
     return {
       platform: 'web',
-      author: domain,
+      author,
       authorHandle: domain,
       title,
       text,
       images: [...imageSet],
       videos: [],
-      date: new Date().toISOString().split('T')[0],
+      date,
       url,
     };
   },
