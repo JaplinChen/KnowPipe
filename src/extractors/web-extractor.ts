@@ -1,7 +1,7 @@
 ﻿export const JINA_REMOVE_SELECTORS = '';
 import type { ExtractedContent, Extractor } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
-import { stripHtmlTags } from './web-cleaner.js';
+import { stripHtmlTags, cleanWebChrome, stripFooterSections, deduplicateTitle, stripJsonBlocks } from './web-cleaner.js';
 import { htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse } from '../utils/html-to-markdown.js';
 
 function decodeHtml(s: string): string {
@@ -121,6 +121,12 @@ export const webExtractor: Extractor = {
     }
 
     if (!text) text = '[No readable text]';
+
+    // Clean up web noise: duplicate titles, footer sections, JSON blocks, nav chrome
+    text = deduplicateTitle(text, title);
+    text = stripFooterSections(text);
+    text = stripJsonBlocks(text);
+    text = cleanWebChrome(text);
 
     const imageSet = new Set<string>();
     const ogImage = extractMeta(html, 'og:image');

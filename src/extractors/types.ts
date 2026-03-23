@@ -60,6 +60,10 @@ export interface ExtractedContent {
   comments?: ThreadComment[];
   /** Total comment count reported by the platform (may exceed fetched) */
   commentCount?: number;
+  /** View/play count (YouTube, Bilibili, TikTok) */
+  viewCount?: number;
+  /** Formatted video duration string, e.g. "3:42" or "1:02:15" */
+  duration?: string;
   /** URLs found in post/comments with fetched metadata (post-processing) */
   linkedContent?: LinkedContentMeta[];
   /** Translation to Traditional Chinese when source is non-zh-TW (post-processing) */

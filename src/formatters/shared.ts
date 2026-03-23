@@ -115,12 +115,16 @@ export function buildLinkedContent(linkedContent?: LinkedContentMeta[]): string[
   return lines;
 }
 
-/** Build engagement stats line */
-export function buildStats(reposts?: number): string[] {
-  const stats: string[] = [];
-  if (reposts != null) stats.push(`Reposts: ${reposts}`);
-  if (stats.length === 0) return [];
-  return ['---', '', stats.join(' | '), ''];
+/** Build engagement stats line from all structured fields */
+export function buildStats(content: ExtractedContent): string[] {
+  const parts: string[] = [];
+  if (content.duration) parts.push(`Duration: ${content.duration}`);
+  if (content.viewCount != null) parts.push(`Views: ${content.viewCount.toLocaleString()}`);
+  if (content.likes != null) parts.push(`Likes: ${content.likes.toLocaleString()}`);
+  if (content.commentCount != null) parts.push(`Comments: ${content.commentCount.toLocaleString()}`);
+  if (content.reposts != null) parts.push(`Reposts: ${content.reposts.toLocaleString()}`);
+  if (parts.length === 0) return [];
+  return ['---', '', parts.join(' | '), ''];
 }
 
 /** Build comments section lines */

@@ -35,6 +35,7 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 - **主動推理** — 每日自動生成知識摘要 + 趨勢關鍵字警報 + 久未更新分類提醒，推送到 Telegram
 - **處理進度串流** — URL 處理時即時顯示目前階段（擷取 → 豐富化 → 儲存），Telegram 訊息原地更新
 - **遠端管理** — 在 Telegram 裡查看 log、系統健康、重啟 Bot，搭配 loop 模式自動恢復
+- **結構化互動指標** — 影片平台 Stats（觀看/按讚/留言/時長）分離至結構化欄位，統一渲染於筆記底部，不汙染正文與摘要
 - **自我修復** — 排程掃描 Vault 自動修復 HTML 殘留/壞路徑，Extractor 健康探測 + 降級告警
 - **即時診斷** — `/doctor` 一鍵探測全部 12 個平台 + 外部工具檢查 + 瀏覽器池狀態 + Vault 統計
 - **自動降級擷取** — 平台 Extractor 失敗時自動 fallback 到通用網頁擷取，最大化內容可及性
@@ -67,7 +68,7 @@ GetThreads 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 
 | YouTube | ✅ | yt-dlp，字幕擷取 + 播放清單（影片預設不存，連結回原始 URL） |
 | TikTok | ✅ | yt-dlp + whisper.cpp STT 逐字稿（影片預設不存） |
 | GitHub | ✅ | Repo / Issue / PR |
-| 通用網頁 | ✅ | 4 層降級（Readability → Camoufox → Browser Use → Regex），平台擷取失敗時自動 fallback |
+| 通用網頁 | ✅ | 4 層降級（Readability → Camoufox → Browser Use → Regex）+ 自動清理導航/廣告/footer，平台擷取失敗時自動 fallback |
 | PDF 文件 | ✅ | 直接傳檔到 Telegram，自動擷取文字 |
 
 ### 需登入平台
@@ -243,6 +244,7 @@ npx tsc --noEmit   # 型別檢查
 - **不使用任何 API SDK**（無 Anthropic SDK、無 OpenAI SDK）
 - LLM enrichment 來源：OpenCode CLI 多模型路由（flash / standard / deep，全免費）→ DDG AI Chat（免費備援）
 - Enrichment 輸出過濾廢話與廣告語，保持中性專業語氣
+- **Markdown 品質** — Stats 結構化分離（不汙染正文/摘要）、Web 內容自動清理（去重標題/導航/footer/JSON/廣告）、Hashtag 自動提取到 tags
 - 外部呼叫必須有 timeout（HTTP 30s / yt-dlp 120s / Obsidian 10s）
 - **輕量 Vault** — 影片預設不存入 Vault（`SAVE_VIDEOS=false`），僅保留原始 URL 連結
 

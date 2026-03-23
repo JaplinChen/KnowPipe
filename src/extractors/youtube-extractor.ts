@@ -67,30 +67,12 @@ function formatDuration(seconds?: number): string {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
-/** Build Markdown text from single video metadata */
+/** Build text from single video — pure description only, stats go to structured fields */
 function buildVideoText(data: YtDlpOutput): string {
-  const lines: string[] = [];
-
-  if (data.duration_string) lines.push(`**Duration:** ${data.duration_string}`);
-
-  const stats: string[] = [];
-  if (data.view_count != null) stats.push(`Views: ${data.view_count.toLocaleString()}`);
-  if (stats.length > 0) lines.push(`**Stats:** ${stats.join(' | ')}`);
-
-  if (data.tags && data.tags.length > 0) {
-    lines.push(`**Tags:** ${data.tags.slice(0, 10).join(', ')}`);
-  }
-
-  lines.push('');
-
-  if (data.description) {
-    const desc = data.description.length > 2000
-      ? data.description.slice(0, 2000) + '\n...'
-      : data.description;
-    lines.push('## Description', '', desc);
-  }
-
-  return lines.join('\n');
+  if (!data.description) return '';
+  return data.description.length > 2000
+    ? data.description.slice(0, 2000) + '\n...'
+    : data.description;
 }
 
 /** Clean video description: remove promo links, timestamps, social media spam */
@@ -212,6 +194,10 @@ async function extractVideo(url: string): Promise<ExtractedContent> {
     videos: [{ url: data.webpage_url, type: 'video' as const, localPath }],
     date: formatDate(data.upload_date),
     url,
+    viewCount: data.view_count,
+    likes: data.like_count,
+    duration: data.duration_string,
+    extraTags: data.tags?.slice(0, 10),
     transcript: transcript ?? undefined,
     tempDir: localPath ? tmpDir : undefined,
   };

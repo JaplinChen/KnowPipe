@@ -120,24 +120,20 @@ async function getTranscript(
   return whisperTranscribe(videoPath, tmpDir);
 }
 
-/** Build clean display text from metadata */
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '';
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
+}
+
+function extractHashtags(text: string): string[] {
+  return [...new Set([...text.matchAll(/[#＃]([\p{L}\p{N}_]+)/gu)].map(m => m[1]))]
+    .filter(t => !/^\d+$/.test(t)).slice(0, 10);
+}
+
+/** Pure description only — stats go to structured fields */
 function buildText(meta: TikTokMeta): string {
-  const lines: string[] = [];
-  if (meta.duration) {
-    const m = Math.floor(meta.duration / 60);
-    const s = meta.duration % 60;
-    lines.push(`**Duration:** ${m}:${String(s).padStart(2, '0')}`);
-  }
-  const stats: string[] = [];
-  if (meta.view_count != null) stats.push(`Views: ${meta.view_count.toLocaleString()}`);
-  if (meta.like_count != null) stats.push(`Likes: ${meta.like_count.toLocaleString()}`);
-  if (meta.comment_count != null) stats.push(`Comments: ${meta.comment_count.toLocaleString()}`);
-  if (stats.length > 0) lines.push(`**Stats:** ${stats.join(' | ')}`);
-  if (meta.description) {
-    if (lines.length > 0) lines.push('');
-    lines.push(meta.description.length > 1000 ? meta.description.slice(0, 1000) + '...' : meta.description);
-  }
-  return lines.join('\n');
+  if (!meta.description) return '（無文字描述）';
+  return meta.description.length > 1000 ? meta.description.slice(0, 1000) + '...' : meta.description;
 }
 
 /** Detect slideshow: formats contain only audio (no video codec) */
@@ -250,6 +246,8 @@ export const tiktokExtractor: Extractor = {
         date: formatDate(meta.upload_date),
         url: pageUrl.replace(/\/video\//, '/photo/'),
         likes: meta.like_count, reposts: meta.repost_count,
+        viewCount: meta.view_count, commentCount: meta.comment_count,
+        extraTags: extractHashtags(meta.description ?? ''),
       };
     }
 
@@ -286,6 +284,9 @@ export const tiktokExtractor: Extractor = {
         videos: [{ url: pageUrl, type: 'video' as const, localPath: cacheVideoPath }],
         date: formatDate(meta.upload_date), url: pageUrl,
         likes: meta.like_count, reposts: meta.repost_count,
+        viewCount: meta.view_count, commentCount: meta.comment_count,
+        duration: formatDuration(meta.duration),
+        extraTags: extractHashtags(meta.description ?? ''),
         transcript: transcript ?? undefined, tempDir: tmpDir,
       };
     } catch (err) {

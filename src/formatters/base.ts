@@ -198,7 +198,7 @@ export function assembleNote(
   const videoLines = formatter.formatVideos(remainingVideos, remainingVideoPaths);
   if (videoLines.length > 0) lines.push('## Videos', '', ...videoLines);
 
-  lines.push(...buildStats(content.reposts));
+  lines.push(...buildStats(content));
   lines.push(...buildComments(content.comments, content.commentCount));
 
   const category = content.category ?? 'other';

@@ -118,11 +118,7 @@ async function fetchViaCamoufox(url: string): Promise<ExtractedContent> {
         author,
         authorHandle: `@${status.user?.screen_name ?? author}`,
         title: text.split('\n')[0].slice(0, 80),
-        text: [
-          `💬 ${status.comments_count ?? 0} | 🔁 ${status.reposts_count ?? 0} | ❤️ ${status.attitudes_count ?? 0}`,
-          '',
-          text,
-        ].join('\n'),
+        text,
         images,
         videos: [],
         date: status.created_at

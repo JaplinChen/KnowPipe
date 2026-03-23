@@ -32,20 +32,18 @@ function formatDate(uploadDate?: string): string {
   return `${uploadDate.slice(0, 4)}-${uploadDate.slice(4, 6)}-${uploadDate.slice(6, 8)}`;
 }
 
+function formatDuration(seconds?: number): string {
+  if (!seconds) return '';
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** Build text — pure description only, stats go to structured fields */
 function buildText(meta: YtDlpOutput): string {
-  const duration = meta.duration ?? 0;
-  const durationStr = duration > 0
-    ? `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`
-    : 'n/a';
-
-  const stats = [
-    `Views: ${(meta.view_count ?? 0).toLocaleString()}`,
-    `Likes: ${(meta.like_count ?? 0).toLocaleString()}`,
-    `Comments: ${(meta.comment_count ?? 0).toLocaleString()}`,
-    `Duration: ${durationStr}`,
-  ].join(' | ');
-
-  return [stats, '', meta.description?.slice(0, 3000) || '[No description]'].join('\n');
+  return meta.description?.slice(0, 3000) || '[No description]';
 }
 
 export const bilibiliExtractor: Extractor & {
@@ -95,6 +93,8 @@ export const bilibiliExtractor: Extractor & {
       url,
       likes: data.like_count,
       commentCount: data.comment_count,
+      viewCount: data.view_count,
+      duration: formatDuration(data.duration),
     };
   },
 
