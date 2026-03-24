@@ -91,7 +91,34 @@ export const CATEGORIES: CategoryRule[] = [
   },
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 4. AI/Agent
+  // 4. AI/開發工具（品牌名優先於泛用 Agent 關鍵字）
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  {
+    name: 'AI/開發工具/OpenClaw',
+    keywords: [
+      'openclaw', 'open claw', 'openclaws', 'clawbot', '龍蝦', '龙虾',
+      'nanoclaw', 'opencloy', 'u-claw', 'clawhub', '養蝦', '小龍蝦',
+    ],
+  },
+  {
+    name: 'AI/開發工具/IDE',
+    keywords: ['cursor', 'windsurf', 'cline', 'copilot', 'code editor'],
+  },
+  {
+    name: 'AI/開發工具/爬蟲與抓取',
+    keywords: [
+      '爬蟲', 'crawler', 'scraping', 'scraper', 'firecrawl',
+      '数据抓取', '資料抓取', '無頭瀏覽器', 'headless browser',
+      'playwright', 'puppeteer', 'selenium',
+    ],
+  },
+  {
+    name: 'AI/開發工具/CLI',
+    keywords: ['cli tool', 'cli 工具', 'cli 轉換', 'terminal tool'],
+  },
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // 5. AI/Agent
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   {
     name: 'AI/Agent/MCP',
@@ -122,33 +149,6 @@ export const CATEGORIES: CategoryRule[] = [
   },
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  // 5. AI/開發工具
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  {
-    name: 'AI/開發工具/OpenClaw',
-    keywords: [
-      'openclaw', 'open claw', 'openclaws', 'clawbot', '龍蝦', '龙虾',
-      'nanoclaw', 'opencloy', 'u-claw', 'clawhub', '養蝦', '小龍蝦',
-    ],
-  },
-  {
-    name: 'AI/開發工具/IDE',
-    keywords: ['cursor', 'windsurf', 'cline', 'copilot', 'code editor'],
-  },
-  {
-    name: 'AI/開發工具/爬蟲與抓取',
-    keywords: [
-      '爬蟲', 'crawler', 'scraping', 'scraper', 'firecrawl',
-      '数据抓取', '資料抓取', '無頭瀏覽器', 'headless browser',
-      'playwright', 'puppeteer', 'selenium',
-    ],
-  },
-  {
-    name: 'AI/開發工具/CLI',
-    keywords: ['cli tool', 'cli 工具', 'cli 轉換', 'terminal tool'],
-  },
-
-  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // 6. AI/教程指南
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   {
@@ -162,7 +162,7 @@ export const CATEGORIES: CategoryRule[] = [
     name: 'AI/教程指南/入門教學',
     keywords: [
       '完全教程', '教程', '小白', '新手',
-      '入門指南', '入门指南', '入門教學', '入门教学',
+      '入門', '入門指南', '入门指南', '入門教學', '入门教学',
       '从0开始', '从零开始', '零基礎', '零基础',
       'getting started', '手把手', '3分钟', '0代码',
       '安裝教學', '安裝指南', '設定教學',
