@@ -38,9 +38,11 @@
 - 修復完成後確認：無空白摘要、無壞連結、無 HTML 殘留。
 
 ### Classifier / Vault 組織
-- 修改分類器關鍵字後，**必須跑回歸測試**（`/test classify`）檢查 false positives。
-- 特別注意 **substring 匹配陷阱**（如 `ads` 會匹配 `attachments`）——用 word boundary 或完整比對。
-- 搬移檔案前先做 **dry-run**：列出所有檔案的新分類，人工確認後再執行。
+- 分類器使用**樹狀結構**（`CategoryNode`）：子節點優先匹配，命中就不回退到父節點。
+- 分類規則分布在 `classifier-tree-ai.ts`（AI 樹）和 `classifier-tree-other.ts`（非 AI 樹）。
+- 修改分類規則後，**必須跑回歸測試**（`npx vitest run src/classifier.test.ts`）。
+- 搬移檔案前先做 **dry-run**（`npx tsx scripts/dry-run-reclassify.ts`）：列出所有檔案的新分類，人工確認後再執行。
+- Vault 筆記的 `category` 和 `tags[2]` 必須同步更新。
 
 ### Git Workflow
 - 功能完成後，將 commit + push 視為標準流程的一部分（除非用戶另有指示）。
