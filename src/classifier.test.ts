@@ -60,9 +60,9 @@ describe('classifyContent — 樹狀分類器', () => {
   });
 
   // ── 知識管理 ──
-  it('Obsidian 純筆記方法歸知識管理', () => {
+  it('Obsidian 筆記方法歸知識管理/筆記方法論', () => {
     const result = classifyContent('Zettelkasten 卡片盒筆記法', 'obsidian 雙向連結');
-    expect(result).toBe('知識管理');
+    expect(result).toBe('知識管理/筆記方法論');
   });
 });
 

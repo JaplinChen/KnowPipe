@@ -50,7 +50,10 @@ export const AI_TREE: CategoryNode[] = [
               },
               {
                 name: 'OpenWork',
-                keywords: ['openwork', 'open work'],
+                keywords: [
+                  'openwork', 'open work', 'opencode 桌面',
+                  'openwork 替代', 'openwork 開源',
+                ],
               },
             ],
           },
@@ -146,7 +149,13 @@ export const AI_TREE: CategoryNode[] = [
           },
           {
             name: 'CLI',
-            keywords: ['opencli', 'open cli', 'reddit-cli', 'reddit cli'],
+            keywords: ['reddit-cli', 'reddit cli'],
+            children: [
+              {
+                name: 'OpenCLI',
+                keywords: ['opencli', 'open cli'],
+              },
+            ],
           },
         ],
       },
@@ -212,6 +221,11 @@ export const AI_TREE: CategoryNode[] = [
       {
         name: 'LLM 基礎',
         keywords: [
+          // 泛 AI 兜底（原 AI/通用 的關鍵字合併至此）
+          'ai', 'gpt', 'llm', 'copilot', 'diffusion',
+          '人工智慧', '大語言模型', '大语言模型',
+          '機器學習', 'machine learning', 'deep learning',
+          // LLM 專屬
           '大模型', '模型评测', '模型評測',
           'benchmark', 'leaderboard',
           '預訓練', 'pre-train', 'fine-tun', '微調',
@@ -260,15 +274,8 @@ export const AI_TREE: CategoryNode[] = [
         ],
       },
 
-      // ── 通用兜底（AI 相關但無更具體的子分類）──
-      {
-        name: '通用',
-        keywords: [
-          'ai', 'gpt', 'llm', 'copilot', 'diffusion',
-          '人工智慧', '大語言模型', '大语言模型',
-          '機器學習', 'machine learning', 'deep learning',
-        ],
-      },
+      // AI 通用兜底 — 無更具體子分類時落入 AI/LLM 基礎
+      // （不建獨立「通用」資料夾，直接加分給 LLM 基礎）
     ],
   },
 

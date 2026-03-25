@@ -2,7 +2,7 @@
 import type { CategoryNode } from './classifier-categories.js';
 
 export const NON_AI_TREE: CategoryNode[] = [
-  // macOS 生態（含 oMLX 子分類，排在知識管理前面）
+  // macOS 生態
   {
     name: 'macOS 生態',
     keywords: [
@@ -24,18 +24,54 @@ export const NON_AI_TREE: CategoryNode[] = [
       },
     ],
   },
+
+  // 知識管理（含 4 個子分類）
   {
     name: '知識管理',
     keywords: [
-      'obsidian', 'pkm', 'zettelkasten',
-      '第二大腦', '第二大脑', '筆記軟體', '笔记软件',
-      '筆記工具', '笔记工具', '雙向連結', '雙向鏈結',
-      '知識圖譜', '知識網路', '知識網絡',
-      'evergreen note', '漸進式總結', 'moc', 'breadcrumbs',
-      'dataview', 'note refactor', 'hq&a',
-      '卡片盒', '筆記法', '筆記系統', '知識管理',
+      'obsidian', 'pkm', '筆記軟體', '笔记软件',
+      '筆記工具', '笔记工具', '知識管理',
+    ],
+    children: [
+      {
+        name: '筆記方法論',
+        keywords: [
+          'zettelkasten', '卡片盒', 'evergreen note',
+          '漸進式總結', 'progressive summarization',
+          'hq&a', '費曼', '間隔重複',
+          'moc', 'map of content',
+        ],
+      },
+      {
+        name: 'Obsidian 插件',
+        keywords: [
+          'dataview', 'breadcrumbs', 'excalidraw',
+          'note refactor', 'web clipper', 'obsidian git',
+          '圖床', 'github cloudflare',
+        ],
+      },
+      {
+        name: 'Obsidian 設定',
+        keywords: [
+          '設定', '介面', '外觀', '快捷鍵', '主題',
+          '手機app', 'icloud', 'workspaces', '初學',
+          '基礎介面', '配置', '個人化', '番茄鐘',
+        ],
+      },
+      {
+        name: 'Obsidian 工作流',
+        keywords: [
+          'metadata', '模板', '雙向連結', '雙向鏈結',
+          '知識網路', '知識網絡', '知識圖譜',
+          '筆記系統', '寫作流程', '多來源',
+          '四色', '內部連結', '第二大腦', '第二大脑',
+          '知識工作', '輸入處理', '整合',
+        ],
+      },
     ],
   },
+
+  // 軟體開發
   {
     name: '軟體開發',
     keywords: [
@@ -46,6 +82,8 @@ export const NON_AI_TREE: CategoryNode[] = [
       'worklenz', '專案管理',
     ],
   },
+
+  // 商業 & 趨勢
   {
     name: '商業 & 趨勢',
     keywords: [
@@ -59,6 +97,8 @@ export const NON_AI_TREE: CategoryNode[] = [
       'news', 'breaking', '新聞', '時事', '政策', '國際',
     ],
   },
+
+  // 中文媒體
   {
     name: '中文媒體',
     keywords: [
@@ -68,6 +108,8 @@ export const NON_AI_TREE: CategoryNode[] = [
       '微信', 'wechat', '公眾號',
     ],
   },
+
+  // 生活
   {
     name: '生活',
     keywords: [
