@@ -10,6 +10,7 @@ import { Markup } from 'telegraf';
 import type { Context } from 'telegraf';
 import { logger } from '../core/logger.js';
 import type { AppConfig } from '../utils/config.js';
+import { isDuplicateUrl } from '../saver.js';
 
 const DEFAULT_TOPICS = ['ai-agent', 'obsidian', 'cli-tool'];
 const MAX_RESULTS = 8;
@@ -96,7 +97,7 @@ function getDateDaysAgo(days: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Build inline keyboard with one save button per repo (2 per row) */
+/** Build inline keyboard with save buttons for unsaved repos only (2 per row) */
 function buildSaveButtons(repos: GhRepo[]) {
   const buttons = repos.map((r) => {
     const token = rememberUrl(r.htmlUrl);
@@ -115,16 +116,27 @@ function buildSaveButtons(repos: GhRepo[]) {
   return Markup.inlineKeyboard(rows);
 }
 
+/** Check which repos are already saved, returns Set of saved URLs */
+async function checkSavedUrls(repos: GhRepo[], vaultPath: string): Promise<Set<string>> {
+  const saved = new Set<string>();
+  for (const r of repos) {
+    const dup = await isDuplicateUrl(r.htmlUrl, vaultPath);
+    if (dup) saved.add(r.htmlUrl);
+  }
+  return saved;
+}
+
 /* ── Format results ──────────────────────────────────────────────────── */
 
-function formatSearchResults(repos: GhRepo[], query: string): string {
+function formatSearchResults(repos: GhRepo[], query: string, savedUrls: Set<string>): string {
   if (repos.length === 0) return `找不到與「${query}」相關的專案。`;
 
   const lines = [`GitHub 搜尋結果：「${query}」\n`];
   for (const r of repos) {
+    const icon = savedUrls.has(r.htmlUrl) ? '📂' : '🔹';
     const lang = r.language ? ` [${r.language}]` : '';
     const desc = r.description.slice(0, 60) || '(no description)';
-    lines.push(`${r.fullName}${lang} (${formatStars(r.stargazersCount)})`);
+    lines.push(`${icon} ${r.fullName}${lang} (${formatStars(r.stargazersCount)})`);
     lines.push(`  ${desc}`);
     lines.push(`  ${r.htmlUrl}`);
     lines.push('');
@@ -132,14 +144,18 @@ function formatSearchResults(repos: GhRepo[], query: string): string {
   return lines.join('\n');
 }
 
-function formatTrendingResults(topicRepos: Array<{ topic: string; repos: GhRepo[] }>): string {
+function formatTrendingResults(
+  topicRepos: Array<{ topic: string; repos: GhRepo[] }>,
+  savedUrls: Set<string>,
+): string {
   const lines = [`每日探索：你的關注領域\n`];
 
   for (const { topic, repos } of topicRepos) {
     if (repos.length === 0) continue;
     lines.push(`--- ${topic} ---`);
     for (const r of repos) {
-      lines.push(`${r.fullName} (${formatStars(r.stargazersCount)}) ${r.htmlUrl}`);
+      const icon = savedUrls.has(r.htmlUrl) ? '📂' : '🔹';
+      lines.push(`${icon} ${r.fullName} (${formatStars(r.stargazersCount)}) ${r.htmlUrl}`);
     }
     lines.push('');
   }
@@ -150,12 +166,12 @@ function formatTrendingResults(topicRepos: Array<{ topic: string; repos: GhRepo[
 /* ── Command handler ─────────────────────────────────────────────────── */
 
 /** /discover <keyword> — search; /discover (no args) — trending */
-export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<void> {
+export async function handleDiscover(ctx: Context, config: AppConfig): Promise<void> {
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
   const rawQuery = text.replace(/^\/discover\s*/i, '').trim();
 
   if (!rawQuery) {
-    await runTrending(ctx);
+    await runTrending(ctx, config);
     return;
   }
 
@@ -167,12 +183,14 @@ export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<
       : `${rawQuery} stars:>50`;
 
     const repos = await searchGitHub(query, MAX_RESULTS);
-    const message = formatSearchResults(repos, rawQuery);
+    const savedUrls = await checkSavedUrls(repos, config.vaultPath);
+    const unsaved = repos.filter(r => !savedUrls.has(r.htmlUrl));
+    const message = formatSearchResults(repos, rawQuery, savedUrls);
 
-    if (repos.length > 0) {
+    if (unsaved.length > 0) {
       await ctx.reply(message, {
         disable_web_page_preview: true,
-        ...buildSaveButtons(repos),
+        ...buildSaveButtons(unsaved),
       } as object);
     } else {
       await ctx.reply(message);
@@ -188,7 +206,7 @@ export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<
 }
 
 /** Scan trending repos in default interest areas */
-async function runTrending(ctx: Context): Promise<void> {
+async function runTrending(ctx: Context, config: AppConfig): Promise<void> {
   const status = await ctx.reply('掃描熱門專案中…');
 
   try {
@@ -204,12 +222,14 @@ async function runTrending(ctx: Context): Promise<void> {
       allRepos.push(...repos);
     }
 
-    const message = formatTrendingResults(topicRepos);
+    const savedUrls = await checkSavedUrls(allRepos, config.vaultPath);
+    const unsaved = allRepos.filter(r => !savedUrls.has(r.htmlUrl));
+    const message = formatTrendingResults(topicRepos, savedUrls);
 
-    if (allRepos.length > 0) {
+    if (unsaved.length > 0) {
       await ctx.reply(message, {
         disable_web_page_preview: true,
-        ...buildSaveButtons(allRepos),
+        ...buildSaveButtons(unsaved),
       } as object);
     } else {
       await ctx.reply(message);

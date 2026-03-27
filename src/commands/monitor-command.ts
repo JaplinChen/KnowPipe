@@ -6,11 +6,8 @@
 import { Markup } from 'telegraf';
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
-import type { ExtractedContent } from '../extractors/types.js';
-import { searchReddit, webSearch, fetchJinaContent } from '../utils/search-service.js';
+import { searchReddit, webSearch } from '../utils/search-service.js';
 import { isDuplicateUrl } from '../saver.js';
-import { classifyContent } from '../classifier.js';
-import { findExtractor } from '../utils/url-parser.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 import { rememberUrl } from './discover-command.js';
 
@@ -77,19 +74,32 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       return;
     }
 
-    // Format result list
+    // Check saved status
     const displayPosts = posts.slice(0, 10);
+    const savedUrls = new Set<string>();
+    for (const p of displayPosts) {
+      const dup = await isDuplicateUrl(p.url, config.vaultPath);
+      if (dup) savedUrls.add(p.url);
+    }
+    const unsaved = displayPosts.filter(p => !savedUrls.has(p.url));
+
+    // Format result list
     const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆\n`];
     for (const p of displayPosts) {
-      lines.push(`- ${p.title.slice(0, 50)}`);
+      const icon = savedUrls.has(p.url) ? '📂' : '🔹';
+      lines.push(`${icon} ${p.title.slice(0, 50)}`);
       lines.push(`  ${p.url}`);
     }
-    lines.push('', '傳送連結即可存入 Vault。');
 
-    await ctx.reply(lines.join('\n'), {
-      disable_web_page_preview: true,
-      ...buildMonitorButtons(displayPosts),
-    } as object);
+    if (unsaved.length > 0) {
+      await ctx.reply(lines.join('\n'), {
+        disable_web_page_preview: true,
+        ...buildMonitorButtons(unsaved),
+      } as object);
+    } else {
+      lines.push('', '所有結果皆已儲存。');
+      await ctx.reply(lines.join('\n'));
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);
