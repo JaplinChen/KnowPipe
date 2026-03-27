@@ -135,11 +135,9 @@ function formatSearchResults(repos: GhRepo[], query: string, savedUrls: Set<stri
   for (const r of repos) {
     const icon = savedUrls.has(r.htmlUrl) ? '📂' : '🔹';
     const lang = r.language ? ` [${r.language}]` : '';
-    const desc = r.description.slice(0, 60) || '(no description)';
     lines.push(`${icon} ${r.fullName}${lang} (${formatStars(r.stargazersCount)})`);
-    lines.push(`  ${desc}`);
     lines.push(`  ${r.htmlUrl}`);
-    lines.push('');
+    if (lines.join('\n').length > 3500) break;
   }
   return lines.join('\n');
 }
@@ -158,6 +156,7 @@ function formatTrendingResults(
       lines.push(`${icon} ${r.fullName} (${formatStars(r.stargazersCount)}) ${r.htmlUrl}`);
     }
     lines.push('');
+    if (lines.join('\n').length > 3500) break;
   }
 
   return lines.join('\n');

@@ -74,8 +74,8 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       return;
     }
 
-    // Check saved status
-    const displayPosts = posts.slice(0, 10);
+    // Check saved status (limit display to avoid Telegram 4096-char limit)
+    const displayPosts = posts.slice(0, 8);
     const savedUrls = new Set<string>();
     for (const p of displayPosts) {
       const dup = await isDuplicateUrl(p.url, config.vaultPath);
@@ -83,12 +83,14 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
     }
     const unsaved = displayPosts.filter(p => !savedUrls.has(p.url));
 
-    // Format result list
+    // Format result list — truncate to stay within Telegram message limit
     const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆\n`];
     for (const p of displayPosts) {
       const icon = savedUrls.has(p.url) ? '📂' : '🔹';
-      lines.push(`${icon} ${p.title.slice(0, 50)}`);
+      lines.push(`${icon} ${p.title.slice(0, 40)}`);
       lines.push(`  ${p.url}`);
+      // Safety: stop if text is getting too long
+      if (lines.join('\n').length > 3500) break;
     }
 
     if (unsaved.length > 0) {
