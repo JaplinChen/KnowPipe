@@ -34,12 +34,19 @@ export function classifyWithLearnedRules(title: string, text: string): string | 
   const titleLower = title.toLowerCase();
   const textLower = text.toLowerCase();
 
-  // Skip overly short keywords (e.g. "24") — too many false positives
-  const MIN_KEYWORD_LEN = 3;
+  // Skip overly short keywords — too many false positives
+  // ASCII keywords need ≥ 5 chars (e.g. "day" matches everything)
+  // CJK keywords need ≥ 3 chars (shorter CJK terms carry more meaning)
+  const MIN_ASCII_LEN = 5;
+  const MIN_CJK_LEN = 3;
+  const isTooShort = (kw: string) => {
+    const hasCJK = /[\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff]/.test(kw);
+    return kw.length < (hasCJK ? MIN_CJK_LEN : MIN_ASCII_LEN);
+  };
 
   // Pass 1: title match — require higher confidence
   for (const rule of cachedRules) {
-    if (rule.keyword.length < MIN_KEYWORD_LEN) continue;
+    if (isTooShort(rule.keyword)) continue;
     if (rule.score >= 0.8 && titleLower.includes(rule.keyword)) {
       return rule.category;
     }
@@ -47,7 +54,7 @@ export function classifyWithLearnedRules(title: string, text: string): string | 
 
   // Pass 2: body match — moderate confidence
   for (const rule of cachedRules) {
-    if (rule.keyword.length < MIN_KEYWORD_LEN) continue;
+    if (isTooShort(rule.keyword)) continue;
     if (rule.score >= 0.75 && textLower.includes(rule.keyword)) {
       return rule.category;
     }
