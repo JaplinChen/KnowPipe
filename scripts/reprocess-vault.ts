@@ -65,7 +65,7 @@ const SKIP_FILES = new Set(['知識庫摘要.md', '.reprocess-progress.json', '.
 function getAllMdFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir)) {
-    if (SKIP_DIRS.has(entry) || entry.startsWith('_backup') || entry.startsWith('GetThreads-backup')) continue;
+    if (SKIP_DIRS.has(entry) || entry.startsWith('_backup') || entry.startsWith('ObsBot-backup')) continue;
     const full = join(dir, entry);
     const stat = statSync(full);
     if (stat.isDirectory()) files.push(...getAllMdFiles(full));
@@ -124,13 +124,13 @@ async function main() {
   const vaultPath = process.env.VAULT_PATH;
   if (!vaultPath) { console.error('VAULT_PATH is required in .env'); process.exit(1); }
 
-  const getThreadsDir = join(vaultPath, 'GetThreads');
+  const obsBotDir = join(vaultPath, 'ObsBot');
   const startTime = Date.now();
 
   registerAllExtractors();
 
   // 1. Scan candidates (exclude MOC, backups, special files)
-  const allFiles = getAllMdFiles(getThreadsDir);
+  const allFiles = getAllMdFiles(obsBotDir);
   const stats: RunStats = {
     total: allFiles.length, matched: 0, success: 0, fallback: 0,
     failed: 0, skipped: 0, deduped: 0, errors: [], changes: [],
@@ -218,7 +218,7 @@ async function main() {
       console.log(`  抓取失敗（${errMsg.slice(0, 80)}），重分類...`);
 
       try {
-        const fbResult = await fallbackReclassify(item.file, getThreadsDir);
+        const fbResult = await fallbackReclassify(item.file, obsBotDir);
         stats.fallback++;
         if (fbResult.newPath) {
           stats.changes.push({
@@ -244,7 +244,7 @@ async function main() {
   await Promise.all(deduped.map((item, i) => limit(() => processOne(item, i))));
 
   // 6. Cleanup empty directories
-  await cleanEmptyDirs(getThreadsDir);
+  await cleanEmptyDirs(obsBotDir);
 
   // 7. Report
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);

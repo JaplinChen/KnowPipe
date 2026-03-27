@@ -1,4 +1,4 @@
-﻿export type ErrorCode =
+export type ErrorCode =
   | 'TIMEOUT'
   | 'AUTH_REQUIRED'
   | 'FORBIDDEN'

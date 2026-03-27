@@ -1,4 +1,4 @@
-﻿import type { ExtractedContent, Extractor } from './types.js';
+import type { ExtractedContent, Extractor } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { htmlFragmentToMarkdown } from '../utils/html-to-markdown.js';
 

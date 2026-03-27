@@ -1,4 +1,4 @@
-﻿import { readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { logger } from '../core/logger.js';
 import type { ClassificationRule, LearnedPatterns } from './vault-learner.js';
 

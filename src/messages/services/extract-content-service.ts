@@ -1,4 +1,4 @@
-﻿import { logger } from '../../core/logger.js';
+import { logger } from '../../core/logger.js';
 import { classifyError } from '../../core/errors.js';
 import type { ErrorCode } from '../../core/errors.js';
 import type { ExtractedContent, ExtractorWithComments } from '../../extractors/types.js';

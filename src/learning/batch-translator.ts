@@ -4,7 +4,7 @@
  * for non-zh-TW content (opencc-js for zh-CN, local LLM CLI for en).
  */
 
-import { type AppConfig, VAULT_SUBFOLDER } from '../utils/config.js';
+import type { AppConfig } from '../utils/config.js';
 import { detectLanguage, translateIfNeeded } from '../enrichment/translator.js';
 import { readFile, writeFile } from 'node:fs/promises';
 import { join, basename } from 'node:path';
@@ -46,8 +46,8 @@ function extractTitle(raw: string): string {
 
 /** Build the translation section markdown. */
 function buildTranslationSection(lang: string, translatedTitle: string | undefined, translatedText: string): string {
-  const langLabel = lang === 'en' ? 'English' : lang === 'zh-CN' ? '?�^����' : lang;
-  const parts = [TRANSLATION_HEADING, `> ?��?語�?�?{langLabel}`, ''];
+  const langLabel = lang === 'en' ? 'English' : lang === 'zh-CN' ? '简体中文' : lang;
+  const parts = [TRANSLATION_HEADING, `> 原文語言：${langLabel}`, ''];
   if (translatedTitle) parts.push(`**${translatedTitle}**`, '');
   parts.push(translatedText, '');
   return parts.join('\n');
@@ -55,19 +55,19 @@ function buildTranslationSection(lang: string, translatedTitle: string | undefin
 
 /**
  * Insert translation section at the right position in the markdown.
- * Priority: after "## ?��??��?" > before "## 評�?"/"## ?��????" > end of file.
+ * Priority: after "## 重點摘要" > before "## 評論"/"## 相關連結" > end of file.
  */
 function insertTranslation(raw: string, section: string): string {
-  // After ?��??��?
-  const summaryIdx = raw.indexOf('## ?��??��?');
+  // After 重點摘要
+  const summaryIdx = raw.indexOf('## 重點摘要');
   if (summaryIdx >= 0) {
     const nextHeading = raw.indexOf('\n## ', summaryIdx + 10);
     const insertAt = nextHeading >= 0 ? nextHeading : raw.length;
     return raw.slice(0, insertAt) + '\n\n' + section + raw.slice(insertAt);
   }
 
-  // Before 評�? or ?��????
-  for (const heading of ['## 評�??��?', '## 評�?', '## ?��????']) {
+  // Before 評論 or 相關連結
+  for (const heading of ['## 評論提及', '## 評論', '## 相關連結']) {
     const idx = raw.indexOf(heading);
     if (idx >= 0) return raw.slice(0, idx) + section + '\n' + raw.slice(idx);
   }
@@ -81,7 +81,7 @@ function insertTranslation(raw: string, section: string): string {
 /* ------------------------------------------------------------------ */
 
 export async function executeBatchTranslate(config: AppConfig): Promise<BatchTranslateResult> {
-  const baseDir = join(config.vaultPath, VAULT_SUBFOLDER);
+  const baseDir = join(config.vaultPath, 'ObsBot');
   const allFiles = await getAllMdFiles(baseDir);
 
   const result: BatchTranslateResult = {

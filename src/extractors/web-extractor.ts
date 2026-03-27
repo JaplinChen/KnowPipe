@@ -1,4 +1,4 @@
-﻿export const JINA_REMOVE_SELECTORS = '';
+export const JINA_REMOVE_SELECTORS = '';
 import type { ExtractedContent, Extractor } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { stripHtmlTags } from './web-cleaner.js';

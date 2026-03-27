@@ -12,7 +12,7 @@ const PORT = 3001;
 const ENV_PATH = join(__dirname, '../../.env');
 const RAW_HTML = readFileSync(join(__dirname, 'ui.html'), 'utf-8');
 
-// One-time session token ??invalidates when the server restarts
+// One-time session token — invalidates when the server restarts
 const SESSION_TOKEN = randomBytes(16).toString('hex');
 
 // Inject a fetch interceptor that forwards the token from the URL to all /api/ calls
@@ -36,7 +36,7 @@ function isAuthorized(req: IncomingMessage): boolean {
   return req.headers['x-session-token'] === SESSION_TOKEN;
 }
 
-// �?? .env 檔�?
+// 解析 .env 檔案
 function readEnv(): Record<string, string> {
   if (!existsSync(ENV_PATH)) return {};
   const content = readFileSync(ENV_PATH, 'utf-8');
@@ -48,7 +48,7 @@ function readEnv(): Record<string, string> {
   return result;
 }
 
-// 寫入 .env 檔�?
+// 寫入 .env 檔案
 function writeEnv(data: Record<string, string>): void {
   const lines = Object.entries(data)
     .filter(([, v]) => v)
@@ -57,12 +57,11 @@ function writeEnv(data: Record<string, string>): void {
   writeFileSync(ENV_PATH, lines + '\n', 'utf-8');
 }
 
-// ?��? Obsidian Vault（含 .obsidian 資�?夾�??��?�?
+// 掃描 Obsidian Vault（含 .obsidian 資料夾的目錄）
 function findVaults(): string[] {
   const home = homedir();
   const searchPaths = [
     join(home, 'Documents'),
-    join(home, 'OneDrive'),
     join(home, 'Desktop'),
     home,
   ];
@@ -75,10 +74,10 @@ function findVaults(): string[] {
         if (!entry.isDirectory()) continue;
         const vaultPath = join(base, entry.name);
         if (existsSync(join(vaultPath, '.obsidian'))) {
-          vaults.push(vaultPath.replace(/\\/g, '/'));
+          vaults.push(vaultPath);
         }
       }
-    } catch { /* 跳�??��??�目??*/ }
+    } catch { /* 跳過無權限目錄 */ }
   }
   return vaults;
 }
@@ -91,13 +90,13 @@ async function testToken(token: string): Promise<{ ok: boolean; username?: strin
     });
     const data = await res.json() as { ok: boolean; result?: { username: string } };
     if (data.ok && data.result) return { ok: true, username: data.result.username };
-    return { ok: false, error: 'Token ?��?，�?確�??�否複製完整' };
+    return { ok: false, error: 'Token 無效，請確認是否複製完整' };
   } catch {
-    return { ok: false, error: '???失�?，�?確�?網路???' };
+    return { ok: false, error: '連線失敗，請確認網路連線' };
   }
 }
 
-// 讀??request body
+// 讀取 request body
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
     let body = '';
@@ -106,10 +105,10 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
-// ?��??�覽?��?Windows）�?使用 spawn ?��? shell 注入
+// 開啟瀏覽器（macOS）— 使用 spawn 避免 shell 注入
 function openBrowser(url: string): void {
   try {
-    new URL(url); // 驗�? URL ?��?
+    new URL(url); // 驗證 URL 格式
   } catch {
     return;
   }
@@ -122,21 +121,21 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
 
-  // 設�??�面（�??� token ??HTML 載入後�?�?URL ?��? token�?
+  // 設定頁面（不需 token — HTML 載入後會從 URL 取得 token）
   if (url === '/' && method === 'GET') {
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.end(UI_HTML);
     return;
   }
 
-  // ?�??/api/ 端�??�要�??��? session token
+  // 所有 /api/ 端點需要有效的 session token
   if (url.startsWith('/api/') && !isAuthorized(req)) {
     res.statusCode = 403;
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return;
   }
 
-  // 讀?�現?�設定�?Token ?�蔽顯示�?
+  // 讀取現有設定（Token 遮蔽顯示）
   if (url === '/api/config' && method === 'GET') {
     const env = readEnv();
     res.end(JSON.stringify({
@@ -147,7 +146,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
-  // ?��?設�?
+  // 儲存設定
   if (url === '/api/config' && method === 'POST') {
     const body = await readBody(req);
     const data = JSON.parse(body) as {
@@ -169,7 +168,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
     return;
   }
 
-  // ?��? Obsidian Vaults
+  // 掃描 Obsidian Vaults
   if (url === '/api/vaults' && method === 'GET') {
     res.end(JSON.stringify({ vaults: findVaults() }));
     return;
@@ -189,11 +188,7 @@ const server = createServer(async (req: IncomingMessage, res: ServerResponse) =>
 });
 
 server.listen(PORT, '127.0.0.1', () => {
-  console.log(`\n??設�??�面已�??��?http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
-  console.log('   （若?�覽?�未?��??��?，�??��??��?上方網�?）\n');
+  console.log(`\n✅ 設定頁面已開啟：http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
+  console.log('   （若瀏覽器未自動開啟，請手動前往上方網址）\n');
   openBrowser(`http://localhost:${PORT}/?token=${SESSION_TOKEN}`);
 });
-
-
-
-

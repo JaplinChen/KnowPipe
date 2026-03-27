@@ -1,7 +1,7 @@
 /** Reclassify all Markdown notes in the Vault by comparing stored category to fresh classification. */
 
 import { classifyContent } from '../classifier.js';
-import { type AppConfig, VAULT_SUBFOLDER } from '../utils/config.js';
+import type { AppConfig } from '../utils/config.js';
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { recordFeedback } from './feedback-tracker.js';
@@ -34,7 +34,7 @@ function replaceFrontmatterField(content: string, field: string, newValue: strin
  * and move files whose top-level category has changed to the new folder.
  */
 export async function executeReclassify(config: AppConfig): Promise<ReclassifyResult> {
-  const baseDir = join(config.vaultPath, VAULT_SUBFOLDER);
+  const baseDir = join(config.vaultPath, 'ObsBot');
   const allFiles = await getAllMdFiles(baseDir);
 
   let moved = 0;
@@ -58,7 +58,7 @@ export async function executeReclassify(config: AppConfig): Promise<ReclassifyRe
     if (storedCategory === newCategory) continue;
 
     // Compute the new path based on full category path
-    // e.g. baseDir/AI/產業動態/foo.md → baseDir/AI/Claude/Claude Code/foo.md
+    // e.g. baseDir/AI/工具/foo.md → baseDir/AI/研究對話/Claude/foo.md
     const relativeTail = filePath.slice(baseDir.length).replace(/\\/g, '/');
     const segments = relativeTail.split('/').filter(Boolean);
     const fileName = segments[segments.length - 1];

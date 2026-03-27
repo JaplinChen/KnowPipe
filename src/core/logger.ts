@@ -1,4 +1,4 @@
-﻿export type LogLevel = 'info' | 'warn' | 'error';
+export type LogLevel = 'info' | 'warn' | 'error';
 
 /** In-memory ring buffer for recent log entries */
 const LOG_BUFFER_SIZE = 200;

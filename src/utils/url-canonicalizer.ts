@@ -1,4 +1,4 @@
-﻿const DROP_QUERY_PARAMS = new Set([
+const DROP_QUERY_PARAMS = new Set([
   'utm_source',
   'utm_medium',
   'utm_campaign',

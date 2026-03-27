@@ -1,8 +1,7 @@
-﻿import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { logger } from '../core/logger.js';
 import { parseFrontmatter, parseArrayField, getAllMdFiles } from '../vault/frontmatter-utils.js';
-import { VAULT_SUBFOLDER } from '../utils/config.js';
 import { getFeedbackWeight, loadFeedbackStore } from './feedback-tracker.js';
 
 export interface NoteStats {
@@ -70,7 +69,7 @@ export function tokenize(text: string): string[] {
 }
 
 export async function scanVaultNotes(vaultPath: string): Promise<NoteStats[]> {
-  const files = await getAllMdFiles(join(vaultPath, VAULT_SUBFOLDER));
+  const files = await getAllMdFiles(join(vaultPath, 'ObsBot'));
   const notes: NoteStats[] = [];
 
   for (const f of files) {

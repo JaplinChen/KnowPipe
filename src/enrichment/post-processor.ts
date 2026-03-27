@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Post-processing pipeline: runs after extract + AI enrich, before save.
  * Enriches linked URLs and translates non-zh-TW content in parallel.
  * Each step has its own timeout (links: 30s, translation: 45s) to avoid mutual interference.

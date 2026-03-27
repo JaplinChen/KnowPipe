@@ -1,4 +1,4 @@
-﻿/**
+/**
  * /monitor command — cross-platform keyword search (mention discovery).
  * /google command — web search (DuckDuckGo HTML + Camoufox fallback).
  */

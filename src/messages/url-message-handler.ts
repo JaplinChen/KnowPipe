@@ -1,4 +1,4 @@
-﻿import type { Telegraf } from 'telegraf';
+import type { Telegraf } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { registerUrlProcessingHandler } from './url-processing-handler.js';
 import { registerDocumentHandler } from './document-handler.js';

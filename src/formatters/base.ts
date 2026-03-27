@@ -1,4 +1,4 @@
-﻿import type { ExtractedContent } from '../extractors/types.js';
+import type { ExtractedContent } from '../extractors/types.js';
 import type { PlatformFormatter } from './types.js';
 import {
   buildFrontmatter,

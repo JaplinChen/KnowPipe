@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedContent } from '../../extractors/types.js';
 
 vi.mock('../../saver.js', () => ({

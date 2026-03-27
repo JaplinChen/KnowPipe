@@ -1,4 +1,4 @@
-﻿import { Telegraf } from 'telegraf';
+import { Telegraf } from 'telegraf';
 import { logger } from './core/logger.js';
 import type { AppConfig } from './utils/config.js';
 import { registerCommands } from './commands/register-commands.js';

@@ -1,4 +1,4 @@
-﻿import { mkdir, writeFile, readFile, copyFile } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, copyFile } from 'node:fs/promises';
 import { join, extname, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { ExtractedContent, Platform } from './extractors/types.js';
@@ -6,7 +6,6 @@ import { formatAsMarkdown } from './formatter.js';
 import { fetchWithTimeout } from './utils/fetch-with-timeout.js';
 import { canonicalizeUrl } from './utils/url-canonicalizer.js';
 import { getAllMdFiles } from './vault/frontmatter-utils.js';
-import { VAULT_SUBFOLDER, ATTACHMENTS_SUBFOLDER } from './utils/config.js';
 
 // In-memory URL index: normalizedUrl → filePath (built on first use)
 let urlIndex: Map<string, string> | null = null;
@@ -74,7 +73,7 @@ async function downloadImage(
     const fullName = `${filename}${ext}`;
     const fullPath = join(destDir, fullName);
     await copyFile(imageUrl, fullPath);
-    return `attachments/${ATTACHMENTS_SUBFOLDER}/${platform}/${fullName}`;
+    return `attachments/obsbot/${platform}/${fullName}`;
   }
 
   const res = await fetchWithTimeout(imageUrl, 30_000);
@@ -86,7 +85,7 @@ async function downloadImage(
   const fullName = `${filename}${ext}`;
   const fullPath = join(destDir, fullName);
   await writeFile(fullPath, buffer);
-  return `attachments/${ATTACHMENTS_SUBFOLDER}/${platform}/${fullName}`;
+  return `attachments/obsbot/${platform}/${fullName}`;
 }
 
 export interface SaveResult {
@@ -99,7 +98,7 @@ export interface SaveResult {
 /** Build URL index by scanning all .md files (runs once, then cached in memory). */
 async function buildUrlIndex(vaultPath: string): Promise<Map<string, string>> {
   const index = new Map<string, string>();
-  const rootDir = join(vaultPath, VAULT_SUBFOLDER);
+  const rootDir = join(vaultPath, 'ObsBot');
   const files = await getAllMdFiles(rootDir);
 
   for (const fullPath of files) {
@@ -172,12 +171,12 @@ export async function saveToVault(
     const fullFolderPath = content.subFolder
       ? `${folderPath}/${content.subFolder.replace(/[<>:"/\\|?*]/g, '').trim()}`
       : folderPath;
-    const baseVaultDir = resolve(join(vaultPath, VAULT_SUBFOLDER));
-    const resolvedNotes = resolve(join(vaultPath, VAULT_SUBFOLDER, fullFolderPath));
-    const notesDir = (resolvedNotes === baseVaultDir || resolvedNotes.startsWith(baseVaultDir + sep))
+    const baseObsBot = resolve(join(vaultPath, 'ObsBot'));
+    const resolvedNotes = resolve(join(vaultPath, 'ObsBot', fullFolderPath));
+    const notesDir = (resolvedNotes === baseObsBot || resolvedNotes.startsWith(baseObsBot + sep))
       ? resolvedNotes
-      : baseVaultDir;
-    const imagesDir = join(vaultPath, 'attachments', ATTACHMENTS_SUBFOLDER, content.platform);
+      : baseObsBot;
+    const imagesDir = join(vaultPath, 'attachments', 'obsbot', content.platform);
     await mkdir(notesDir, { recursive: true });
     await mkdir(imagesDir, { recursive: true });
 
@@ -218,7 +217,7 @@ export async function saveToVault(
             const ext = extname(v.localPath) || '.mp4';
             const vidName = `${imgSlug}-vid${i}${ext}`;
             await copyFile(v.localPath, join(imagesDir, vidName));
-            localVideoPaths.push(`attachments/${ATTACHMENTS_SUBFOLDER}/${content.platform}/${vidName}`);
+            localVideoPaths.push(`attachments/obsbot/${content.platform}/${vidName}`);
           } catch { /* skip if copy fails */ }
         }
       }

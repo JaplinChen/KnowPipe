@@ -11,8 +11,8 @@ Telegram Bot，將使用者傳送的 URL 內容抓取、分類、AI 摘要後存
 
 - **語言**：TypeScript（`ts-node` 執行，`vitest` 測試）
 - **框架**：Telegraf（Telegram Bot API）
-- **執行環境**：Windows 10，Node.js
-- **LLM**：`claude -p` CLI（主力） → DDG AI Chat（fallback）
+- **執行環境**：macOS (Apple Silicon)，Node.js
+- **LLM**：OpenCode CLI 多模型路由 → DDG AI Chat（fallback）；可選 oMLX 本地推理
 
 ## 目錄結構
 
@@ -70,10 +70,8 @@ ObsBot/
 ├── package.json
 ├── tsconfig.json
 ├── vitest.config.ts
-├── start.bat               ← 標準啟動（Windows）
-├── start-dev.bat            ← 開發模式啟動
-├── setup.bat               ← 初始設置
-└── 啟動.bat                 ← 繁體中文版啟動
+├── start.sh                ← 啟動腳本（macOS）
+└── scripts/loop.mjs        ← 自動重啟包裝器
 ```
 
 ## 資料流
@@ -92,8 +90,8 @@ Telegram 訊息 → URL 偵測 → Extractor 抓取 → Classifier 分類
 | 行數限制 | 所有 `.ts` 檔案 ≤ 300 行 |
 | 型別檢查 | `npx tsc --noEmit` 零錯誤 |
 | 超時標準 | HTTP 30s / yt-dlp 120s / Obsidian 10s |
-| 進程管理 | `taskkill /F /IM node.exe`（Windows） |
-| Bot 啟動 | 先 taskkill → 等 3 秒 → 再啟動 |
+| 進程管理 | `kill` / `SIGTERM`（macOS） |
+| Bot 啟動 | 透過 ProcessGuardian 自動管理 |
 
 ## 不進 git 的大型目錄
 

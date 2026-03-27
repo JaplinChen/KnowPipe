@@ -1,0 +1,14 @@
+{
+  "keywords": ["Claude Cowork", "桌面自動化", "文件整理", "自動生成", "批量處理"],
+  "summary": "Claude Cowork 是 Claude 桌面版的自動化助手，可在指定資料夾內執行檔案分類、命名、文件格式轉換及批次處理等任務。",
+  "analysis": "使用者需先安裝 Claude 桌面版應用並訂閱 Pro 方案，然後在軟體頂部切換至 Cowork 標籤並選擇目標資料夾。透過自然語言指令，Claude Cowork 會讀取並分析該資料夾內的檔案，執行跨資料夾整理、自動命名、生成 Excel 或 PPT 文件、代寫並保存郵件草稿以及批次處理和分析文件等操作。",
+  "keyPoints": [
+    "安裝 Claude 桌面版應用",
+    "訂閱 Pro 方案啟用 Cowork",
+    "選擇目標資料夾並開啟 Cowork 標籤",
+    "下達檔案分類與命名指令",
+    "自動生成 Excel、PPT 或郵件草稿"
+  ],
+  "title": "Claude Cowork-桌面自動化助手",
+  "category": "claude"
+}

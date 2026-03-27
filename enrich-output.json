@@ -1,0 +1,14 @@
+{
+  "keywords": ["Claude Code", "Agent工程", "CLAUDE.md", "提示詞設計", "上下文管理"],
+  "summary": "介紹Claude Code的六項核心工程原則，包括CLAUDE.md的結構化寫法、研究與執行分離、提示詞設計技巧、任務完成定義、規則整理及工具選擇策略。",
+  "analysis": "CLAUDE.md應採用IF-ELSE導航模式，依場景分類規則而非百科全書式編寫。研究階段與執行階段必須分離，先研究方案再做決策，最後以新上下文執行。Agent具有討好用戶的本能，問「找bug」會編造bug，應使用中性提示詞或對抗式Agent互相驗證。任務完成需用測試、截圖、合同文件等具體產出定義，而非依賴Agent自行判斷。",
+  "keyPoints": [
+    "CLAUDE.md用IF-ELSE導航模式，依場景分類規則",
+    "研究與執行分離，先研究方案再執行",
+    "使用中性提示詞避免Agent編造結果",
+    "用測試截圖等具體產出定義任務完成",
+    "定期讓Agent整理合併規則，清除矛盾"
+  ],
+  "title": "Claude Code-六項核心工程原則",
+  "category": "claude code"
+}

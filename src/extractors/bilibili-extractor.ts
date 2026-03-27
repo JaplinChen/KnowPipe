@@ -1,4 +1,4 @@
-﻿import { execFile } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import type { ExtractedContent, Extractor, ThreadComment } from './types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';

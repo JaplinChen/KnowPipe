@@ -1,4 +1,4 @@
-﻿# Architecture
+# Architecture
 
 This document defines the current module boundaries, data flow, and engineering guardrails for ObsBot.
 

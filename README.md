@@ -96,7 +96,7 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 
 ### 2. 安裝
 
-**一般使用者** — 雙擊 `setup.bat`，按畫面指示操作
+**一般使用者** — 執行 `npm install && cp .env.example .env`，編輯 `.env` 填入設定
 
 **開發者** — 手動設定：
 
@@ -110,7 +110,7 @@ cp .env.example .env
 ```env
 # 必填
 BOT_TOKEN=your_telegram_bot_token
-VAULT_PATH=C:/Users/yourname/ObsidianVault
+VAULT_PATH=/Users/yourname/ObsidianVault
 
 # 選填
 ALLOWED_USER_IDS=123456,789012      # 限制使用者（逗號分隔 Telegram user ID）
@@ -129,7 +129,7 @@ npx camoufox-js fetch
 
 ### 3. 啟動
 
-雙擊 `啟動.bat`（或 `start-dev.bat`），保持視窗開啟即可。
+執行 `./start.sh`（或 `npm run dev`），保持終端機開啟即可。
 
 </details>
 
@@ -174,7 +174,7 @@ npx camoufox-js fetch
 <summary><strong>常見問題</strong></summary>
 
 **Bot 沒有回應？**
-關掉 `啟動.bat` 視窗，重新雙擊啟動。
+在終端機按 `Ctrl+C` 停止，再執行 `npm run dev` 重新啟動。
 
 **顯示「409 Conflict」？**
 上次 Bot 未正確關閉。程式內建 ProcessGuardian 三段式自癒會自動處理：指數退避重試 → 自動 logOut + 冷卻 → 退出提示。通常無需人工介入。
@@ -183,7 +183,7 @@ npx camoufox-js fetch
 所有外部請求皆有超時保護（HTTP 30s / 影片 120s / 存檔 10s）。如果 DuckDuckGo 被限流，搜尋會自動降級到 Camoufox。
 
 **想修改設定？**
-編輯 `.env` 檔案，或重新執行 `setup.bat`。
+編輯 `.env` 檔案即可。
 
 </details>
 

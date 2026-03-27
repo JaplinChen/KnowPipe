@@ -107,8 +107,8 @@
 </head>
 <body>
 <div class="card">
-  <h1>⚙️ ObsBot 設定</h1>
-  <p class="subtitle">完成以下步驟，讓 Bot 開始幫你把內容存到 Obsidian</p>
+  <h1>🤖 ObsBot 設定</h1>
+  <p class="subtitle">完成以下步驟，讓 Bot 開始幫你儲存內容到 Obsidian</p>
 
   <div class="step">
     <div class="step-label">步驟 1</div>
@@ -120,8 +120,8 @@
     </div>
     <div class="status" id="tokenStatus"></div>
     <p class="hint">
-      沒有 Token？<a href="https://t.me/botfather" target="_blank">點這裡找 @BotFather 申請</a><br>
-      輸入 <span class="tag">/newbot</span> 再輸入 Bot 名稱，複製 Token 貼到這裡
+      沒有 Token？<a href="https://t.me/botfather" target="_blank">點我前往 @BotFather 申請</a><br>
+      傳送 <span class="tag">/newbot</span> → 輸入 Bot 名稱 → 複製 Token 貼到這裡
     </p>
   </div>
 
@@ -146,19 +146,19 @@
     <div class="status" id="idsStatus"></div>
     <p class="hint">
       填入允許使用 Bot 的 Telegram 用戶 ID（逗號分隔）。<br>
-      不填則任何人都可使用，<strong>建議填入以防止濫用</strong>。
+      不填則任何人皆可使用，<strong>建議填入以防止濫用</strong>。
     </p>
   </div>
 
   <div class="divider"></div>
-  <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">💾 儲存設定</button>
+  <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">✅ 儲存設定</button>
 
   <div class="success-box" id="successBox">
     <h2>✅ 設定完成！</h2>
     <p>
       設定已儲存。<br><br>
-      請關閉此視窗，然後執行<br>
-      <strong>啟動腳本</strong> 即可讓 Bot 開始運作！
+      請關閉此視窗，之後雙擊<br>
+      <strong>npm run dev</strong> 即可讓 Bot 開始運作。
     </p>
   </div>
 </div>
@@ -181,9 +181,9 @@ async function testToken() {
   });
   const data = await res.json();
   if (data.ok) {
-    setStatus('tokenStatus', `✅ 連線成功：@${data.username}`, true);
+    setStatus('tokenStatus', `✓ 連線成功：@${data.username}`, true);
   } else {
-    setStatus('tokenStatus', `❌ ${data.error}`, false);
+    setStatus('tokenStatus', `✗ ${data.error}`, false);
   }
 }
 
@@ -218,8 +218,8 @@ function howToGetId() {
     '如何取得 Telegram 用戶 ID：\n\n' +
     '1. 啟動 Bot 後，傳送任何訊息給 Bot\n' +
     '2. Bot 的 console 會顯示：[auth] Unauthorized message from user ID: 123456789\n' +
-    '3. 複製該 ID 填入此欄位，重新儲存設定即可\n\n' +
-    '或直接找 @userinfobot，傳送任何訊息它會告訴你的 ID。'
+    '3. 複製數字填入此欄位，重新儲存設定即可\n\n' +
+    '或直接搜尋 @userinfobot，傳送任意訊息，它會回覆你的 ID。'
   );
 }
 
@@ -235,12 +235,12 @@ async function saveConfig() {
   const token = document.getElementById('token').value.trim();
   const vault = document.getElementById('vault').value.trim();
   const rawIds = document.getElementById('allowedIds').value.trim();
-  if (!token) { alert('請填寫 Telegram Bot Token'); return; }
-  if (!vault) { alert('請填寫 Obsidian Vault 位置'); return; }
+  if (!token) { alert('請填入 Telegram Bot Token'); return; }
+  if (!vault) { alert('請填入 Obsidian Vault 位置'); return; }
   const { ok, cleaned, error } = validateIds(rawIds);
   if (!ok) { setStatus('idsStatus', error, false); return; }
   if (!cleaned) {
-    const proceed = confirm('未填寫使用者白名單，任何人都可以使用此 Bot。確定要繼續嗎？');
+    const proceed = confirm('未填入使用者白名單，任何人都可以使用你的 Bot。確定要繼續嗎？');
     if (!proceed) return;
   }
   const btn = document.getElementById('saveBtn');
@@ -261,7 +261,7 @@ fetch('/api/config').then(r => r.json()).then(data => {
   if (data.BOT_TOKEN_set) setStatus('tokenStatus', '（已設定，輸入新 Token 可覆蓋）', null);
   if (data.ALLOWED_USER_IDS) {
     document.getElementById('allowedIds').value = data.ALLOWED_USER_IDS;
-    setStatus('idsStatus', `已設定 ${data.ALLOWED_USER_IDS.split(',').length} 位用戶`, true);
+    setStatus('idsStatus', `已設定 ${data.ALLOWED_USER_IDS.split(',').length} 個用戶`, true);
   }
 });
 </script>

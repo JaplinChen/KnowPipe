@@ -1,4 +1,4 @@
-﻿import { rm } from 'node:fs/promises';
+import { rm } from 'node:fs/promises';
 import { logger } from '../../core/logger.js';
 import type { ExtractedContent } from '../../extractors/types.js';
 import { saveToVault, type SaveResult } from '../../saver.js';

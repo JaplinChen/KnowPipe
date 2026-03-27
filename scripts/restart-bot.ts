@@ -3,6 +3,7 @@
  * Usage: npx tsx scripts/restart-bot.ts [--skip-wait]
  */
 import { execSync, spawn } from 'node:child_process';
+import { unlinkSync } from 'node:fs';
 
 const WAIT_SECONDS = 8;
 const skipWait = process.argv.includes('--skip-wait');
@@ -14,14 +15,19 @@ function log(msg: string): void {
 
 function killAllNode(): number {
   try {
-    const list = execSync('tasklist /FI "IMAGENAME eq node.exe" /FO CSV', {
+    const list = execSync('pgrep -f "node.*src/index"', {
       encoding: 'utf-8',
-    });
-    const lines = list.split('\n').filter((l) => l.includes('node.exe'));
-    if (lines.length === 0) return 0;
+    }).trim();
+    const pids = list.split('\n').filter(Boolean);
+    if (pids.length === 0) return 0;
 
-    execSync('taskkill /F /IM node.exe', { stdio: 'ignore' });
-    return lines.length;
+    for (const pid of pids) {
+      if (Number(pid) === process.pid) continue;
+      try {
+        process.kill(Number(pid), 'SIGTERM');
+      } catch { /* already dead */ }
+    }
+    return pids.length;
   } catch {
     return 0;
   }
@@ -29,25 +35,18 @@ function killAllNode(): number {
 
 function cleanOrphanNodeProcesses(): number {
   try {
-    const csv = execSync(
-      'wmic process where "name=\'node.exe\'" get ProcessId,ParentProcessId /format:csv',
-      { encoding: 'utf-8', timeout: 5_000 },
-    );
+    const list = execSync('pgrep -f "node.*src/index"', {
+      encoding: 'utf-8',
+      timeout: 5_000,
+    }).trim();
     let killed = 0;
-    for (const line of csv.split('\n')) {
-      const parts = line.trim().split(',');
-      if (parts.length < 3) continue;
-      const parentPid = Number(parts[1]);
-      const pid = Number(parts[2]);
+    for (const line of list.split('\n')) {
+      const pid = Number(line.trim());
       if (!pid || pid === process.pid) continue;
-
-      // Check if parent is dead
-      try { process.kill(parentPid, 0); } catch {
-        try {
-          execSync(`taskkill /F /PID ${pid}`, { stdio: 'ignore' });
-          killed++;
-        } catch { /* ignore */ }
-      }
+      try {
+        process.kill(pid, 'SIGKILL');
+        killed++;
+      } catch { /* ignore */ }
     }
     return killed;
   } catch {
@@ -59,10 +58,8 @@ function cleanLockfiles(): void {
   const files = ['.bot.pid', '.bot.lock', 'bot.pid'];
   for (const f of files) {
     try {
-      execSync(`del /q "${f}"`, { stdio: 'ignore', cwd: process.cwd() });
-    } catch {
-      /* ignore */
-    }
+      unlinkSync(f);
+    } catch { /* ignore */ }
   }
 }
 
@@ -93,7 +90,7 @@ function sleep(seconds: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  log('🔄 GetThreads 重啟開始');
+  log('🔄 ObsBot 重啟開始');
 
   // Step 0: Clean orphan processes
   const orphans = cleanOrphanNodeProcesses();

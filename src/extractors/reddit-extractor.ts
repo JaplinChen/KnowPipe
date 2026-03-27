@@ -1,4 +1,4 @@
-﻿import type { ExtractedContent, ExtractorWithComments, ThreadComment } from './types.js';
+import type { ExtractedContent, ExtractorWithComments, ThreadComment } from './types.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 
 const REDDIT_PATTERN = /reddit\.com\/r\/([\w]+)\/comments\/([\w]+)/i;

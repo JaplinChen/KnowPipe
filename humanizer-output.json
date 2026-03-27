@@ -1,0 +1,13 @@
+{
+  "keywords": ["AI 寫作", "人性化", "去 AI 痕跡", "繁體中文", "Agent Skills"],
+  "summary": "Humanizer-zh-TW 為繁體中文版 AI 寫作人性化工具，專門用於去除文字中 AI 生成的痕跡。此技能透過辨識並修復 24 種 AI 寫作模式，幫助使用者將 AI 生成的內容改寫得更自然、更像人類書寫，適用於編輯審閱與提升文章人性化程度。",
+  "analysis": "此工具基於維基百科的「Signs of AI writing」指南，提供 24 種 AI 寫作模式的辨識與修復方法。安裝方式包括使用 `npx add-skill` 快速安裝至 Claude Code、Antigravity 等 AI 代理程式，或透過 Git 複製手動安裝。使用時可直接呼叫技能或在對話中使用，例如輸入 `/humanizer-zh-tw` 來處理文字。",
+  "keyPoints": [
+    "安裝方式：npx add-skill kevintsai1202/Humanizer-zh-TW",
+    "支援平台：Claude Code、Antigravity、Cursor 等",
+    "功能：辨識並修復 24 種 AI 寫作模式",
+    "使用方法：輸入 /humanizer-zh-tw 處理文字"
+  ],
+  "title": "Humanizer-zh-TW-AI 寫作人性化工具",
+  "category": "ai agent"
+}

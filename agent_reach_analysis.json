@@ -1,0 +1,14 @@
+{
+  "keywords": ["Agent-Reach", "CLI工具", "多平台內容讀取", "AI Agent擴充", "開源免費"],
+  "summary": "Agent-Reach是一個開源CLI工具，為AI Agent提供多平台內容讀取能力，支持Twitter/X、Reddit、YouTube、GitHub、B站、小紅書等平台，通過網頁爬蟲和Cookie本地存儲實現免費使用，無需付費API。",
+  "analysis": "該工具使用yt-dlp、xreach、Jina Reader等開源組件進行內容抓取，透過MCP協議免費配置全網語義搜索功能。對於需要登錄的平台（Twitter、小紅書等），採用本地Cookie導入機制，通過Chrome插件Cookie-Editor導出後提供給Agent進行配置。",
+  "keyPoints": [
+    "支持Twitter/X單條推文讀取和時間線瀏覽",
+    "提供YouTube字幕提取和視頻搜索功能",
+    "透過MCP協議實現免費全網語義搜索",
+    "使用Cookie-Editor導出本地Cookie完成平台認證",
+    "內建agent-reach doctor診斷命令檢查連接狀態"
+  ],
+  "title": "Agent-Reach-多平台內容讀取CLI工具",
+  "githubAnalysis": "### 項目用途\nAgent-Reach解決AI Agent無法直接訪問多種社交媒體和內容平台的問題，目標使用者是希望擴充Agent網路資訊獲取能力的開發者和AI Agent用戶。\n\n### 技術棧與架構\n項目基於Node.js/TypeScript開發，整合yt-dlp處理YouTube視頻、xreach處理Twitter、Jina Reader處理網頁內容等開源工具，通過MCP（Model Context Protocol）協議實現免費語義搜索，採用模組化設計支援平台擴展。\n\n### 核心功能\n- 支持讀取Twitter/X推文、搜索和時間線瀏覽\n- 提供YouTube字幕提取、視頻搜索和B站相同功能\n- 實現GitHub公開倉庫閱讀、搜索以及Issue/PR操作\n- 支持小紅書、抖音、LinkedIn、微信公眾號、微博等平台內容獲取\n- 提供RSS訂閱和通用網頁內容讀取能力\n\n### 同類工具對比\nvs 直接使用各平台API：免除付費API費用和複雜認證流程\nvs 通用網頁爬蟲框架：預先配置好多平台適配器，即插即用\nvs 手動Cookie管理：提供標準化導入導出流程簡化認證過程\n\n### 適合場景\n適合需要讓AI Agent獲取實時社交媒體資訊的開發者、研究社交媒體趨勢的分析師以及構建需要多平台數據的AI應用的團隊，不適合需要高頻率大量請求或對數據準確性有嚴格保證要求的商業應用。\n\n### 優缺點\n優點：完全免費開源、本地隱私保護良好、持續更新底層工具、診斷命令易於故障排除\n缺點：依賴網頁爬蟲可能被平台反爬機制影響、部分功能需要手動Cookie配置、對於需要實時數據的場景可能有延遲"
+}

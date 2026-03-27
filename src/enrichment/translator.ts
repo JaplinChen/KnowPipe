@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Language detection + translation for non-Traditional-Chinese content.
  * - zh-CN -> zh-TW: opencc-js (deterministic, local)
  * - en -> zh-TW: oMLX (local, fast) → opencode CLI (remote, fallback)
