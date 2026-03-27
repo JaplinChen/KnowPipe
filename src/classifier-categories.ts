@@ -1,4 +1,4 @@
-/** 分類規則資料 — 純資料檔，由 classifier.ts 引用 */
+/** 分類規則資料 — 以 Vault 資料夾結構為唯一真相源 */
 
 export interface CategoryRule {
   name: string;
@@ -7,177 +7,89 @@ export interface CategoryRule {
 }
 
 export const CATEGORIES: CategoryRule[] = [
-  // ══════════════════════════════════════════════════════
-  // AI 三層分類：具體工具 → 功能分類兜底 → AI 通用兜底
-  // 越精確的排越前面
-  // ══════════════════════════════════════════════════════
+  // AI 三層：具體工具 → 功能兜底 → AI 通用兜底（越精確排越前）
 
-  // ── 0. 辦公協作（claude cowork 比 claude 更精確，必須排前面）──
+  // ── 具體工具/平台 ──
   {
-    name: 'AI/辦公協作',
-    keywords: [
-      'claude cowork', 'cowork', 'openwork', '辦公協作', '協作辦公',
-      'feishu', '飛書',
-    ],
+    name: 'AI/Agent 工程/桌面 Agent/Cowork',
+    keywords: ['claude cowork', 'cowork'],
     exclude: [
       'sword', 'antique', '古劍', '金屬', 'jewelry',
       'staffing', 'employer', 'recruitment', '人力',
       'john mayer', 'johnmayer', 'rakuten', 'reddit.com', 'r/',
     ],
   },
+  {
+    name: 'AI/Agent 工程/桌面 Agent/OpenWork',
+    keywords: ['openwork'],
+  },
 
-  // ── 1. 研究對話：具體工具 ──
+  // Agent 工程：具體平台
   {
-    name: 'AI/研究對話/Claude',
-    keywords: [
-      'claude code', 'claude', 'anthropic',
-    ],
+    name: 'AI/Agent 工程/Claude Code',
+    keywords: ['claude code', 'claude-code', 'anthropic', 'claude sdk', 'agent-sdk', 'claude.md'],
   },
   {
-    name: 'AI/研究對話/OpenAI',
-    keywords: [
-      'chatgpt', 'openai', 'codex', 'openai codex', 'gpt-5', 'gpt-4o',
-    ],
-  },
-  {
-    name: 'AI/研究對話/Gemini',
-    keywords: [
-      'gemini', 'notebooklm', 'notebook lm', 'nano banana', 'google ai',
-    ],
-  },
-  {
-    name: 'AI/研究對話/DeepSeek',
-    keywords: ['deepseek'],
-  },
-  {
-    name: 'AI/研究對話/OpenClaw',
+    name: 'AI/Agent 工程/OpenClaw',
     keywords: [
       'openclaw', 'open claw', 'openclaws', 'clawbot', '龍蝦', '龙虾',
       'nanoclaw', 'opencloy', 'u-claw', 'clawhub', '養蝦', '小龍蝦',
     ],
   },
+
+  // LLM 基礎：具體模型
   {
-    name: 'AI/研究對話/Perplexity',
-    keywords: ['perplexity'],
+    name: 'AI/LLM 基礎/Claude',
+    keywords: ['claude', 'claude 3', 'claude 4'],
   },
   {
-    name: 'AI/研究對話/Abacus',
-    keywords: ['abacus'],
+    name: 'AI/LLM 基礎/OpenAI',
+    keywords: ['chatgpt', 'openai', 'codex', 'openai codex', 'gpt-5', 'gpt-4o', 'o1', 'o3'],
+  },
+  {
+    name: 'AI/LLM 基礎/Gemini',
+    keywords: ['gemini', 'notebooklm', 'notebook lm', 'google ai'],
+  },
+  {
+    name: 'AI/LLM 基礎/DeepSeek',
+    keywords: ['deepseek'],
+  },
+  {
+    name: 'AI/LLM 基礎/開源模型',
+    keywords: ['llama', 'mistral', 'qwen', 'gemma', 'phi-'],
   },
 
-  // ── 2. 圖像生成：具體工具 ──
-  { name: 'AI/圖像生成/Midjourney', keywords: ['midjourney'] },
-  { name: 'AI/圖像生成/Dall-E', keywords: ['dall-e', 'dalle', 'dall e'] },
-  { name: 'AI/圖像生成/Flux', keywords: ['flux'] },
-  { name: 'AI/圖像生成/Stability AI', keywords: ['stability ai', 'stable diffusion', 'stablediffusion'] },
-  { name: 'AI/圖像生成/Grok', keywords: ['grok'] },
+  // 開發工具：具體工具
+  { name: 'AI/開發工具/終端/Ghostty', keywords: ['ghostty'] },
+  { name: 'AI/開發工具/CLI/OpenCLI', keywords: ['opencli'] },
 
-  // ── 3. 文案撰寫：具體工具 ──
-  { name: 'AI/文案撰寫/Rytr', keywords: ['rytr'] },
-  { name: 'AI/文案撰寫/Copy AI', keywords: ['copy.ai', 'copy ai'] },
-  { name: 'AI/文案撰寫/Writesonic', keywords: ['writesonic'] },
-  { name: 'AI/文案撰寫/Adcreative', keywords: ['adcreative'] },
-  { name: 'AI/文案撰寫/otio', keywords: ['otio'] },
+  // 多模態生成：具體工具名
+  { name: 'AI/多模態生成/圖像', keywords: ['midjourney', 'dall-e', 'dalle', 'flux', 'stable diffusion', 'stablediffusion'] },
+  { name: 'AI/多模態生成/影片', keywords: ['sora', 'runway', 'kling', 'pika', 'heygen', 'luma'] },
 
-  // ── 4. 寫作輔助：具體工具 ──
-  { name: 'AI/寫作輔助/Jasper', keywords: ['jasper ai', 'jasper.ai'] },
-  { name: 'AI/寫作輔助/HIX AI', keywords: ['hix ai', 'hix.ai'] },
-  { name: 'AI/寫作輔助/Jenny AI', keywords: ['jenny ai'] },
-  { name: 'AI/寫作輔助/Textblaze', keywords: ['textblaze', 'text blaze'] },
-  { name: 'AI/寫作輔助/Quillbot', keywords: ['quillbot'] },
+  // 自動化：具體工具名
+  { name: 'AI/自動化', keywords: ['cursor', 'windsurf', 'cline', 'n8n', 'zapier'] },
 
-  // ── 5. 網站搭建：具體工具 ──
-  { name: 'AI/網站搭建/10Web', keywords: ['10web'] },
-  { name: 'AI/網站搭建/Durable', keywords: ['durable'] },
-  { name: 'AI/網站搭建/Framer', keywords: ['framer'] },
-  { name: 'AI/網站搭建/Style AI', keywords: ['style ai'] },
-  { name: 'AI/網站搭建/Landingsite', keywords: ['landingsite'] },
-
-  // ── 6. 影片製作：具體工具 ──
-  { name: 'AI/影片製作/Sora', keywords: ['sora'] },
-  { name: 'AI/影片製作/Luma', keywords: ['luma'] },
-  { name: 'AI/影片製作/Kling', keywords: ['kling'] },
-  { name: 'AI/影片製作/Pika', keywords: ['pika'] },
-  { name: 'AI/影片製作/InVideo', keywords: ['invideo'] },
-  { name: 'AI/影片製作/HeyGen', keywords: ['heygen'] },
-  { name: 'AI/影片製作/Runway', keywords: ['runway'] },
-  { name: 'AI/影片製作/ImgCreator', keywords: ['imgcreator'] },
-  { name: 'AI/影片製作/Morphstudio', keywords: ['morphstudio'] },
-
-  // ── 7. 會議記錄：具體工具 ──
-  { name: 'AI/會議記錄/Tldv', keywords: ['tldv'] },
-  { name: 'AI/會議記錄/Otter', keywords: ['otter'] },
-  { name: 'AI/會議記錄/Noty AI', keywords: ['noty ai', 'noty.ai'] },
-  { name: 'AI/會議記錄/Fireflies', keywords: ['fireflies'] },
-
-  // ── 8. SEO優化：具體工具 ──
-  { name: 'AI/SEO優化/VidIQ', keywords: ['vidiq'] },
-  { name: 'AI/SEO優化/Seona', keywords: ['seona'] },
-  { name: 'AI/SEO優化/BlogSEO', keywords: ['blogseo'] },
-  { name: 'AI/SEO優化/Keywrds', keywords: ['keywrds'] },
-
-  // ── 9. 智慧客服：具體工具 ──
-  { name: 'AI/智慧客服/Droxy', keywords: ['droxy'] },
-  { name: 'AI/智慧客服/Chatbase', keywords: ['chatbase'] },
-  { name: 'AI/智慧客服/Mutual info', keywords: ['mutual info'] },
-  { name: 'AI/智慧客服/Chatsimple', keywords: ['chatsimple'] },
-
-  // ── 10. 簡報：具體工具 ──
-  { name: 'AI/簡報/Decktopus', keywords: ['decktopus'] },
-  { name: 'AI/簡報/Slides AI', keywords: ['slides ai', 'slidesai'] },
-  { name: 'AI/簡報/Gamma', keywords: ['gamma ai', 'gamma.app'] },
-  { name: 'AI/簡報/Beautiful AI', keywords: ['beautiful ai', 'beautiful.ai'] },
-  { name: 'AI/簡報/PopAi', keywords: ['popai'] },
-
-  // ── 11. 自動化：具體工具 ──
-  { name: 'AI/自動化/Make', keywords: ['make.com'] },
-  { name: 'AI/自動化/Zapier', keywords: ['zapier'] },
-  { name: 'AI/自動化/Xembly', keywords: ['xembly'] },
-  { name: 'AI/自動化/Bardeen', keywords: ['bardeen'] },
-  { name: 'AI/自動化/Cursor', keywords: ['cursor'] },
-  { name: 'AI/自動化/Windsurf', keywords: ['windsurf'] },
-  { name: 'AI/自動化/Cline', keywords: ['cline'] },
-  { name: 'AI/自動化/n8n', keywords: ['n8n'] },
-
-  // ── 12. UI設計：具體工具 ──
-  { name: 'AI/UI設計/Figma', keywords: ['figma'] },
-  { name: 'AI/UI設計/Uizard', keywords: ['uizard'] },
-  { name: 'AI/UI設計/UiMagic', keywords: ['uimagic'] },
-  { name: 'AI/UI設計/Photoshop', keywords: ['photoshop'] },
-
-  // ── 13. 設計工具：具體工具 ──
-  { name: 'AI/設計工具/Canva', keywords: ['canva'] },
-  { name: 'AI/設計工具/Flair AI', keywords: ['flair ai'] },
-  { name: 'AI/設計工具/Clipdrop', keywords: ['clipdrop'] },
-  { name: 'AI/設計工具/Autodraw', keywords: ['autodraw'] },
-  { name: 'AI/設計工具/Magician', keywords: ['magician design', 'magician'] },
-
-  // ── 14. Logo生成：具體工具 ──
-  { name: 'AI/Logo生成/Looka', keywords: ['looka'] },
-
-  // ══════════════════════════════════════════════════════
-  // AI 功能分類兜底（無法匹配到具體工具時）
-  // ══════════════════════════════════════════════════════
+  // ── AI 功能兜底 ──
   {
-    name: 'AI/圖像生成',
+    name: 'AI/Agent 工程',
     keywords: [
-      'image generat', '圖片生成', '圖像生成', '圖片放大', 'image enhance',
-      'comfyui', '放大', 'text to image', '文生圖',
-      '3d model', '3d模型', '圖片轉3d', 'trellis',
+      'ai agent', 'agentic', 'agent工程', 'agent engineer',
+      'multi-agent', 'agent orchestration', 'agent 軍團', 'agent 架構',
+      'agent framework', 'agent monitoring', 'agent 操控', 'agent 監控',
+      '桌面代理', 'desktop agent', '桌面自動化', 'computer use',
     ],
   },
   {
-    name: 'AI/影片製作',
+    name: 'AI/LLM 基礎',
     keywords: [
-      'video generat', '影片生成', '影片製作', '視頻生成', '视频生成',
-      'text to video', '文生影片', '文生視頻',
-      '字幕', 'caption', 'subtitle', '影片速度', '影片編輯', 'video edit',
-      'ffmpeg', '短影音', '剪輯',
+      '大模型', '大語言模型', '大语言模型', '模型评测', '模型評測',
+      'benchmark', 'leaderboard', 'minimax',
+      '免费 claude', '免費 claude',
     ],
   },
-  { name: 'AI/文案撰寫', keywords: ['copywriting', '文案', 'ad copy', '廣告文案'] },
   {
-    name: 'AI/寫作輔助',
+    name: 'AI/Prompt 工程',
     keywords: [
       'prompt engineering', 'system prompt', '提示词', '提示詞',
       '调教', '調教', '角色扮演', 'role play', 'jailbreak',
@@ -185,32 +97,70 @@ export const CATEGORIES: CategoryRule[] = [
       '寫作', 'writing assist', '優化技巧', '細節優化', '生成技巧',
     ],
   },
-  { name: 'AI/網站搭建', keywords: ['website builder', '網站搭建', 'ai 建站', 'ai建站'] },
-  { name: 'AI/會議記錄', keywords: ['會議記錄', 'meeting note', 'meeting transcript', '會議摘要'] },
-  { name: 'AI/SEO優化', keywords: ['seo 優化', 'seo優化', 'seo tool', 'keyword research'] },
   {
-    name: 'AI/自動化',
+    name: 'AI/RAG & 知識圖譜',
     keywords: [
-      'ai agent', 'agentic', 'agent工程', 'agent engineer',
-      'multi-agent', 'agent orchestration', 'agent 軍團', 'agent 架構',
-      'agent framework', 'agent monitoring', 'agent 操控', 'agent 監控',
-      '桌面代理', 'desktop agent', '桌面自動化', 'computer use',
-      '自動化', 'automation', 'workflow', 'mcp server', 'mcp tool', 'mcp ',
-      'telegram bot', 'bot',
       'rag', 'retrieval', 'vector database', 'embedding',
+      'graphrag', '知識圖譜', '檢索增強', 'knowledge graph',
       'langchain', 'langgraph',
-      'best practices', '最佳实践', '最佳實踐', '工程指南',
-      '数据抓取', '資料抓取',
-      '爬蟲', 'crawler', 'scraping', 'scraper', 'firecrawl',
-      'cli tool', 'cli 工具', '情報', '無頭瀏覽器', 'headless browser',
-      '團隊組建', 'skill清单', 'skill 清單',
     ],
   },
-  { name: 'AI/簡報', keywords: ['簡報', 'ppt', 'presentation', 'slide deck', '投影片'] },
-  { name: 'AI/智慧客服', keywords: ['客服', 'customer service', 'ai chatbot', '智慧客服'] },
-  { name: 'AI/UI設計', keywords: ['ui design', 'ux design', '介面設計', 'prototype', 'wireframe'] },
-  { name: 'AI/設計工具', keywords: ['設計工具', 'design tool', '平面設計'] },
-  { name: 'AI/Logo生成', keywords: ['logo生成', 'logo 生成', 'logo design', 'logo設計'] },
+  {
+    name: 'AI/多模態生成/圖像',
+    keywords: [
+      'image generat', '圖片生成', '圖像生成', '圖片放大', 'image enhance',
+      'comfyui', '放大', 'text to image', '文生圖',
+      '3d model', '3d模型', '圖片轉3d', 'trellis',
+    ],
+  },
+  {
+    name: 'AI/多模態生成/影片',
+    keywords: [
+      'video generat', '影片生成', '影片製作', '視頻生成', '视频生成',
+      'text to video', '文生影片', '文生視頻',
+      '字幕', 'caption', 'subtitle', '影片編輯', 'video edit',
+      'ffmpeg', '短影音', '剪輯',
+    ],
+  },
+  {
+    name: 'AI/多模態生成/語音',
+    keywords: [
+      'whisper', 'tts', 'text to speech', 'speech to text',
+      '語音合成', '語音辨識', '語音識別', '語音轉文字',
+      'voice mode', '語音模式',
+    ],
+  },
+  {
+    name: 'AI/部署 & 推理',
+    keywords: [
+      'api gateway', '中轉', '中轉站', '部署', 'inference',
+      'vllm', 'ollama', 'api proxy', 'sub2api',
+      '私有化', '模型部署', '推理引擎',
+    ],
+  },
+  {
+    name: 'AI/開發工具/爬蟲 & 擷取',
+    keywords: [
+      '爬蟲', 'crawler', 'scraping', 'scraper', 'firecrawl',
+      '資料抓取', '数据抓取', 'readability', '網頁擷取', 'defuddle',
+    ],
+  },
+  { name: 'AI/開發工具/終端', keywords: ['terminal emulator', '終端機', 'gpu加速終端'] },
+  { name: 'AI/開發工具/CLI', keywords: ['cli tool', 'cli 工具', '命令列工具'] },
+  { name: 'AI/開發工具', keywords: ['開發工具', 'dev tool', '無頭瀏覽器', 'headless browser'] },
+  {
+    name: 'AI/應用場景',
+    keywords: [
+      'mcp server', 'mcp tool', 'mcp ',
+      'telegram bot', 'bot',
+      '情報', '自動摘要', '自動化工作流',
+      'best practices', '最佳实践', '最佳實踐', '工程指南',
+    ],
+  },
+  { name: 'AI/辦公協作', keywords: ['辦公協作', '協作辦公', 'feishu', '飛書'] },
+  { name: 'AI/自動化', keywords: ['自動化', 'automation', 'workflow'] },
+
+  // ── AI 通用兜底 ──
   {
     name: 'AI/研究對話',
     keywords: [
@@ -218,43 +168,80 @@ export const CATEGORIES: CategoryRule[] = [
       '入門指南', '入门指南', '入門教學', '入门教学',
       '从0开始', '从零开始', '零基礎', '零基础',
       'getting started', '手把手', '3分钟', '0代码',
-      '大模型', '模型评测', '模型評測',
-      'minimax', 'qwen', 'llama', 'mistral', 'gemma', 'phi-',
-      'benchmark', 'leaderboard',
-      '免费 claude', '免費 claude',
-      'claude 3', 'claude 4', 'o1', 'o3',
     ],
   },
-
-  // ══════════════════════════════════════════════════════
-  // AI 通用兜底（所有 AI 相關但無法匹配到功能分類的內容）
-  // ══════════════════════════════════════════════════════
   {
     name: 'AI/研究對話',
     keywords: [
       'ai', 'gpt', 'llm', 'copilot', 'diffusion',
-      '人工智慧', '大語言模型', '大语言模型',
-      '機器學習', 'machine learning', 'deep learning',
+      '人工智慧', '機器學習', 'machine learning', 'deep learning',
     ],
   },
 
-  // ══════════════════════════════════════════════════════
-  // 其他頂層分類（不變）
-  // ══════════════════════════════════════════════════════
+  // ── 非 AI 分類 ──
+  {
+    name: '知識管理/Obsidian 工作流',
+    keywords: [
+      'obsidian', '雙向連結', '雙向鏈結', '第二大腦', '第二大脑',
+      '知識圖譜', '知識網路', '知識網絡', '知識管理',
+    ],
+  },
+  {
+    name: '知識管理/Obsidian 插件',
+    keywords: [
+      'obsidian 插件', 'obsidian plugin', 'dataview', 'breadcrumbs',
+      'templater', 'obsidian community',
+    ],
+  },
+  {
+    name: '知識管理/Obsidian 設定',
+    keywords: [
+      'obsidian 設定', 'obsidian 配置', 'obsidian workspaces',
+      'obsidian 快捷鍵', 'obsidian theme',
+    ],
+  },
+  {
+    name: '知識管理/筆記方法論',
+    keywords: [
+      'zettelkasten', 'evergreen note', '卡片盒', '卡片盒筆記法',
+      '漸進式總結', 'progressive summarization', 'moc',
+      '筆記法', '筆記方法', 'pkm',
+    ],
+  },
   {
     name: '生產力/Obsidian',
     keywords: [
-      'obsidian', 'pkm', 'zettelkasten',
-      '第二大腦', '第二大脑', '筆記軟體', '笔记软件', '筆記工具', '笔记工具',
-      '雙向連結', '雙向鏈結', '知識圖譜', '知識網路', '知識網絡',
+      '筆記軟體', '笔记软件', '筆記工具', '笔记工具',
+    ],
+  },
+  {
+    name: 'macOS 生態/oMLX',
+    keywords: ['omlx', 'apple neural engine', 'mlx', 'coreml'],
+  },
+  {
+    name: 'macOS 生態',
+    keywords: [
+      'mac mini', 'mac studio', 'mac pro', 'imac', 'orbstack',
+      'amphetamine', '行動伺服器', 'macwhisper',
     ],
   },
   {
     name: '科技/Apple',
-    keywords: ['mac', 'macbook', 'iphone', 'ipad', 'macos', 'apple silicon', 'apple watch', 'ios ', 'mac mini', 'mac studio', 'mac pro', 'imac', 'macwhisper', 'orbstack'],
+    keywords: [
+      'iphone', 'ipad', 'macos', 'apple silicon', 'apple watch',
+      'ios ', 'macbook', 'apple', 'mac',
+      '快捷指令', '捷徑',
+    ],
   },
-  { name: '科技', keywords: ['hardware', 'chip', 'semiconductor', '晶片', '半導體', '硬體', '科技新聞', '休眠機制'] },
-  { name: '程式設計', keywords: ['programming', 'javascript', 'typescript', 'python', 'rust', 'react', 'nextjs', '程式設計', 'backend', 'frontend', 'database', '訂閱管理', '健康檢查', 'heartbeat', 'health check', 'c#', '.net', 'golang', 'swift', 'kotlin', 'docker'] },
+  {
+    name: '軟體開發',
+    keywords: [
+      'programming', 'javascript', 'typescript', 'python', 'rust',
+      'react', 'nextjs', '程式設計', 'backend', 'frontend', 'database',
+      'heartbeat', 'health check', 'c#', '.net', 'golang', 'swift',
+      'kotlin', 'docker',
+    ],
+  },
   {
     name: '投資理財',
     keywords: [
@@ -264,24 +251,32 @@ export const CATEGORIES: CategoryRule[] = [
     ],
   },
   {
-    name: '創業商業',
+    name: '商業 & 趨勢',
     keywords: [
       'startup', 'founder', 'vc', 'venture', 'saas', 'product',
       'revenue', 'mrr', 'arr', 'b2b', '創業', '創辦人', '商業',
       '商業模式', 'business', 'entrepreneur', '產品',
     ],
   },
-  { name: '設計', keywords: ['typography', 'brand design', 'visual design', '排版', '品牌設計', '視覺設計'] },
-  { name: '行銷', keywords: ['marketing', 'seo', 'google ads', 'facebook ads', 'growth hack', 'content marketing', 'social media marketing', 'campaign', '行銷', '廣告', '流量', 'viral'] },
-  { name: '中文媒體', keywords: ['微博', 'weibo', '小紅書', '小红书', 'xiaohongshu', '紅書', 'xhs', 'bilibili', 'b站', '嗶哩嗶哩', '哔哩哔哩', '抖音', 'douyin', '今日頭條', '今日头条', 'toutiao', 'tiktok', '知乎', 'zhihu', '豆瓣', 'douban'] },
+  {
+    name: '中文媒體',
+    keywords: [
+      '微博', 'weibo', '小紅書', '小红书', 'xiaohongshu', '紅書', 'xhs',
+      'bilibili', 'b站', '嗶哩嗶哩', '哔哩哔哩', '抖音', 'douyin',
+      '今日頭條', '今日头条', 'toutiao', 'tiktok', '知乎', 'zhihu',
+      '豆瓣', 'douban',
+    ],
+  },
   {
     name: '生產力',
     keywords: [
       'productivity', 'habit', 'focus', '生產力', '工作流',
-      '效率', 'notion', 'syncthing', '檔案同步', '磁盤清理', '系統優化',
+      '效率', 'notion', 'syncthing', '檔案同步',
     ],
   },
-  { name: '新聞時事', keywords: ['news', 'breaking', 'report', 'election', 'government', 'policy', 'war', '新聞', '時事', '政策', '政府', '選舉', '戰爭', '國際'] },
+  { name: '設計', keywords: ['typography', 'brand design', 'visual design', '排版', '品牌設計', '視覺設計'] },
+  { name: '行銷', keywords: ['marketing', 'seo', 'google ads', 'growth hack', 'content marketing', '行銷', '廣告', '流量'] },
+  { name: '新聞時事', keywords: ['news', 'breaking', 'election', 'government', 'policy', 'war', '新聞', '時事', '政策', '戰爭'] },
   {
     name: '生活',
     keywords: [

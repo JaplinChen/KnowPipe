@@ -52,8 +52,10 @@ export async function executeReclassify(config: AppConfig): Promise<ReclassifyRe
     const storedCategory = extractFrontmatterField(raw, 'category');
     if (!storedCategory) continue;
 
-    // Reclassify using title only (text passed as empty string)
-    const newCategory = classifyContent(title, '');
+    // Reclassify using title + body for better accuracy
+    const bodyStart = raw.indexOf('\n---\n', 3);
+    const body = bodyStart > 0 ? raw.slice(bodyStart + 5, bodyStart + 2000) : '';
+    const newCategory = classifyContent(title, body);
 
     if (storedCategory === newCategory) continue;
 
