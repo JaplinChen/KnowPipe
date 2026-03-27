@@ -10,7 +10,8 @@ import { handleKnowledge, handleGaps, handleSkills, handleAnalyze, handleDashboa
 import { handlePreferences, handleDistill } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
-import { handleDiscover } from './discover-command.js';
+import { handleDiscover, resolveDiscoverToken } from './discover-command.js';
+import { processUrl } from '../messages/services/process-url-service.js';
 import { handleReprocess } from './reprocess-command.js';
 import { handleReformat } from './reformat-command.js';
 import { handleDedup } from './dedup-command.js';
@@ -183,6 +184,25 @@ export function registerCommands(
     const action = ctx.match![1];
     await ctx.answerCbQuery().catch(() => {});
     await handleRadarAction(ctx, action, config);
+  });
+
+  // --- InlineKeyboard: /discover save-to-vault ---
+  registerAsyncAction(bot, /^dsc:(.+)$/, 'discover-save', async (ctx) => {
+    const token = ctx.match![1];
+    const url = resolveDiscoverToken(token);
+    if (!url) {
+      await ctx.answerCbQuery('按鈕已過期').catch(() => {});
+      await ctx.reply('按鈕已過期，請重新執行 /discover');
+      return;
+    }
+    await ctx.answerCbQuery('存入 Vault 中…').catch(() => {});
+    const result = await processUrl(url, config, stats);
+    if (result.success) {
+      const label = result.duplicate ? '📋 已存在' : '✅ 已存入';
+      await ctx.reply(`${label}：${result.title ?? url}`);
+    } else {
+      await ctx.reply(`❌ 儲存失敗：${result.error}`);
+    }
   });
 
   // --- ForceReply dispatch ---

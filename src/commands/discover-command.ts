@@ -2,15 +2,18 @@
  * /discover — Proactive content discovery across platforms.
  * /discover <keyword> — search GitHub repos by keyword.
  * /discover (no args) — scan trending repos in default interest areas.
+ * Each result includes a "📥 存入" inline button to save directly to Vault.
  */
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { Markup } from 'telegraf';
 import type { Context } from 'telegraf';
 import { logger } from '../core/logger.js';
 import type { AppConfig } from '../utils/config.js';
-import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 
 const DEFAULT_TOPICS = ['ai-agent', 'obsidian', 'cli-tool'];
 const MAX_RESULTS = 8;
+const URL_CACHE_LIMIT = 200;
 
 interface GhRepo {
   fullName: string;
@@ -19,6 +22,26 @@ interface GhRepo {
   language: string;
   htmlUrl: string;
   updatedAt: string;
+}
+
+/* ── URL token cache (maps short hash → full URL) ──────────────────── */
+
+const urlTokenCache = new Map<string, string>();
+
+function rememberUrl(url: string): string {
+  const token = createHash('sha1').update(url).digest('hex').slice(0, 12);
+  urlTokenCache.set(token, url);
+
+  if (urlTokenCache.size > URL_CACHE_LIMIT) {
+    const oldest = urlTokenCache.keys().next().value;
+    if (oldest) urlTokenCache.delete(oldest);
+  }
+  return token;
+}
+
+/** Resolve a discover callback token back to a URL */
+export function resolveDiscoverToken(token: string): string | null {
+  return urlTokenCache.get(token) ?? null;
 }
 
 /* ── GitHub search via gh CLI ────────────────────────────────────────── */
@@ -59,32 +82,69 @@ async function searchGitHub(query: string, limit: number): Promise<GhRepo[]> {
   });
 }
 
-/* ── Format results ──────────────────────────────────────────────────── */
+/* ── Helpers ──────────────────────────────────────────────────────────── */
 
-function formatResults(repos: GhRepo[], query: string): string {
-  if (repos.length === 0) return `找不到與「${query}」相關的專案。`;
-
-  const lines = [`GitHub 搜尋結果：「${query}」\n`];
-  for (let i = 0; i < repos.length; i++) {
-    const r = repos[i];
-    const stars = r.stargazersCount >= 1000
-      ? `${(r.stargazersCount / 1000).toFixed(1)}k`
-      : String(r.stargazersCount);
-    const lang = r.language ? ` [${r.language}]` : '';
-    const desc = r.description.slice(0, 60) || '(no description)';
-    lines.push(`${i + 1}. ${r.fullName}${lang} (${stars} stars)`);
-    lines.push(`   ${desc}`);
-    lines.push(`   ${r.htmlUrl}`);
-    lines.push('');
-  }
-  lines.push('傳送連結即可存入 Vault。');
-  return lines.join('\n');
+function formatStars(count: number): string {
+  return count >= 1000
+    ? `${(count / 1000).toFixed(1)}k`
+    : String(count);
 }
 
 function getDateDaysAgo(days: number): string {
   const d = new Date();
   d.setDate(d.getDate() - days);
   return d.toISOString().slice(0, 10);
+}
+
+/** Build inline keyboard with one save button per repo (2 per row) */
+function buildSaveButtons(repos: GhRepo[]) {
+  const buttons = repos.map((r) => {
+    const token = rememberUrl(r.htmlUrl);
+    const shortName = r.fullName.split('/')[1] ?? r.fullName;
+    return Markup.button.callback(
+      `📥 ${shortName}`,
+      `dsc:${token}`,
+    );
+  });
+
+  // 2 buttons per row
+  const rows: ReturnType<typeof Markup.button.callback>[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
+  return Markup.inlineKeyboard(rows);
+}
+
+/* ── Format results ──────────────────────────────────────────────────── */
+
+function formatSearchResults(repos: GhRepo[], query: string): string {
+  if (repos.length === 0) return `找不到與「${query}」相關的專案。`;
+
+  const lines = [`GitHub 搜尋結果：「${query}」\n`];
+  for (const r of repos) {
+    const lang = r.language ? ` [${r.language}]` : '';
+    const desc = r.description.slice(0, 60) || '(no description)';
+    lines.push(`${r.fullName}${lang} (${formatStars(r.stargazersCount)})`);
+    lines.push(`  ${desc}`);
+    lines.push(`  ${r.htmlUrl}`);
+    lines.push('');
+  }
+  return lines.join('\n');
+}
+
+function formatTrendingResults(topicRepos: Array<{ topic: string; repos: GhRepo[] }>): string {
+  const lines = [`每日探索：你的關注領域\n`];
+
+  for (const { topic, repos } of topicRepos) {
+    if (repos.length === 0) continue;
+    lines.push(`--- ${topic} ---`);
+    for (const r of repos) {
+      lines.push(`${r.fullName} (${formatStars(r.stargazersCount)}) ${r.htmlUrl}`);
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
 }
 
 /* ── Command handler ─────────────────────────────────────────────────── */
@@ -94,7 +154,6 @@ export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
   const rawQuery = text.replace(/^\/discover\s*/i, '').trim();
 
-  // No keyword → show trending
   if (!rawQuery) {
     await runTrending(ctx);
     return;
@@ -108,9 +167,16 @@ export async function handleDiscover(ctx: Context, _config: AppConfig): Promise<
       : `${rawQuery} stars:>50`;
 
     const repos = await searchGitHub(query, MAX_RESULTS);
-    const result = formatResults(repos, rawQuery);
+    const message = formatSearchResults(repos, rawQuery);
 
-    await ctx.reply(result, { disable_web_page_preview: true } as object);
+    if (repos.length > 0) {
+      await ctx.reply(message, {
+        disable_web_page_preview: true,
+        ...buildSaveButtons(repos),
+      } as object);
+    } else {
+      await ctx.reply(message);
+    }
     logger.info('discover', 'searched', { query: rawQuery, found: repos.length });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -126,27 +192,28 @@ async function runTrending(ctx: Context): Promise<void> {
   const status = await ctx.reply('掃描熱門專案中…');
 
   try {
-    const allResults: string[] = [`每日探索：你的關注領域\n`];
+    const topicRepos: Array<{ topic: string; repos: GhRepo[] }> = [];
+    const allRepos: GhRepo[] = [];
 
     for (const topic of DEFAULT_TOPICS) {
       const repos = await searchGitHub(
         `topic:${topic} stars:>100 pushed:>${getDateDaysAgo(7)}`,
         3,
       );
-      if (repos.length > 0) {
-        allResults.push(`--- ${topic} ---`);
-        for (const r of repos) {
-          const stars = r.stargazersCount >= 1000
-            ? `${(r.stargazersCount / 1000).toFixed(1)}k`
-            : String(r.stargazersCount);
-          allResults.push(`${r.fullName} (${stars}) ${r.htmlUrl}`);
-        }
-        allResults.push('');
-      }
+      topicRepos.push({ topic, repos });
+      allRepos.push(...repos);
     }
 
-    allResults.push('傳送連結即可存入 Vault。');
-    await ctx.reply(allResults.join('\n'), { disable_web_page_preview: true } as object);
+    const message = formatTrendingResults(topicRepos);
+
+    if (allRepos.length > 0) {
+      await ctx.reply(message, {
+        disable_web_page_preview: true,
+        ...buildSaveButtons(allRepos),
+      } as object);
+    } else {
+      await ctx.reply(message);
+    }
     logger.info('discover', 'trending-scan', { topics: DEFAULT_TOPICS.length });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

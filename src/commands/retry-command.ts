@@ -6,40 +6,10 @@
  */
 import type { Context } from 'telegraf';
 import { createHash } from 'node:crypto';
-import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
-import type { ExtractorWithComments } from '../extractors/types.js';
 import type { AppConfig } from '../utils/config.js';
-import { findExtractor } from '../utils/url-parser.js';
-import { enrichExtractedContent } from '../messages/services/enrich-content-service.js';
-import { extractContentWithComments } from '../messages/services/extract-content-service.js';
-import { saveExtractedContent } from '../messages/services/save-content-service.js';
-import { formatSavedSummary } from '../messages/user-messages.js';
+import { processUrl } from '../messages/services/process-url-service.js';
 import type { BotStats } from '../messages/types.js';
-
-/** Process a single URL through the standard pipeline */
-async function processUrl(
-  url: string, config: AppConfig, stats: BotStats,
-): Promise<{ success: boolean; title?: string; error?: string }> {
-  const extractor = findExtractor(url);
-  if (!extractor) return { success: false, error: '不支援的 URL' };
-
-  try {
-    const content = await extractContentWithComments(url, extractor as ExtractorWithComments);
-    await enrichExtractedContent(content, config);
-    const result = await saveExtractedContent(content, config.vaultPath, { saveVideos: config.saveVideos });
-
-    if (!result.duplicate) {
-      stats.saved++;
-      if (stats.recent.length >= 50) stats.recent.shift();
-      stats.recent.push(`[${content.category}] ${content.title.slice(0, 50)}`);
-    }
-
-    return { success: true, title: content.title };
-  } catch (err) {
-    return { success: false, error: (err as Error).message };
-  }
-}
 
 /** Create the /retry command handler (closure over stats) */
 export function createRetryHandler(stats: BotStats) {
