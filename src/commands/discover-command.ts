@@ -28,7 +28,7 @@ interface GhRepo {
 
 const urlTokenCache = new Map<string, string>();
 
-function rememberUrl(url: string): string {
+export function rememberUrl(url: string): string {
   const token = createHash('sha1').update(url).digest('hex').slice(0, 12);
   urlTokenCache.set(token, url);
 

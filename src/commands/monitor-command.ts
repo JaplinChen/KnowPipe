@@ -1,21 +1,38 @@
 /**
  * /monitor command — cross-platform keyword search (mention discovery).
  * /google command — web search (DuckDuckGo HTML + Camoufox fallback).
+ * Results shown with inline buttons — users pick which to save.
  */
+import { Markup } from 'telegraf';
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import type { ExtractedContent } from '../extractors/types.js';
 import { searchReddit, webSearch, fetchJinaContent } from '../utils/search-service.js';
-import { saveToVault, isDuplicateUrl } from '../saver.js';
+import { isDuplicateUrl } from '../saver.js';
 import { classifyContent } from '../classifier.js';
 import { findExtractor } from '../utils/url-parser.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
-import { enrichExtractedContent } from '../messages/services/enrich-content-service.js';
+import { rememberUrl } from './discover-command.js';
 
 /** Hosts excluded from /monitor results (auth-required, content not accessible). */
 const MONITOR_SKIP_HOSTS = new Set([
   'x.com', 'twitter.com', 'www.x.com', 'www.twitter.com',
 ]);
+
+/** Build inline keyboard with save buttons (2 per row) */
+function buildMonitorButtons(posts: Array<{ title: string; url: string }>) {
+  const buttons = posts.map((p) => {
+    const token = rememberUrl(p.url);
+    const label = p.title.slice(0, 20);
+    return Markup.button.callback(`📥 ${label}`, `dsc:${token}`);
+  });
+
+  const rows: ReturnType<typeof Markup.button.callback>[][] = [];
+  for (let i = 0; i < buttons.length; i += 2) {
+    rows.push(buttons.slice(i, i + 2));
+  }
+  return Markup.inlineKeyboard(rows);
+}
 
 export async function handleMonitor(ctx: Context, config: AppConfig): Promise<void> {
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
@@ -37,7 +54,7 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       webSearch(keyword, 8),
     ]);
 
-    const posts = redditResults.status === 'fulfilled' ? redditResults.value : [];
+    const redditPosts = redditResults.status === 'fulfilled' ? redditResults.value : [];
     const rawWeb = webResults.status === 'fulfilled' ? webResults.value : [];
 
     const filtered = rawWeb.filter(g => {
@@ -45,21 +62,14 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       catch { return false; }
     });
 
-    const jinaTexts = await Promise.all(
-      filtered.map(g => fetchJinaContent(g.url).catch(() => '')),
-    );
-    for (const [i, g] of filtered.entries()) {
-      posts.push({
-        platform: 'web',
-        author: new URL(g.url).hostname,
-        authorHandle: new URL(g.url).hostname,
-        title: g.title,
-        text: jinaTexts[i] || g.snippet,
-        images: [],
-        videos: [],
-        date: new Date().toISOString().split('T')[0],
-        url: g.url,
-      });
+    // Combine Reddit + Web results
+    const posts: Array<{ title: string; url: string; source: string }> = [];
+    for (const p of redditPosts) {
+      posts.push({ title: p.title, url: p.url, source: 'Reddit' });
+    }
+    for (const g of filtered) {
+      const host = (() => { try { return new URL(g.url).hostname; } catch { return 'web'; } })();
+      posts.push({ title: g.title, url: g.url, source: host });
     }
 
     if (posts.length === 0) {
@@ -67,21 +77,19 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       return;
     }
 
-    let saved = 0;
-    for (const post of posts) {
-      try {
-        await enrichExtractedContent(post, config);
-        const r = await saveToVault(post, config.vaultPath);
-        if (!r.duplicate) saved++;
-      } catch { /* skip */ }
-    }
-
-    const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆，儲存 ${saved} 篇`, ''];
-    for (const p of posts.slice(0, 8)) {
+    // Format result list
+    const displayPosts = posts.slice(0, 10);
+    const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆\n`];
+    for (const p of displayPosts) {
       lines.push(`- ${p.title.slice(0, 50)}`);
       lines.push(`  ${p.url}`);
     }
-    await ctx.reply(lines.join('\n')); 
+    lines.push('', '傳送連結即可存入 Vault。');
+
+    await ctx.reply(lines.join('\n'), {
+      disable_web_page_preview: true,
+      ...buildMonitorButtons(displayPosts),
+    } as object);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);
@@ -120,29 +128,26 @@ export async function handleSearch(ctx: Context, config: AppConfig): Promise<voi
 
     const unsaved = entries.filter(e => !e.saved);
 
-    // Auto-save unsaved results using platform extractors
-    let newSaved = 0;
-    for (const e of unsaved) {
-      try {
-        const extractor = findExtractor(e.url);
-        if (!extractor) continue;
-        const content = await extractor.extract(e.url);
-        content.category = classifyContent(content.title, content.text);
-        const r = await saveToVault(content, config.vaultPath);
-        if (!r.duplicate) { newSaved++; e.saved = true; }
-      } catch { /* skip */ }
-    }
-
-    // Format reply
-    const alreadySaved = entries.filter(e => e.saved && !unsaved.some(u => u.url === e.url)).length;
-    const lines = [`🔍 搜尋「${query}」：${entries.length} 筆結果，新儲存 ${newSaved} 篇`, ''];
+    // Format result list with save buttons
+    const lines = [`🔍 搜尋「${query}」：${entries.length} 筆結果\n`];
     for (const [i, e] of entries.entries()) {
-      const icon = unsaved.some(u => u.url === e.url) ? (e.saved ? '✅' : '❌') : '📂';
+      const icon = e.saved ? '📂' : '🔹';
       lines.push(`${i + 1}. ${icon} ${e.title.slice(0, 50)}`);
       lines.push(`   ${e.host}`);
     }
-    if (alreadySaved > 0) lines.push('', `📂 = 已儲存  ✅ = 新儲存  ❌ = 擷取失敗`);
-    await ctx.reply(lines.join('\n'));
+    if (unsaved.length > 0) {
+      lines.push('', '📂 = 已儲存  🔹 = 可存入');
+    }
+
+    if (unsaved.length > 0) {
+      await ctx.reply(lines.join('\n'), {
+        disable_web_page_preview: true,
+        ...buildMonitorButtons(unsaved),
+      } as object);
+    } else {
+      lines.push('', '所有結果皆已儲存。');
+      await ctx.reply(lines.join('\n'));
+    }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);
@@ -150,5 +155,3 @@ export async function handleSearch(ctx: Context, config: AppConfig): Promise<voi
     await ctx.deleteMessage(status.message_id).catch(() => {});
   }
 }
-
-
