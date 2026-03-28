@@ -105,7 +105,7 @@ async function generateDigestInsight(digest: ProactiveDigest): Promise<string | 
   ].filter(Boolean).join('\n');
 
   try {
-    const result = await runLocalLlmPrompt(prompt, { timeoutMs: 60_000, model: 'flash' });
+    const result = await runLocalLlmPrompt(prompt, { timeoutMs: 20_000, model: 'flash', maxTokens: 256 });
     return result ?? undefined;
   } catch {
     return undefined;

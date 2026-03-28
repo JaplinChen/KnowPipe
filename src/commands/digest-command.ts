@@ -94,7 +94,7 @@ async function buildDigest(
     ...catSummaries,
   ].join('\n');
 
-  const result = await runLocalLlmPrompt(prompt, { timeoutMs: 90_000, model: 'deep' });
+  const result = await runLocalLlmPrompt(prompt, { timeoutMs: 90_000, model: 'deep', maxTokens: 1536 });
   return result ?? '（LLM 無法生成摘要，請稍後再試）';
 }
 
