@@ -5,6 +5,7 @@ import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
 import type { ExtractorWithComments, ExtractorWithSeries } from '../extractors/types.js';
 import type { AppConfig } from '../utils/config.js';
+import { isBlockedDomain } from '../extractors/web-extractor.js';
 import { extractUrls, findExtractor } from '../utils/url-parser.js';
 import {
   STAGE,
@@ -62,6 +63,11 @@ export function registerUrlProcessingHandler(
     react(ctx, '👀');
 
     for (const url of urls) {
+      if (isBlockedDomain(url)) {
+        logger.info('msg', 'skipped blocked domain', { url });
+        continue;
+      }
+
       const extractor = findExtractor(url);
       if (!extractor) {
         logger.warn('msg', 'unsupported url', { url });
@@ -120,7 +126,8 @@ export function registerUrlProcessingHandler(
 
         updateProgress('saving');
         const t2 = Date.now();
-        const result = await saveExtractedContent(content, config.vaultPath, { saveVideos: config.saveVideos });
+        const userId = ctx.from?.id;
+        const result = await saveExtractedContent(content, config.vaultPath, { saveVideos: config.saveVideos, userId });
         logger.info('perf', 'save', { ms: Date.now() - t2 });
         logger.info('perf', 'total', { ms: Date.now() - t0 });
 

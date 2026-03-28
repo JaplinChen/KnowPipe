@@ -27,6 +27,7 @@ export const HELP_ALL_TEXT = [
   '/radar wall — AI 工具情報牆',
   '/patrol — 自動巡邏 GitHub Trending',
   '/discover <關鍵字> — GitHub 專案探索',
+  '/vsearch <關鍵字> — 搜尋影片筆記（章節/轉錄）',
   '',
   '🧠 知識系統',
   '/ask <問題> — 用知識庫回答問題',
@@ -50,6 +51,7 @@ export const HELP_ALL_TEXT = [
   '/doctor — 全面即時診斷（探測所有平台+工具）',
   '/logs [n] [error] — 查看最近 log',
   '/restart — 遠端重啟 Bot',
+  '/code <action> — 遠端執行指令（health/status/test/log）',
   '/clear — 清除處理佇列',
 ].join('\n');
 
@@ -64,6 +66,7 @@ export const BOT_COMMANDS_MENU = [
   { command: 'radar', description: '內容雷達' },
   { command: 'patrol', description: '自動巡邏 GitHub Trending' },
   { command: 'discover', description: 'GitHub 專案探索' },
+  { command: 'vsearch', description: '搜尋影片筆記' },
   // Knowledge
   { command: 'ask', description: '用知識庫回答問題' },
   { command: 'knowledge', description: '知識庫總覽' },
@@ -84,6 +87,7 @@ export const BOT_COMMANDS_MENU = [
   { command: 'doctor', description: '全面即時診斷' },
   { command: 'logs', description: '查看最近 log' },
   { command: 'restart', description: '遠端重啟 Bot' },
+  { command: 'code', description: '遠端執行指令' },
   { command: 'clear', description: '清除處理佇列' },
   { command: 'help', description: '顯示說明' },
 ];

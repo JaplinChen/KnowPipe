@@ -20,7 +20,7 @@ import { startPatrolService } from './patrol/patrol-service.js';
 import { registerTimers } from './core/service-registry.js';
 
 const config = loadConfig();
-registerAllExtractors();
+await registerAllExtractors();
 
 const bot = createBot(config);
 

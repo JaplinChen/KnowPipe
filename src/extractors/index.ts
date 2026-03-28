@@ -13,10 +13,12 @@ import { douyinExtractor } from './douyin-extractor.js';
 import { tiktokExtractor } from './tiktok-extractor.js';
 import { ithomeExtractor } from './ithome-extractor.js';
 import { webExtractor } from './web-extractor.js';
+import { loadPlugins } from '../plugins/plugin-loader.js';
+import { logger } from '../core/logger.js';
 
 /** Register all extractors — add new platforms here.
- *  Order matters: webExtractor is last as it matches any URL (fallback). */
-export function registerAllExtractors(): void {
+ *  Order matters: plugins before webExtractor, webExtractor last (fallback). */
+export async function registerAllExtractors(): Promise<void> {
   registerExtractor(xExtractor);
   registerExtractor(threadsExtractor);
   registerExtractor(youtubeExtractor);
@@ -28,5 +30,12 @@ export function registerAllExtractors(): void {
   registerExtractor(douyinExtractor);
   registerExtractor(tiktokExtractor);
   registerExtractor(ithomeExtractor);
+
+  // Load plugins before fallback extractor
+  const plugins = await loadPlugins();
+  if (plugins.length > 0) {
+    logger.info('extractors', `已載入 ${plugins.length} 個插件 extractor`);
+  }
+
   registerExtractor(webExtractor); // fallback — must be last
 }

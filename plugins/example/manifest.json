@@ -1,0 +1,8 @@
+{
+  "name": "example-plugin",
+  "version": "1.0.0",
+  "platform": "web",
+  "urlPatterns": ["example.com"],
+  "entrypoint": "extractor.js",
+  "description": "範例插件 — 展示 ObsBot 插件結構"
+}

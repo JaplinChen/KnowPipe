@@ -41,6 +41,8 @@ import { handleLogs, handleHealth, handleRestart } from './admin-command.js';
 import { handleDoctor } from './doctor-command.js';
 import { handleFind } from './find-command.js';
 import { handlePatrol } from './patrol-command.js';
+import { handleCode } from './code-command.js';
+import { handleVsearch } from './vsearch-command.js';
 
 export { formatErrorMessage };
 
@@ -114,6 +116,8 @@ export function registerCommands(
   registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
   registerAsyncCommand(bot, 'benchmark', 'benchmark', config, handleBenchmark);
   registerAsyncCommand(bot, 'patrol', 'patrol', config, handlePatrol);
+  registerAsyncCommand(bot, 'code', 'code', config, handleCode);
+  registerAsyncCommand(bot, 'vsearch', 'vsearch', config, handleVsearch);
 
   // --- InlineKeyboard: /knowledge sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
@@ -199,7 +203,10 @@ export function registerCommands(
     const result = await processUrl(url, config, stats);
     if (result.success) {
       const label = result.duplicate ? '📋 已存在' : '✅ 已存入';
-      await ctx.reply(`${label}：${result.title ?? url}`);
+      const categoryTag = result.category ? `[${result.category}] ` : '';
+      await ctx.reply(`${label}：${categoryTag}${result.title ?? url}`);
+    } else if (result.error === 'blocked-domain' || result.error?.includes('403')) {
+      await ctx.reply(`⚠️ 此網站無法擷取（存取被拒），已跳過`);
     } else {
       await ctx.reply(`❌ 儲存失敗：${result.error}`);
     }
