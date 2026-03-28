@@ -6,10 +6,11 @@
 import { Markup } from 'telegraf';
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
-import { searchReddit, webSearch } from '../utils/search-service.js';
+import { webSearch, rewriteQuery, filterRelevantResults } from '../utils/search-service.js';
 import { isDuplicateUrl } from '../saver.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 import { rememberUrl } from './discover-command.js';
+import { isBlockedDomain } from '../extractors/web-extractor.js';
 
 /** Hosts excluded from /monitor results (auth-required, content not accessible). */
 const MONITOR_SKIP_HOSTS = new Set([
@@ -43,28 +44,30 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
     return;
   }
 
-  const status = await ctx.reply(`正在跨平台搜尋「${keyword}」...`);
+  const status = await ctx.reply(`正在搜尋「${keyword}」...`);
 
   try {
-    const [redditResults, webResults] = await Promise.allSettled([
-      searchReddit(keyword, 5),
-      webSearch(keyword, 8),
-    ]);
+    // AI query rewriting for better search quality
+    const { rewritten, wasRewritten } = await rewriteQuery(keyword);
+    if (wasRewritten) {
+      await ctx.telegram.editMessageText(
+        status.chat.id, status.message_id, undefined,
+        `正在搜尋「${keyword}」→ 🔑 ${rewritten}`,
+      ).catch(() => {});
+    }
 
-    const redditPosts = redditResults.status === 'fulfilled' ? redditResults.value : [];
-    const rawWeb = webResults.status === 'fulfilled' ? webResults.value : [];
+    const rawWeb = await webSearch(rewritten, 12);
 
-    const filtered = rawWeb.filter(g => {
-      try { return !MONITOR_SKIP_HOSTS.has(new URL(g.url).hostname); }
+    const domainFiltered = rawWeb.filter(g => {
+      try { return !MONITOR_SKIP_HOSTS.has(new URL(g.url).hostname) && !isBlockedDomain(g.url); }
       catch { return false; }
     });
 
-    // Combine Reddit + Web results
+    // AI relevance filtering
+    const relevant = await filterRelevantResults(keyword, domainFiltered);
+
     const posts: Array<{ title: string; url: string; source: string }> = [];
-    for (const p of redditPosts) {
-      posts.push({ title: p.title, url: p.url, source: 'Reddit' });
-    }
-    for (const g of filtered) {
+    for (const g of relevant) {
       const host = (() => { try { return new URL(g.url).hostname; } catch { return 'web'; } })();
       posts.push({ title: g.title, url: g.url, source: host });
     }
@@ -74,34 +77,30 @@ export async function handleMonitor(ctx: Context, config: AppConfig): Promise<vo
       return;
     }
 
-    // Check saved status (limit display to avoid Telegram 4096-char limit)
-    const displayPosts = posts.slice(0, 8);
-    const savedUrls = new Set<string>();
-    for (const p of displayPosts) {
+    // Filter out already-saved URLs
+    const unsaved: typeof posts = [];
+    for (const p of posts) {
       const dup = await isDuplicateUrl(p.url, config.vaultPath);
-      if (dup) savedUrls.add(p.url);
+      if (!dup) unsaved.push(p);
     }
-    const unsaved = displayPosts.filter(p => !savedUrls.has(p.url));
 
-    // Format result list — truncate to stay within Telegram message limit
-    const lines = [`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆\n`];
+    if (unsaved.length === 0) {
+      await ctx.reply(`🔍 搜尋「${keyword}」完成：找到 ${posts.length} 筆，全部已儲存。`);
+      return;
+    }
+
+    const displayPosts = unsaved.slice(0, 8);
+    const lines = [`🔍 搜尋「${keyword}」完成：${unsaved.length} 筆新結果\n`];
     for (const p of displayPosts) {
-      const icon = savedUrls.has(p.url) ? '📂' : '🔹';
-      lines.push(`${icon} ${p.title.slice(0, 40)}`);
+      lines.push(`🔹 ${p.title.slice(0, 40)}`);
       lines.push(`  ${p.url}`);
-      // Safety: stop if text is getting too long
       if (lines.join('\n').length > 3500) break;
     }
 
-    if (unsaved.length > 0) {
-      await ctx.reply(lines.join('\n'), {
-        disable_web_page_preview: true,
-        ...buildMonitorButtons(unsaved),
-      } as object);
-    } else {
-      lines.push('', '所有結果皆已儲存。');
-      await ctx.reply(lines.join('\n'));
-    }
+    await ctx.reply(lines.join('\n'), {
+      disable_web_page_preview: true,
+      ...buildMonitorButtons(displayPosts),
+    } as object);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`搜尋失敗：${msg}`);

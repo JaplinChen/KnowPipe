@@ -4,6 +4,7 @@
  */
 import type { ExtractorWithComments } from '../../extractors/types.js';
 import type { AppConfig } from '../../utils/config.js';
+import { isBlockedDomain } from '../../extractors/web-extractor.js';
 import { findExtractor } from '../../utils/url-parser.js';
 import { enrichExtractedContent } from './enrich-content-service.js';
 import { extractContentWithComments } from './extract-content-service.js';
@@ -13,6 +14,7 @@ import type { BotStats } from '../types.js';
 export interface ProcessUrlResult {
   success: boolean;
   title?: string;
+  category?: string;
   duplicate?: boolean;
   error?: string;
 }
@@ -21,6 +23,7 @@ export interface ProcessUrlResult {
 export async function processUrl(
   url: string, config: AppConfig, stats: BotStats,
 ): Promise<ProcessUrlResult> {
+  if (isBlockedDomain(url)) return { success: false, error: 'blocked-domain' };
   const extractor = findExtractor(url);
   if (!extractor) return { success: false, error: '不支援的 URL' };
 
@@ -35,7 +38,7 @@ export async function processUrl(
       stats.recent.push(`[${content.category}] ${content.title.slice(0, 50)}`);
     }
 
-    return { success: true, title: content.title, duplicate: result.duplicate };
+    return { success: true, title: content.title, category: content.category, duplicate: result.duplicate };
   } catch (err) {
     return { success: false, error: (err as Error).message };
   }

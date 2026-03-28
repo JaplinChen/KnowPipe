@@ -26,7 +26,8 @@ export function parseFrontmatter(raw: string): Map<string, string> {
   for (const line of lines.slice(1, endIdx)) {
     const colonIdx = line.indexOf(':');
     if (colonIdx === -1) continue;
-    fields.set(line.slice(0, colonIdx).trim(), line.slice(colonIdx + 1).trim());
+    const val = line.slice(colonIdx + 1).trim().replace(/^["'](.*)["']$/, '$1');
+    fields.set(line.slice(0, colonIdx).trim(), val);
   }
   return fields;
 }

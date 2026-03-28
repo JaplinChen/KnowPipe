@@ -139,11 +139,20 @@ export function htmlToMarkdown(
 export async function htmlToMarkdownWithBrowser(url: string): Promise<HtmlToMarkdownResult | null> {
   const { page, release } = await camoufoxPool.acquire();
   try {
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-    // Wait for main content to render
-    await page.waitForTimeout(3000);
-    const html = await page.content();
-    return htmlToMarkdown(html, url, true);
+    // Overall timeout guard: prevent browser from hanging forever (e.g. streaming media)
+    const OVERALL_TIMEOUT = 45_000;
+    const result = await Promise.race([
+      (async () => {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+        await page.waitForTimeout(3000);
+        const html = await page.content();
+        return htmlToMarkdown(html, url, true);
+      })(),
+      new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('Camoufox overall timeout')), OVERALL_TIMEOUT),
+      ),
+    ]);
+    return result;
   } finally {
     await release();
   }
@@ -158,12 +167,20 @@ export async function htmlToMarkdownWithBrowserUse(url: string): Promise<HtmlToM
   const { BrowserUseClient } = await import('./browser-use-client.js');
   const client = new BrowserUseClient('obsbot-web');
   try {
-    await client.open(url);
-    // Wait for JS rendering
-    await new Promise((r) => setTimeout(r, 3000));
-    const html = await client.html();
-    if (!html || html.length < 200) return null;
-    return htmlToMarkdown(html, url, true);
+    const OVERALL_TIMEOUT = 45_000;
+    const result = await Promise.race([
+      (async () => {
+        await client.open(url);
+        await new Promise((r) => setTimeout(r, 3000));
+        const html = await client.html();
+        if (!html || html.length < 200) return null;
+        return htmlToMarkdown(html, url, true);
+      })(),
+      new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('BrowserUse overall timeout')), OVERALL_TIMEOUT),
+      ),
+    ]);
+    return result;
   } catch {
     return null;
   }

@@ -66,7 +66,7 @@ export async function executeReclassify(config: AppConfig): Promise<ReclassifyRe
     const newCategoryParts = newCategory
       .split('/')
       .slice(0, 3)
-      .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ ]/g, '').trim())
+      .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ &]/g, '').replace(/\s{2,}/g, ' ').trim())
       .filter(p => p.length > 0);
     const newFilePath = join(baseDir, ...newCategoryParts, fileName);
     const newDir = dirname(newFilePath);

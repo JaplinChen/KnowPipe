@@ -79,7 +79,7 @@ export async function scanVaultNotes(vaultPath: string): Promise<NoteStats[]> {
       const category = fields.get('category');
       if (!category || category === '其他') continue;
 
-      const title = (fields.get('title') ?? '').replace(/^"|"$/g, '');
+      const title = fields.get('title') ?? '';
       const keywords = parseArrayField(fields.get('keywords') ?? '');
       const bodyStart = raw.indexOf('\n---\n', 3) + 5;
       const bodyText = raw.slice(bodyStart, bodyStart + 500);

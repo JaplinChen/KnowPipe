@@ -4,6 +4,11 @@ import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { stripHtmlTags } from './web-cleaner.js';
 import { htmlToMarkdown, htmlToMarkdownWithBrowser, htmlToMarkdownWithBrowserUse } from '../utils/html-to-markdown.js';
 
+/** @deprecated — no longer used, WAF sites now handled by browser fallback */
+export function isBlockedDomain(_url: string): boolean {
+  return false;
+}
+
 function decodeHtml(s: string): string {
   return s
     .replace(/&amp;/g, '&')
@@ -73,70 +78,91 @@ export const webExtractor: Extractor = {
   },
 
   async extract(url: string): Promise<ExtractedContent> {
-    const res = await fetchWithTimeout(url, 30_000, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-      },
-      redirect: 'follow',
-    });
+    // Tier 0: try fast server-side fetch
+    let html: string | null = null;
+    let finalUrl = url;
 
-    if (!res.ok) {
-      throw new Error(`Web fetch error: ${res.status} ${res.statusText} for ${url}`);
+    try {
+      const res = await fetchWithTimeout(url, 30_000, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        },
+        redirect: 'follow',
+      });
+
+      if (res.ok) {
+        const ct = (res.headers.get('content-type') || '').toLowerCase();
+        // Skip binary responses (video, audio, images, etc.) — not parseable as HTML
+        if (ct && !ct.includes('text/') && !ct.includes('html') && !ct.includes('xml') && !ct.includes('json')) {
+          // Binary content (e.g. video/mp4) — cannot extract article text
+          html = null;
+        } else {
+          html = await res.text();
+          finalUrl = res.url || url;
+          if (!html || html.length < 100) html = null;
+        }
+      }
+      // 403/4xx/5xx → html stays null, fall through to browser
+    } catch {
+      // Network error → fall through to browser
     }
 
-    const html = await res.text();
-    if (!html || html.length < 100) throw new Error('Web page returned empty content');
+    // Tier 1: Readability + Turndown on fetched HTML
+    let parsed = html ? htmlToMarkdown(html, finalUrl) : null;
 
-    // Tier 1: Readability + Turndown on raw HTML
-    // Tier 2: Camoufox browser rendering (JS-rendered pages, anti-fingerprint)
-    // Tier 3: Browser Use CLI rendering (lightweight headless Chromium fallback)
-    // Tier 4: Regex extraction (final fallback)
-    let parsed = htmlToMarkdown(html, res.url || url);
+    // Tier 2: Camoufox browser rendering (WAF bypass / JS-rendered pages)
     if (!parsed) {
       try {
-        parsed = await htmlToMarkdownWithBrowser(res.url || url);
+        parsed = await htmlToMarkdownWithBrowser(url);
       } catch {
-        // Camoufox unavailable — try Browser Use CLI
+        // Tier 3: Browser Use CLI fallback
         try {
-          parsed = await htmlToMarkdownWithBrowserUse(res.url || url);
+          parsed = await htmlToMarkdownWithBrowserUse(url);
         } catch {
-          // Browser Use CLI also unavailable — continue with regex fallback
+          // All browser methods unavailable
         }
       }
     }
 
+    // Tier 4: Regex extraction on raw HTML (if we have it)
     let title: string;
     let text: string;
 
     if (parsed) {
-      title = parsed.title || extractTitle(html);
-      const description = extractMeta(html, 'description') || extractMeta(html, 'og:description');
+      title = parsed.title || (html ? extractTitle(html) : 'Untitled');
+      const description = html
+        ? (extractMeta(html, 'description') || extractMeta(html, 'og:description'))
+        : '';
       text = [description, parsed.markdown].filter(Boolean).join('\n\n').trim();
-    } else {
+    } else if (html) {
       title = extractTitle(html);
       const description = extractMeta(html, 'description') || extractMeta(html, 'og:description');
       const body = extractBodyFallback(html);
       text = [description, body].filter(Boolean).join('\n\n').trim();
+    } else {
+      throw new Error(`無法擷取此網頁（fetch 和瀏覽器均失敗）：${url}`);
     }
 
     if (!text) text = '[No readable text]';
 
     const imageSet = new Set<string>();
-    const ogImage = extractMeta(html, 'og:image');
-    if (ogImage) imageSet.add(absolutizeImage(ogImage, res.url || url));
+    if (html) {
+      const ogImage = extractMeta(html, 'og:image');
+      if (ogImage) imageSet.add(absolutizeImage(ogImage, finalUrl));
 
-    const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
-    for (const m of imgMatches) {
-      const src = m[1];
-      if (!src || src.startsWith('data:') || src.startsWith('blob:')) continue;
-      imageSet.add(absolutizeImage(src, res.url || url));
-      if (imageSet.size >= 8) break;
+      const imgMatches = html.matchAll(/<img[^>]+src=["']([^"']+)["'][^>]*>/gi);
+      for (const m of imgMatches) {
+        const src = m[1];
+        if (!src || src.startsWith('data:') || src.startsWith('blob:')) continue;
+        imageSet.add(absolutizeImage(src, finalUrl));
+        if (imageSet.size >= 8) break;
+      }
     }
 
     let domain = url;
     try {
-      domain = new URL(res.url || url).hostname.replace(/^www\./, '');
+      domain = new URL(finalUrl).hostname.replace(/^www\./, '');
     } catch {
       // keep original
     }

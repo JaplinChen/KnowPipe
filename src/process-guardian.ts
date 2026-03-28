@@ -129,29 +129,7 @@ export class ProcessGuardian {
     }
   }
 
-  /** Call Telegram logOut API to release polling lock, then wait for cooldown */
-  private async autoLogout(): Promise<boolean> {
-    if (this.logoutAttempted) return false;
-    this.logoutAttempted = true;
-
-    logger.info('guardian', '409 retries exhausted → attempting logOut + cooldown');
-
-    try {
-      await this.bot.telegram.callApi('logOut', {});
-      logger.info('guardian', 'logOut succeeded, waiting for cooldown', {
-        cooldownSeconds: LOGOUT_COOLDOWN_MS / 1000,
-      });
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      // logOut may fail if already logged out, that's ok
-      logger.warn('guardian', 'logOut call failed (may be already logged out)', { error: msg });
-    }
-
-    await this.sleep(LOGOUT_COOLDOWN_MS);
-    return true;
-  }
-
-  private sleep(ms: number): Promise<void> {
+private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
@@ -160,7 +138,18 @@ export class ProcessGuardian {
     return msg.includes('409') || msg.includes('Conflict');
   }
 
+  /** Clear any stale Telegram session before launching */
+  private async clearTelegramSession(): Promise<void> {
+    try {
+      await this.bot.telegram.callApi('deleteWebhook', { drop_pending_updates: true });
+    } catch {
+      // Ignore — best effort cleanup
+    }
+  }
+
   private attempt(): void {
+    // Pre-launch: clear stale polling/webhook session on Telegram's side
+    this.clearTelegramSession().then(() => {
     this.bot.launch(
       { dropPendingUpdates: true },
       () => { logger.info('guardian', '✅ bot launched', { pid: process.pid }); },
@@ -183,11 +172,14 @@ export class ProcessGuardian {
           return;
         }
 
-        // Stage 2: logOut + cooldown + reset retries for one more round
-        const loggedOut = await this.autoLogout();
-        if (loggedOut) {
+        // Stage 2: deleteWebhook + cooldown + reset retries for one more round
+        if (!this.logoutAttempted) {
+          this.logoutAttempted = true;
+          logger.info('guardian', '409 retries exhausted → deleteWebhook + cooldown');
+          await this.clearTelegramSession();
+          await this.sleep(LOGOUT_COOLDOWN_MS);
           this.retries = 0;
-          logger.info('guardian', 'retrying after logOut cooldown');
+          logger.info('guardian', 'retrying after cooldown');
           this.attempt();
           return;
         }
@@ -197,6 +189,7 @@ export class ProcessGuardian {
         this.clearPid();
         process.exit(1);
       });
+    });
   }
 
   launch(): void {

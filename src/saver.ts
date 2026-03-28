@@ -164,7 +164,7 @@ export async function saveToVault(
     const categoryParts = rawCategory
       .split('/')
       .slice(0, 3)
-      .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ ]/g, '').trim())
+      .map(p => p.replace(/[^a-zA-Z0-9\u4e00-\u9fff\u3040-\u309f\u30a0-\u30ff\-_ &]/g, '').replace(/\s{2,}/g, ' ').trim())
       .filter(p => p.length > 0);
     const folderPath = categoryParts.join('/') || '其他';
     // Append optional subFolder for series grouping (e.g. "Obsidian雙向連結系列教學")
