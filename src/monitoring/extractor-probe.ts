@@ -6,7 +6,7 @@ import type { ExtractorHealth } from './health-types.js';
 import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
 import { logger } from '../core/logger.js';
 
-const PROBE_TIMEOUT_MS = 8_000;
+const PROBE_TIMEOUT_MS = 5_000;
 
 const BROWSER_UA =
   'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -20,7 +20,7 @@ const PROBE_ENDPOINTS: Record<string, { url: string; method: 'HEAD' | 'GET' }> =
   reddit:      { url: 'https://www.reddit.com/r/programming.json?limit=1', method: 'GET' },
   bilibili:    { url: 'https://www.bilibili.com/', method: 'HEAD' },
   weibo:       { url: 'https://m.weibo.cn/api/config', method: 'GET' },
-  xhs:         { url: 'https://edith.xiaohongshu.com/api/sns/web/v1/homefeed', method: 'HEAD' },
+  xhs:         { url: 'https://www.xiaohongshu.com/', method: 'HEAD' },
   douyin:      { url: 'https://www.douyin.com/aweme/v1/web/general/search/single/', method: 'HEAD' },
   tiktok:      { url: 'https://www.tiktok.com/', method: 'HEAD' },
   ithome:      { url: 'https://ithelp.ithome.com.tw/', method: 'HEAD' },
