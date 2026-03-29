@@ -14,7 +14,17 @@ import type { RadarQueryType } from '../radar/radar-types.js';
 import { loadRadarConfig, saveRadarConfig, addQuery, removeQuery, autoGenerateQueries } from '../radar/radar-store.js';
 import { runRadarCycle } from '../radar/radar-service.js';
 import { handleWall } from '../radar/wall-command.js';
-import { logger } from '../core/logger.js';
+
+function typeIcon(type: RadarQueryType): string {
+  switch (type) {
+    case 'github': return '🐙';
+    case 'rss': return '📡';
+    case 'hn': return '🟠';
+    case 'reddit': return '🔴';
+    case 'devto': return '📝';
+    default: return '🔍';
+  }
+}
 
 export async function handleRadar(ctx: Context, config: AppConfig): Promise<void> {
   const text = (ctx.message && 'text' in ctx.message ? ctx.message.text : '') ?? '';
@@ -62,9 +72,12 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     lines.push('', '查詢列表：');
     for (const q of radarConfig.queries) {
       const src = q.source === 'auto' ? '🤖' : '✍️';
-      const typeTag = q.type === 'github' ? '🐙' : q.type === 'rss' ? '📡' : '🔍';
+      const typeTag = typeIcon(q.type ?? 'search');
       const desc = q.type === 'rss' ? q.keywords[0] : q.keywords.join(' ');
-      lines.push(`${src}${typeTag} [${q.id}] ${desc}`);
+      const hit = q.lastHitCount != null ? ` (${q.lastHitCount}篇)` : '';
+      const fail = (q.consecutiveFailures ?? 0) > 0 ? ` ⚠️${q.consecutiveFailures}次失敗` : '';
+      const paused = q.paused ? ' ⏸️已暫停' : '';
+      lines.push(`${src}${typeTag} [${q.id}] ${desc}${hit}${fail}${paused}`);
     }
 
     const buttons = [
@@ -74,8 +87,9 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
       ],
       [
         Markup.button.callback('▶️ 立即執行', 'radar:run'),
-        Markup.button.callback('🧱 情報牆', 'radar:wall'),
+        Markup.button.callback('➕ 新增來源', 'radar:addsrc'),
       ],
+      [Markup.button.callback('🧱 情報牆', 'radar:wall')],
     ];
 
     await ctx.reply(lines.join('\n'), Markup.inlineKeyboard(buttons));
@@ -125,6 +139,50 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     if (saved === 0) {
       await ctx.reply('📭 本次掃描沒有發現新內容（全部已存在或無結果）');
     }
+    return;
+  }
+
+  // /radar resume <id> — resume a paused query
+  if (arg.startsWith('resume ')) {
+    const id = arg.slice(7).trim();
+    const query = radarConfig.queries.find(q => q.id === id);
+    if (!query) {
+      await ctx.reply(`❌ 找不到查詢 [${id}]`);
+      return;
+    }
+    query.paused = false;
+    query.consecutiveFailures = 0;
+    await saveRadarConfig(radarConfig);
+    await ctx.reply(`▶️ 查詢 [${id}] 已恢復`);
+    return;
+  }
+
+  // /radar add hn <topics>
+  if (arg.startsWith('add hn')) {
+    const topics = arg.slice(6).trim().split(/\s+/).filter(Boolean);
+    const query = addQuery(radarConfig, topics.length > 0 ? topics : ['*'], 'manual', 'hn');
+    await saveRadarConfig(radarConfig);
+    await ctx.reply(`✅ 已新增 HN 來源 [${query.id}]`);
+    return;
+  }
+
+  // /radar add reddit <subreddits>
+  if (arg.startsWith('add reddit')) {
+    const subs = arg.slice(10).trim().split(/\s+/).filter(Boolean);
+    const query = addQuery(radarConfig, subs.length > 0 ? subs : ['MachineLearning', 'LocalLLaMA'], 'manual', 'reddit');
+    await saveRadarConfig(radarConfig);
+    const desc = query.keywords.join(', ');
+    await ctx.reply(`✅ 已新增 Reddit 來源 [${query.id}]: ${desc}`);
+    return;
+  }
+
+  // /radar add devto <tags>
+  if (arg.startsWith('add devto')) {
+    const tags = arg.slice(9).trim().split(/\s+/).filter(Boolean);
+    const query = addQuery(radarConfig, tags.length > 0 ? tags : ['ai', 'typescript'], 'manual', 'devto');
+    await saveRadarConfig(radarConfig);
+    const desc = query.keywords.join(', ');
+    await ctx.reply(`✅ 已新增 Dev.to 來源 [${query.id}]: ${desc}`);
     return;
   }
 
@@ -181,71 +239,18 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     '用法:\n' +
     '/radar — 查看狀態\n' +
     '/radar on|off — 啟用/停用\n' +
-    '/radar add <關鍵字> — 新增搜尋查詢\n' +
+    '/radar add <關鍵字> — 新增搜尋查詢（DDG）\n' +
+    '/radar add hn [主題] — 新增 HN 來源\n' +
+    '/radar add reddit [subreddits] — 新增 Reddit 來源\n' +
+    '/radar add devto [tags] — 新增 Dev.to 來源\n' +
     '/radar add github [語言] — 新增 GitHub Trending\n' +
     '/radar add rss <URL> — 新增 RSS 來源\n' +
     '/radar remove <id> — 移除查詢\n' +
+    '/radar resume <id> — 恢復暫停的查詢\n' +
     '/radar auto — 從 Vault 自動生成\n' +
     '/radar run — 立即執行\n' +
-    '/radar wall — 工具情報牆\n' +
-    '/radar wall active|dormant|match — 篩選檢視',
+    '/radar wall — 工具情報牆',
   );
 }
 
-/** Handle InlineKeyboard callbacks for radar */
-export async function handleRadarAction(ctx: Context, action: string, config: AppConfig): Promise<void> {
-  const radarConfig = await loadRadarConfig();
-
-  if (action === 'toggle') {
-    radarConfig.enabled = !radarConfig.enabled;
-    await saveRadarConfig(radarConfig);
-    await ctx.reply(radarConfig.enabled ? '✅ 雷達已啟用' : '⏸️ 雷達已停用');
-    return;
-  }
-
-  if (action === 'auto') {
-    await ctx.reply('🤖 正在自動生成查詢...');
-    const added = await autoGenerateQueries(config.vaultPath, radarConfig);
-    await saveRadarConfig(radarConfig);
-    const lines = added.map(q => `• ${q.keywords.join(' ')}`);
-    await ctx.reply(`已生成 ${added.length} 個查詢\n${lines.join('\n')}`);
-    return;
-  }
-
-  if (action === 'wall') {
-    await handleWall(ctx, config, '');
-    return;
-  }
-
-  if (action === 'usage') {
-    await ctx.reply(
-      '用法:\n' +
-      '/radar — 查看狀態\n' +
-      '/radar on|off — 啟用/停用\n' +
-      '/radar add <關鍵字> — 新增搜尋查詢\n' +
-      '/radar add github [語言] — 新增 GitHub Trending\n' +
-      '/radar add rss <URL> — 新增 RSS 來源\n' +
-      '/radar remove <id> — 移除查詢\n' +
-      '/radar auto — 從 Vault 自動生成\n' +
-      '/radar run — 立即執行\n' +
-      '/radar wall — 工具情報牆',
-    );
-    return;
-  }
-
-  if (action === 'run') {
-    if (radarConfig.queries.length === 0) {
-      await ctx.reply('❌ 沒有查詢，請先自動生成');
-      return;
-    }
-    await ctx.reply(`🔍 開始掃描...`);
-    const results = await runRadarCycle(ctx as never, config, radarConfig);
-    const saved = results.reduce((s, r) => s + r.saved, 0);
-    if (saved === 0) {
-      await ctx.reply('📭 沒有發現新內容');
-    }
-    return;
-  }
-
-  logger.warn('radar', '未知 action', { action });
-}
+export { handleRadarAction } from './radar-callbacks.js';

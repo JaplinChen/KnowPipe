@@ -22,9 +22,13 @@ function formatRadarSection(summary: RadarCycleSummary | undefined): string[] {
 
   const lines: string[] = ['📡 【雷達自動發現】'];
   const parts: string[] = [];
-  if (summary.byType.search > 0) parts.push(`搜尋 ${summary.byType.search} 篇`);
-  if (summary.byType.github > 0) parts.push(`GitHub ${summary.byType.github} 篇`);
-  if (summary.byType.rss > 0) parts.push(`RSS ${summary.byType.rss} 篇`);
+  const bt = summary.byType;
+  if (bt.search) parts.push(`搜尋 ${bt.search} 篇`);
+  if (bt.github) parts.push(`GitHub ${bt.github} 篇`);
+  if (bt.rss) parts.push(`RSS ${bt.rss} 篇`);
+  if (bt.hn) parts.push(`HN ${bt.hn} 篇`);
+  if (bt.reddit) parts.push(`Reddit ${bt.reddit} 篇`);
+  if (bt.devto) parts.push(`Dev.to ${bt.devto} 篇`);
   lines.push(`  共 ${summary.totalSaved} 篇：${parts.join('、')}`);
   lines.push('');
   return lines;

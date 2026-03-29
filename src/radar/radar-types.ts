@@ -1,7 +1,7 @@
 /** Content radar — type definitions */
 
 /** Source type for a radar query. */
-export type RadarQueryType = 'search' | 'github' | 'rss';
+export type RadarQueryType = 'search' | 'github' | 'rss' | 'hn' | 'reddit' | 'devto';
 
 export interface RadarConfig {
   version: number;
@@ -24,6 +24,10 @@ export interface RadarQuery {
   source: 'auto' | 'manual';
   addedAt: string;
   lastHitCount?: number;
+  /** Consecutive fetch failures — auto-paused at 3. */
+  consecutiveFailures?: number;
+  /** If true, query is paused due to repeated failures. */
+  paused?: boolean;
 }
 
 export interface RadarResult {
@@ -39,7 +43,7 @@ export interface RadarCycleSummary {
   totalSaved: number;
   totalSkipped: number;
   totalErrors: number;
-  byType: Record<RadarQueryType, number>;
+  byType: Partial<Record<RadarQueryType, number>>;
 }
 
 export function createEmptyConfig(): RadarConfig {
@@ -47,8 +51,8 @@ export function createEmptyConfig(): RadarConfig {
     version: 1,
     enabled: false,
     intervalHours: 6,
-    maxResultsPerQuery: 3,
-    maxTotalPerCycle: 10,
+    maxResultsPerQuery: 5,
+    maxTotalPerCycle: 20,
     queries: [],
   };
 }

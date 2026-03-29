@@ -14,11 +14,17 @@ import { saveToVault, isDuplicateUrl } from '../saver.js';
 import { logger } from '../core/logger.js';
 import { githubTrendingSource } from './sources/github-trending.js';
 import { rssSource } from './sources/rss-source.js';
+import { radarHnSource } from './sources/hn-source.js';
+import { radarRedditSource } from './sources/reddit-source.js';
+import { radarDevtoSource } from './sources/devto-source.js';
 import type { RadarSourceResult } from './sources/source-types.js';
 import type { ToolEntry, ToolMatchResult } from './wall-types.js';
 import { buildToolIndex, matchNewTool } from './wall-index.js';
 import { loadWallConfig, addPendingMatches } from './wall-service.js';
 import { loadKnowledge } from '../knowledge/knowledge-store.js';
+
+/** Max consecutive failures before auto-pausing a query. */
+const MAX_CONSECUTIVE_FAILURES = 3;
 
 /** Fetch candidates depending on query type. */
 async function fetchCandidates(
@@ -31,6 +37,12 @@ async function fetchCandidates(
       return githubTrendingSource.fetch(keywords, maxResults);
     case 'rss':
       return rssSource.fetch(keywords, maxResults);
+    case 'hn':
+      return radarHnSource.fetch(keywords, maxResults);
+    case 'reddit':
+      return radarRedditSource.fetch(keywords, maxResults);
+    case 'devto':
+      return radarDevtoSource.fetch(keywords, maxResults);
     case 'search':
     default:
       return (await webSearch(keywords.join(' '), maxResults)).map(r => ({
@@ -51,7 +63,19 @@ async function runQuery(
 
   try {
     const candidates = await fetchCandidates(query.type ?? 'search', query.keywords, maxResults);
-    if (candidates.length === 0) return { result, matches };
+
+    if (candidates.length === 0) {
+      // No candidates — count as failure for auto-pause
+      query.consecutiveFailures = (query.consecutiveFailures ?? 0) + 1;
+      if (query.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        query.paused = true;
+        logger.warn('radar', '查詢已自動暫停（連續無結果）', {
+          id: query.id, keywords: query.keywords.join(' '),
+          failures: query.consecutiveFailures,
+        });
+      }
+      return { result, matches };
+    }
 
     for (const sr of candidates) {
       try {
@@ -97,7 +121,13 @@ async function runQuery(
     }
 
     query.lastHitCount = result.saved;
+    // Got candidates — reset failure counter
+    query.consecutiveFailures = 0;
   } catch (err) {
+    query.consecutiveFailures = (query.consecutiveFailures ?? 0) + 1;
+    if (query.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+      query.paused = true;
+    }
     logger.warn('radar', '查詢失敗', {
       keywords: query.keywords.join(' '),
       err: (err as Error).message,
@@ -109,7 +139,7 @@ async function runQuery(
 
 /** Build cycle summary for proactive digest integration. */
 function buildCycleSummary(results: RadarResult[]): RadarCycleSummary {
-  const byType: Record<RadarQueryType, number> = { search: 0, github: 0, rss: 0 };
+  const byType: Partial<Record<RadarQueryType, number>> = {};
   let totalSaved = 0;
   let totalSkipped = 0;
   let totalErrors = 0;
@@ -136,6 +166,9 @@ function sourceLabel(type: RadarQueryType): string {
   switch (type) {
     case 'github': return 'GitHub';
     case 'rss': return 'RSS';
+    case 'hn': return 'HN';
+    case 'reddit': return 'Reddit';
+    case 'devto': return 'Dev.to';
     default: return '搜尋';
   }
 }
@@ -161,15 +194,25 @@ export async function runRadarCycle(
   const allMatches: ToolMatchResult[] = [];
   let totalSaved = 0;
 
+  const newlyPaused: string[] = [];
+
   for (const query of radarConfig.queries) {
     if (totalSaved >= radarConfig.maxTotalPerCycle) break;
+    if (query.paused) continue; // skip paused queries
 
+    const wasPaused = query.paused;
     const remaining = radarConfig.maxTotalPerCycle - totalSaved;
     const maxResults = Math.min(radarConfig.maxResultsPerQuery, remaining);
     const { result, matches } = await runQuery(query, config, maxResults, toolIndex);
     results.push(result);
     allMatches.push(...matches);
     totalSaved += result.saved;
+
+    // Track newly paused queries for notification
+    if (!wasPaused && query.paused) {
+      const desc = query.type === 'rss' ? query.keywords[0] : query.keywords.join(' ');
+      newlyPaused.push(`[${query.id}] ${desc}`);
+    }
   }
 
   // Batch-write wall matches (single disk I/O instead of per-URL)
@@ -197,6 +240,20 @@ export async function runRadarCycle(
       const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
       if (totalSkipped > 0) lines.push(`\n（${totalSkipped} 篇已存在，已跳過）`);
 
+      await bot.telegram.sendMessage(userId, lines.join('\n')).catch(() => {});
+    }
+  }
+
+  // Notify user about auto-paused queries
+  if (newlyPaused.length > 0) {
+    const userId = getOwnerUserId(config);
+    if (userId) {
+      const lines = [
+        `⚠️ 以下查詢連續 ${MAX_CONSECUTIVE_FAILURES} 次無結果，已自動暫停：`,
+        ...newlyPaused.map(q => `• ${q}`),
+        '',
+        '使用 /radar resume <id> 可恢復。',
+      ];
       await bot.telegram.sendMessage(userId, lines.join('\n')).catch(() => {});
     }
   }
