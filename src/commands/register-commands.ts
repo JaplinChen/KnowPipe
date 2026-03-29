@@ -23,12 +23,8 @@ import { handleSuggest } from './suggest-command.js';
 import { handleRadar, handleRadarAction } from './radar-command.js';
 import { handleBenchmark } from './benchmark-command.js';
 import {
-  handleExplore,
-  handleRecommendByTopic,
-  handleBriefByTopic,
-  handleCompareByArg,
-  handleModePicker,
-  resolveCallbackToken,
+  handleExplore, handleRecommendByTopic, handleBriefByTopic,
+  handleCompareByArg, handleModePicker, resolveCallbackToken,
 } from './knowledge-query-command.js';
 import { handleDeepSynthesis, handleSaveToVault } from './explore-deep-command.js';
 import { runCommandTask } from './command-runner.js';
@@ -38,14 +34,18 @@ import { registerForceReplyHandler } from '../messages/force-reply-router.js';
 import { BOT_COMMANDS_MENU, HELP_TEXT, HELP_ALL_TEXT, HELP_KEYBOARD, handleHelpCategory } from './command-help.js';
 import { replyExpired } from './reply-buttons.js';
 import { registerLearningCommands } from './register-learning-commands.js';
-import { registerInfoCommands } from './register-info-commands.js';
+import { registerInfoCommands, createStatusHandler, createClearHandler } from './register-info-commands.js';
 import type { BotStats } from '../messages/types.js';
-import { handleLogs, handleHealth, handleRestart, handleRestartConfirm, handleAdminCancel } from './admin-command.js';
-import { handleDoctor } from './doctor-command.js';
+import { handleRestartConfirm, handleAdminCancel } from './admin-command.js';
 import { handleFind } from './find-command.js';
 import { handlePatrol } from './patrol-command.js';
-import { handleCode, handleCodeAction } from './code-command.js';
+import { handleCodeAction } from './code-command.js';
 import { handleVsearch } from './vsearch-command.js';
+// Hub dispatchers
+import { handleSearchHub, handleSearchCallback } from './search-hub.js';
+import { handleTrackHub, handleTrackCallback } from './track-hub.js';
+import { createVaultHub, createVaultCallback } from './vault-hub.js';
+import { createAdminHub, createAdminCallback } from './admin-hub.js';
 
 export { formatErrorMessage };
 
@@ -90,38 +90,40 @@ export function registerCommands(
 
   registerLearningCommands(bot, config, formatErrorMessage);
 
-  // --- Content extraction ---
-  registerAsyncCommand(bot, 'timeline', 'timeline', config, handleTimeline);
-  registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
-  registerAsyncCommand(bot, 'search', 'search', config, handleSearch);
-  registerAsyncCommand(bot, 'find', 'find', config, handleFind);
+  // Build closure-based handlers
+  const statusHandler = createStatusHandler(stats, startTime);
+  const clearHandler = createClearHandler(stats);
+  const handleVaultHub = createVaultHub(stats);
+  const handleAdminHub = createAdminHub(statusHandler, clearHandler);
+  const handleVaultCallback = createVaultCallback(stats);
+  const handleAdminCb = createAdminCallback(statusHandler, clearHandler);
 
-  // --- Knowledge system (consolidated) ---
-  registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
+  // === PRIMARY COMMANDS (shown in Telegram menu) ===
+  registerAsyncCommand(bot, 'search', 'search-hub', config, handleSearchHub);
+  registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'explore', 'explore', config, handleExplore);
   registerAsyncCommand(bot, 'digest', 'digest', config, handleDigestMenu);
-  registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
+  registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
+  registerAsyncCommand(bot, 'track', 'track-hub', config, handleTrackHub);
+  registerAsyncCommand(bot, 'vault', 'vault-hub', config, handleVaultHub);
+  registerAsyncCommand(bot, 'admin', 'admin-hub', config, handleAdminHub);
+  registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
 
-  // --- Admin & maintenance ---
-  registerAsyncCommand(bot, 'logs', 'logs', config, handleLogs);
-  registerAsyncCommand(bot, 'health', 'health', config, handleHealth);
-  registerAsyncCommand(bot, 'restart', 'restart', config, handleRestart);
-  registerAsyncCommand(bot, 'doctor', 'doctor', config, handleDoctor);
-
-  // --- Maintenance ---
+  // === BACKWARD-COMPATIBLE ALIASES (not in menu) ===
+  registerAsyncCommand(bot, 'find', 'find', config, handleFind);
+  registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
+  registerAsyncCommand(bot, 'vsearch', 'vsearch', config, handleVsearch);
+  registerAsyncCommand(bot, 'timeline', 'timeline', config, handleTimeline);
+  registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
+  registerAsyncCommand(bot, 'patrol', 'patrol', config, handlePatrol);
   registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);
   registerAsyncCommand(bot, 'reformat', 'reformat', config, handleReformat);
   registerAsyncCommand(bot, 'dedup', 'dedup', config, handleDedup);
-  registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
-  registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
   registerAsyncCommand(bot, 'quality', 'quality', config, handleQuality);
-  registerAsyncCommand(bot, 'suggest', 'suggest', config, handleSuggest);
-  registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
   registerAsyncCommand(bot, 'benchmark', 'benchmark', config, handleBenchmark);
-  registerAsyncCommand(bot, 'patrol', 'patrol', config, handlePatrol);
-  registerAsyncCommand(bot, 'code', 'code', config, handleCode);
-  registerAsyncCommand(bot, 'vsearch', 'vsearch', config, handleVsearch);
+  registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
+  registerAsyncCommand(bot, 'suggest', 'suggest', config, handleSuggest);
 
   // --- InlineKeyboard: /knowledge sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
@@ -181,6 +183,18 @@ export function registerCommands(
     };
     const handler = handlers[mode];
     if (handler) await handler(ctx, config);
+  });
+
+  // --- InlineKeyboard: hub callbacks ---
+  registerAsyncAction(bot, /^srch:(.+)$/, 'search-hub-cb', handleSearchCallback);
+  registerAsyncAction(bot, /^trk:(.+)$/, 'track-hub-cb', async (ctx) => {
+    await handleTrackCallback(ctx, config);
+  });
+  registerAsyncAction(bot, /^vlt:(.+)$/, 'vault-hub-cb', async (ctx) => {
+    await handleVaultCallback(ctx, config);
+  });
+  registerAsyncAction(bot, /^adm:(.+)$/, 'admin-hub-cb', async (ctx) => {
+    await handleAdminCb(ctx, config);
   });
 
   // --- InlineKeyboard: /help category ---
@@ -271,6 +285,8 @@ export function registerCommands(
     runCommandTask(ctx, 'subscribe', () => handleSubscribe(ctx, config), formatErrorMessage));
   registerForceReplyHandler('find', (ctx) =>
     runCommandTask(ctx, 'find', () => handleFind(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('vsearch-hub', (ctx) =>
+    runCommandTask(ctx, 'vsearch', () => handleVsearch(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 

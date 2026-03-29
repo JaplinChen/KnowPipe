@@ -1,10 +1,11 @@
-import type { Telegraf } from 'telegraf';
+import type { Context, Telegraf } from 'telegraf';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 import type { BotStats } from '../messages/types.js';
 import { logger } from '../core/logger.js';
 
-export function registerInfoCommands(bot: Telegraf, stats: BotStats, startTime: number): void {
-  bot.command('status', async (ctx) => {
+/** Exported status handler for use by admin-hub */
+export function createStatusHandler(stats: BotStats, startTime: number) {
+  return async (ctx: Context): Promise<void> => {
     const uptime = Math.floor((Date.now() - startTime) / 1000);
     const h = Math.floor(uptime / 3600);
     const m = Math.floor((uptime % 3600) / 60);
@@ -42,10 +43,12 @@ export function registerInfoCommands(bot: Telegraf, stats: BotStats, startTime: 
     }
 
     await ctx.reply(lines.join('\n'));
-  });
+  };
+}
 
-  /** /clear — reset stats and clear processing queue */
-  bot.command('clear', async (ctx) => {
+/** Exported clear handler for use by admin-hub */
+export function createClearHandler(stats: BotStats) {
+  return async (ctx: Context): Promise<void> => {
     const prevUrls = stats.urls;
     const prevSaved = stats.saved;
     const prevErrors = stats.errors;
@@ -64,5 +67,12 @@ export function registerInfoCommands(bot: Telegraf, stats: BotStats, startTime: 
       '',
       `已清除：${prevUrls} 處理 / ${prevSaved} 儲存 / ${prevErrors} 失敗 / ${prevFailed} 待重試`,
     ].join('\n'));
-  });
+  };
+}
+
+export function registerInfoCommands(bot: Telegraf, stats: BotStats, startTime: number): void {
+  const statusHandler = createStatusHandler(stats, startTime);
+  const clearHandler = createClearHandler(stats);
+  bot.command('status', (ctx) => { statusHandler(ctx).catch(() => {}); });
+  bot.command('clear', (ctx) => { clearHandler(ctx).catch(() => {}); });
 }
