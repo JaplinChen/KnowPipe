@@ -21,10 +21,10 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 <summary><strong>亮點功能</strong></summary>
 
 #### 內容收集
-- **丟連結就存檔** — 支援 10+ 平台（X / Threads / Reddit / YouTube / GitHub / 微博 / B站 / 小紅書 / 抖音），評論自動一起抓
+- **丟連結就存檔** — 穩定支援 X / Threads / Reddit / YouTube / GitHub / TikTok + 通用網頁；中國平台（微博 / B站 / 小紅書 / 抖音）需 Camoufox 登入 Cookie，穩定度視平台封鎖狀態而定
 - **智慧分類** — 計分制分類器，自動歸檔到對的 Obsidian 資料夾，支援 20+ 分類 + exclude 防誤判
 - **統一搜尋** — `/search` 一個入口搜 Vault 筆記、網頁、跨平台提及、影片字幕
-- **內容雷達** — `/radar` 自動搜尋關注主題（DDG + GitHub Trending + RSS），定期存入 Vault
+- **內容雷達** — `/radar` 定期自動搜尋關注主題並存入 Vault（目前支援 DDG 搜尋 + GitHub Trending + RSS 訂閱，DDG 偶爾限流）
 - **追蹤系統** — `/track` 時間軸抓取、作者訂閱、多平台巡邏（HN / Reddit / Dev.to / GitHub Trending）
 - **連結深度抓取** — 推文中的外部連結自動抓取完整內容，AI 綜合分析產出有深度的筆記
 
@@ -54,35 +54,30 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 <details>
 <summary><strong>支援平台</strong></summary>
 
-### 完整支援
+### 穩定支援（無需登入）
 
 | 平台 | 內容 | 評論 | 時間軸 | 備註 |
 |------|:----:|:----:|:------:|------|
 | X / Twitter | ✅ | ✅ | — | fxTweet API |
 | Threads | ✅ | ✅ | ✅ | topic tag 自動偵測，智慧標題 |
 | Reddit | ✅ | ✅ | — | 公開 API |
-| Bilibili | ✅ | ✅ | — | 公開 API |
+| YouTube | ✅ | — | — | yt-dlp 字幕擷取 + 播放清單 |
+| GitHub | ✅ | — | — | Repo / Issue / PR |
+| TikTok | ✅ | — | — | yt-dlp + whisper.cpp STT 逐字稿 |
+| 通用網頁 | ✅ | — | — | 4 層降級（Readability → Camoufox → Browser Use → Regex） |
+| PDF 文件 | ✅ | — | — | 直接傳檔到 Telegram |
 
-### 內容擷取
-
-| 平台 | 內容 | 備註 |
-|------|:----:|------|
-| YouTube | ✅ | yt-dlp，字幕擷取 + 播放清單（影片預設不存，連結回原始 URL） |
-| TikTok | ✅ | yt-dlp + whisper.cpp STT 逐字稿（影片預設不存） |
-| GitHub | ✅ | Repo / Issue / PR |
-| 通用網頁 | ✅ | 4 層降級（Readability → Camoufox → Browser Use → Regex），平台擷取失敗時自動 fallback |
-| PDF 文件 | ✅ | 直接傳檔到 Telegram，自動擷取文字 |
-
-### 需登入平台
+### 需登入（穩定度視平台封鎖狀態而定）
 
 | 平台 | 內容 | 備註 |
 |------|:----:|------|
-| 微博 | ✅ | Camoufox + API |
-| 小紅書 | ✅ | Camoufox |
-| 抖音 / 今日頭條 | ✅ | Camoufox |
+| Bilibili | ⚠️ | 需 yt-dlp，部分內容需登入 Cookie |
+| 微博 | ⚠️ | Camoufox + API，訪客驗證可能阻擋 |
+| 小紅書 | ⚠️ | Camoufox，登入牆頻繁，常需更新 Cookie |
+| 抖音 / 今日頭條 | ⚠️ | Camoufox，反爬偵測嚴格 |
 
-> 需登入的平台使用 [Camoufox](https://camoufox.com/)（反偵測瀏覽器），首次使用需執行 `npx camoufox-js fetch`。
-> 通用網頁擷取另支援 [Browser Use CLI](https://docs.browser-use.com/open-source/browser-use-cli) 作為 Camoufox 之後的降級方案，自動處理需 JS 渲染的公開頁面。
+> ⚠️ 需登入的平台使用 [Camoufox](https://camoufox.com/)（反偵測瀏覽器），需手動維護登入 Cookie。平台封鎖策略頻繁變動，擷取可能間歇性失敗。
+> 通用網頁擷取另支援 [Browser Use CLI](https://docs.browser-use.com/open-source/browser-use-cli) 作為 Camoufox 之後的降級方案。
 
 </details>
 
