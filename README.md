@@ -23,33 +23,32 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 - **丟連結就存檔** — 支援 10+ 平台，評論自動一起抓
 - **PDF 文件收集** — 直接傳 PDF 到 Telegram，自動擷取文字、分類、存入 Vault
 - **智慧分類** — 計分制分類器，自動歸檔到對的 Obsidian 資料夾，支援 20+ 分類 + exclude 防誤判
-- **跨平台搜尋** — 在 Telegram 裡搜 DuckDuckGo + Reddit
-- **多平臺巡邏** — `/patrol` 自動巡邏 HN / Reddit / Dev.to / GitHub Trending，AI 相關性評分，inline 一鍵存檔
+- **統一搜尋** — `/search` 一鍵選模式（Vault 筆記 / 網頁 / 跨平台提及 / 影片筆記）
+- **多平臺巡邏** — `/track patrol` 自動巡邏 HN / Reddit / Dev.to / GitHub Trending，AI 相關性評分
 - **GitHub 探索** — `/discover` 搜尋專案或瀏覽每日熱門
 - **知識問答** — `/ask` 用 Vault 知識回答問題，AI 結合筆記上下文
-- **時間軸抓取** — 一次撈回某人最近的所有貼文
+- **時間軸抓取** — `/track timeline` 一次撈回某人最近的所有貼文
 - **知識系統** — 深度分析 Vault 筆記，萃取實體、洞察與關係圖譜，自動生成用戶偏好模型與知識蒸餾報告
 - **記憶整合** — 自動發現跨筆記知識關聯，LLM 語義合成洞察，每週自動生成整合報告
 - **相關筆記推薦** — 兩層演算法（實體圖譜 → 關鍵字比對）自動在筆記底部附加 `[[wikilink]]` 連結 + 生成索引
 - **內容雷達** — 根據 Vault 高頻關鍵字自動搜尋新內容（DDG + GitHub Trending + RSS），定期存入 Vault 並推送 Telegram 通知
 - **工具情報牆** — 自動追蹤已收藏 AI 工具的活躍/沉睡狀態，新工具入庫時 Jaccard 比對已有工具推送「可取代/補強」建議
 - **主動推理** — 每日 09:00 自動推送知識摘要 + 趨勢關鍵字警報 + 久未更新分類提醒到 Telegram
-- **Vault 搜尋** — `/find` 在本地 Vault 筆記中搜尋（frontmatter 加權匹配：標題 > 關鍵字 > 分類/摘要）
-- **影片語意搜尋** — `/vsearch` 搜尋 Vault 影片筆記的章節、轉錄文字，兩階段搜尋（關鍵字 → AI 排序）
-- **自動巡邏** — `/patrol` 多平臺巡邏（HN / Reddit / Dev.to / GitHub Trending），oMLX 相關性評分，inline 一鍵存檔
-- **遠端指令** — `/code` 在 Telegram 執行安全白名單指令（health / status / test / log）
+- **Vault 搜尋** — `/search vault` 在本地 Vault 筆記中搜尋（frontmatter 加權匹配：標題 > 關鍵字 > 分類/摘要）
+- **影片語意搜尋** — `/search video` 搜尋 Vault 影片筆記的章節、轉錄文字，兩階段搜尋（關鍵字 → AI 排序）
+- **遠端管理** — `/admin` 統一入口，含狀態、健康、診斷、日誌、重啟、遠端指令、學習
 - **使用者偏好記憶** — 自動追蹤存檔行為，累積後 AI 生成偏好摘要，微調分類建議
 - **插件架構** — `plugins/` 目錄動態載入第三方 extractor，受限 API 介面確保安全
 - **oMLX 本地推理** — 可選配 Apple Silicon 本地推理伺服器，零 API 成本、完全離線可用
 - **處理進度串流** — URL 處理時即時顯示目前階段（擷取 → 豐富化 → 儲存），Telegram 訊息原地更新
 - **遠端管理** — 在 Telegram 裡查看 log、系統健康、重啟 Bot，搭配 loop 模式自動恢復
 - **自我修復** — 排程掃描 Vault 自動修復 HTML 殘留/壞路徑，Extractor 健康探測 + 降級告警
-- **即時診斷** — `/doctor` 一鍵探測全部 12 個平台 + 外部工具檢查 + 瀏覽器池狀態 + Vault 統計
+- **即時診斷** — `/admin doctor` 一鍵探測全部 12 個平台 + 外部工具檢查 + 瀏覽器池狀態 + Vault 統計
 - **自動降級擷取** — 平台 Extractor 失敗時自動 fallback 到通用網頁擷取，最大化內容可及性
 - **品質基準** — enrichment 品質自動評分、平台成功率追蹤、`/benchmark` 查看品質報告
 - **OCR 文字辨識** — 截圖類圖片自動 OCR 提取文字，提升 AI 分析品質（需安裝 tesseract.js）
 - **分類回饋學習** — 用戶手動重分類時自動記錄校正，強化動態分類器準確度
-- **互動式指令** — 缺參數時自動引導輸入，知識類指令提供快捷按鈕
+- **互動式指令** — 10 個核心指令整併 30+ 子功能，InlineKeyboard 按鈕引導，缺參數自動提示
 - **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 免費模型，兼顧速度與品質；可選 oMLX 本地推理優先
 - **連結深度抓取** — 推文中的連結（X Article、部落格等）自動抓取完整內容，AI 綜合分析主文與連結文章，產出有深度的筆記
 - **批次翻譯** — 英文/簡中筆記自動翻譯為繁體中文
@@ -141,42 +140,53 @@ npx camoufox-js fetch
 <details>
 <summary><strong>指令速查</strong></summary>
 
+Telegram `/` 選單只顯示 **10 個核心指令**，子功能透過按鈕展開。所有舊指令（`/find`、`/monitor`、`/status` 等）仍可直接使用。
+
+#### 核心指令
+
 | 指令 | 用途 |
 |------|------|
 | 傳送 URL | 自動擷取內容與評論，分類後存到 Vault |
 | 傳送 PDF | 自動擷取文字、AI 摘要、分類存入 Vault |
-| `/find <關鍵字>` | 搜尋 Vault 筆記（frontmatter 加權匹配） |
-| `/search <查詢>` | 網頁搜尋（DuckDuckGo） |
-| `/monitor <關鍵字>` | 跨平台搜尋提及（Reddit + DuckDuckGo） |
-| `/timeline @用戶 [數量]` | 抓取用戶最近貼文（支援 Threads） |
+| `/search` | 統一搜尋入口（按鈕選：Vault / 網頁 / 提及 / 影片） |
 | `/ask <問題>` | 用 Vault 知識回答問題（AI 結合筆記上下文） |
-| `/knowledge` | 知識庫總覽（含缺口/技能/偏好/分析子按鈕） |
-| `/explore <主題>` | 知識探索（推薦筆記/簡報/對比，InlineKeyboard 選模式） |
-| `/digest` | 知識報告（精華摘要/蒸餾/跨筆記洞察，InlineKeyboard 選模式） |
+| `/explore <主題>` | 知識探索（推薦筆記 / 簡報 / 深度合成 / 對比） |
+| `/digest` | 知識報告（精華 / 週報 / 蒸餾 / 跨筆記洞察） |
 | `/discover <關鍵字>` | GitHub 專案探索（無參數=每日熱門掃描） |
-| `/learn` | Vault 學習（更新分類規則/重新分類/批次翻譯，InlineKeyboard 選操作） |
-| `/reprocess <路徑>` | 重新 AI 豐富現有筆記 |
-| `/retry` | 重試失敗的連結 |
-| `/subscribe @用戶` | 訂閱自動追蹤新內容 |
-| `/quality` | Vault 品質報告 |
-| `/benchmark` | enrichment 品質基準報告（評分趨勢/平台成功率） |
-| `/suggest` | 相關筆記推薦（自動連結，寫入筆記底部 + 索引） |
-| `/patrol` | 多平臺巡邏（HN/Reddit/Dev.to/GitHub Trending） |
-| `/patrol sources` | 管理巡邏來源（啟用/停用各平臺） |
-| `/patrol topics` | 設定興趣主題（用於 AI 相關性評分） |
-| `/patrol auto` | 啟用/停用定時自動巡邏 |
-| `/vsearch <關鍵字>` | 搜尋影片筆記（章節/轉錄文字） |
-| `/code <action>` | 遠端執行指令（health/status/test/log/build/disk） |
-| `/radar` | 內容雷達（自動搜尋+存入，on/off/auto/run/add/remove/wall） |
-| `/status` | Bot 運行狀態與本次儲存統計 |
-| `/health` | 系統健康報告（記憶體 / Extractor / Vault） |
-| `/doctor` | 全面即時診斷（探測所有平台 + 工具檢查 + Vault 統計） |
-| `/logs [n] [error]` | 查看最近 log（可指定數量與級別） |
-| `/restart` | 遠端重啟 Bot（需搭配 loop 模式） |
-| `/clear` | 清除處理佇列與統計 |
-| `/help` | 顯示說明 |
+| `/radar` | 內容雷達（自動搜尋+存入） |
+| `/track` | 追蹤入口（按鈕選：時間軸 / 訂閱 / 巡邏） |
+| `/vault` | Vault 維護入口（品質 / 重複 / 重處理 / 排版 / 基準 / 重試 / 推薦連結） |
+| `/admin` | 系統管理入口（狀態 / 健康 / 診斷 / 日誌 / 重啟 / 指令 / 清除 / 學習） |
+| `/help` | 分類式說明選單 |
 
-> 需要參數的指令（如 `/search`、`/explore`）從選單點選後會自動引導輸入。合併指令使用 InlineKeyboard 按鈕選擇子功能。
+#### 子指令速查
+
+| 統一入口 | 子指令 | 用途 |
+|----------|--------|------|
+| `/search` | `vault <關鍵字>` | 搜尋 Vault 筆記（frontmatter + 全文） |
+| | `web <查詢>` | 網頁搜尋（DuckDuckGo） |
+| | `monitor <關鍵字>` | 跨平台搜尋提及 |
+| | `video <關鍵字>` | 搜尋影片筆記（章節/轉錄） |
+| `/track` | `timeline @用戶 [數量]` | 抓取用戶最近貼文 |
+| | `subscribe` | 訂閱管理（查看/新增/移除） |
+| | `patrol` | 多平台巡邏（HN/Reddit/Dev.to/GitHub） |
+| `/vault` | `quality` | 品質報告 + 自動修復按鈕 |
+| | `dedup` | 掃描重複筆記 |
+| | `reprocess <路徑>` | 重新 AI 豐富筆記 |
+| | `reformat` | 修復排版問題 |
+| | `benchmark` | 品質基準報告 |
+| | `retry` | 重試失敗連結 |
+| | `suggest` | 推薦相關筆記連結 |
+| `/admin` | `status` | Bot 狀態與統計 |
+| | `health` | 系統健康報告 |
+| | `doctor` | 全面即時診斷 |
+| | `logs [n]` | 查看最近 log |
+| | `restart` | 遠端重啟 Bot |
+| | `code <action>` | 遠端執行指令 |
+| | `clear` | 清除統計 |
+| | `learn` | Vault 學習（分類/翻譯） |
+
+> 所有指令缺參數時會自動引導輸入。統一入口使用 InlineKeyboard 按鈕選擇子功能。
 
 </details>
 
@@ -230,7 +240,7 @@ npx tsc --noEmit   # 型別檢查
 ### 技術架構
 
 - **TypeScript** + ESM（`tsx` 執行）
-- **Telegraf** — Telegram Bot API（ForceReply + InlineKeyboard 互動式指令）
+- **Telegraf** — Telegram Bot API（10 指令 hub 架構 + InlineKeyboard + ForceReply）
 - **Camoufox** — 反偵測瀏覽器（Firefox 基底），處理需 JS 渲染的平台
 - **ProcessGuardian** — 三段式 409 自癒（指數退避 → 自動 logOut + 冷卻 → 退出）+ 殭屍進程自動清理
 - **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash（MIMO v2）/ standard（MiniMax M2.5）/ deep（Nemotron 3 Super），全免費；可選 oMLX 本地推理優先
@@ -275,21 +285,17 @@ src/
 ├── process-guardian.ts         # 三段式 409 自癒 + 殭屍清理 + PID lockfile
 ├── commands/
 │   ├── register-commands.ts    # 統一指令註冊 + InlineKeyboard callback
-│   ├── timeline-command.ts     # /timeline
-│   ├── monitor-command.ts      # /monitor + /search
-│   ├── knowledge-command.ts    # /knowledge（含 gaps/skills/preferences/analyze 子按鈕）
-│   ├── knowledge-query-command.ts # /explore（推薦/簡報/對比）
-│   ├── digest-command.ts       # /digest（精華/蒸餾/整合）
+│   ├── search-hub.ts           # /search 統一搜尋入口（vault/web/monitor/video）
+│   ├── track-hub.ts            # /track 統一追蹤入口（timeline/subscribe/patrol）
+│   ├── vault-hub.ts            # /vault 統一維護入口（7 子功能）
+│   ├── admin-hub.ts            # /admin 統一管理入口（8 子功能）
+│   ├── knowledge-command.ts    # /knowledge（gaps/skills/analyze 子按鈕）
+│   ├── knowledge-query-command.ts # /explore（推薦/簡報/深度合成/對比）
+│   ├── digest-command.ts       # /digest（精華/週報/蒸餾/整合）
 │   ├── ask-command.ts          # /ask Vault 知識問答
-│   ├── discover-command.ts     # /discover GitHub 探索（含熱門掃描）
-│   ├── suggest-command.ts     # /suggest 相關筆記推薦
-│   ├── radar-command.ts       # /radar 內容雷達管理
-│   ├── find-command.ts        # /find Vault 筆記搜尋
-│   ├── patrol-command.ts      # /patrol 多平臺巡邏（HN/Reddit/Dev.to/GitHub）
-│   ├── vsearch-command.ts    # /vsearch 影片語意搜尋
-│   ├── code-command.ts       # /code 遠端指令執行
-│   ├── admin-command.ts       # /logs /health /restart 遠端管理
-│   └── doctor-command.ts      # /doctor 全面即時診斷
+│   ├── discover-command.ts     # /discover GitHub 探索
+│   ├── radar-command.ts        # /radar 內容雷達
+│   └── *-command.ts            # 各子功能 handler（向後兼容）
 ├── extractors/                 # 各平台內容擷取器
 │   ├── x-extractor.ts          # Twitter/X（fxTweet API）
 │   ├── threads-extractor.ts    # Threads（Camoufox，topic tag 偵測）
@@ -378,6 +384,7 @@ src/
     ├── local-llm.ts            # LLM 統一入口（oMLX → 多模型路由 → DDG Chat 三層降級）
     ├── vision-llm.ts           # 圖片辨識（OpenCode gpt-5-nano）
     ├── url-canonicalizer.ts    # URL 正規化（去重用）
+    ├── ttl-cache.ts            # 通用 TTL 快取（callback token 用）
     └── camoufox-pool.ts        # 反偵測瀏覽器池（max 2, idle 10min）
 ```
 
