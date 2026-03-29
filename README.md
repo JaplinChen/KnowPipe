@@ -20,39 +20,34 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 <details open>
 <summary><strong>亮點功能</strong></summary>
 
-- **丟連結就存檔** — 支援 10+ 平台，評論自動一起抓
-- **PDF 文件收集** — 直接傳 PDF 到 Telegram，自動擷取文字、分類、存入 Vault
+#### 內容收集
+- **丟連結就存檔** — 支援 10+ 平台（X / Threads / Reddit / YouTube / GitHub / 微博 / B站 / 小紅書 / 抖音），評論自動一起抓
 - **智慧分類** — 計分制分類器，自動歸檔到對的 Obsidian 資料夾，支援 20+ 分類 + exclude 防誤判
-- **統一搜尋** — `/search` 一鍵選模式（Vault 筆記 / 網頁 / 跨平台提及 / 影片筆記）
-- **多平臺巡邏** — `/track patrol` 自動巡邏 HN / Reddit / Dev.to / GitHub Trending，AI 相關性評分
-- **GitHub 探索** — `/discover` 搜尋專案或瀏覽每日熱門
-- **知識問答** — `/ask` 用 Vault 知識回答問題，AI 結合筆記上下文
-- **時間軸抓取** — `/track timeline` 一次撈回某人最近的所有貼文
-- **知識系統** — 深度分析 Vault 筆記，萃取實體、洞察與關係圖譜，自動生成用戶偏好模型與知識蒸餾報告
-- **記憶整合** — 自動發現跨筆記知識關聯，LLM 語義合成洞察，每週自動生成整合報告
-- **相關筆記推薦** — 兩層演算法（實體圖譜 → 關鍵字比對）自動在筆記底部附加 `[[wikilink]]` 連結 + 生成索引
-- **內容雷達** — 根據 Vault 高頻關鍵字自動搜尋新內容（DDG + GitHub Trending + RSS），定期存入 Vault 並推送 Telegram 通知
-- **工具情報牆** — 自動追蹤已收藏 AI 工具的活躍/沉睡狀態，新工具入庫時 Jaccard 比對已有工具推送「可取代/補強」建議
-- **主動推理** — 每日 09:00 自動推送知識摘要 + 趨勢關鍵字警報 + 久未更新分類提醒到 Telegram
-- **Vault 搜尋** — `/search vault` 在本地 Vault 筆記中搜尋（frontmatter 加權匹配：標題 > 關鍵字 > 分類/摘要）
-- **影片語意搜尋** — `/search video` 搜尋 Vault 影片筆記的章節、轉錄文字，兩階段搜尋（關鍵字 → AI 排序）
-- **遠端管理** — `/admin` 統一入口，含狀態、健康、診斷、日誌、重啟、遠端指令、學習
-- **使用者偏好記憶** — 自動追蹤存檔行為，累積後 AI 生成偏好摘要，微調分類建議
-- **插件架構** — `plugins/` 目錄動態載入第三方 extractor，受限 API 介面確保安全
-- **oMLX 本地推理** — 可選配 Apple Silicon 本地推理伺服器，零 API 成本、完全離線可用
-- **處理進度串流** — URL 處理時即時顯示目前階段（擷取 → 豐富化 → 儲存），Telegram 訊息原地更新
-- **遠端管理** — 在 Telegram 裡查看 log、系統健康、重啟 Bot，搭配 loop 模式自動恢復
-- **自我修復** — 排程掃描 Vault 自動修復 HTML 殘留/壞路徑，Extractor 健康探測 + 降級告警
-- **即時診斷** — `/admin doctor` 一鍵探測全部 12 個平台 + 外部工具檢查 + 瀏覽器池狀態 + Vault 統計
-- **自動降級擷取** — 平台 Extractor 失敗時自動 fallback 到通用網頁擷取，最大化內容可及性
-- **品質基準** — enrichment 品質自動評分、平台成功率追蹤、`/benchmark` 查看品質報告
-- **OCR 文字辨識** — 截圖類圖片自動 OCR 提取文字，提升 AI 分析品質（需安裝 tesseract.js）
-- **分類回饋學習** — 用戶手動重分類時自動記錄校正，強化動態分類器準確度
-- **互動式指令** — 10 個核心指令整併 30+ 子功能，InlineKeyboard 按鈕引導，缺參數自動提示
-- **多模型智慧路由** — 依內容複雜度自動選擇 flash / standard / deep 免費模型，兼顧速度與品質；可選 oMLX 本地推理優先
-- **連結深度抓取** — 推文中的連結（X Article、部落格等）自動抓取完整內容，AI 綜合分析主文與連結文章，產出有深度的筆記
-- **批次翻譯** — 英文/簡中筆記自動翻譯為繁體中文
-- **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV，Windows / Mac / iPhone 三端同步
+- **統一搜尋** — `/search` 一個入口搜 Vault 筆記、網頁、跨平台提及、影片字幕
+- **內容雷達** — `/radar` 自動搜尋關注主題（DDG + GitHub Trending + RSS），定期存入 Vault
+- **追蹤系統** — `/track` 時間軸抓取、作者訂閱、多平台巡邏（HN / Reddit / Dev.to / GitHub Trending）
+- **連結深度抓取** — 推文中的外部連結自動抓取完整內容，AI 綜合分析產出有深度的筆記
+
+#### 知識系統
+- **知識問答** — `/ask` 用 Vault 筆記上下文 + AI 回答問題
+- **知識探索** — `/explore` 推薦筆記、知識簡報、深度合成、主題對比
+- **知識報告** — `/digest` 精華摘要、週報合成、知識蒸餾、跨筆記洞察
+- **知識圖譜** — 實體萃取、關係圖譜、缺口分析、Skill 自動生成
+- **記憶整合** — 自動發現跨筆記關聯，LLM 語義合成，每週生成整合報告
+- **主動推理** — 每日自動推送知識摘要 + 趨勢警報 + 分類提醒
+
+#### Vault 維護
+- **品質管理** — `/vault` 統一入口：品質報告（含自動修復按鈕）、重複掃描、AI 重處理、排版修正
+- **自我修復** — 排程掃描自動修復 HTML 殘留 / 壞路徑，Extractor 健康探測 + 降級告警
+- **相關筆記推薦** — 兩層演算法（實體圖譜 → 關鍵字比對）自動附加 `[[wikilink]]` 連結
+
+#### 系統特性
+- **10 個核心指令** — 整併 30+ 子功能，InlineKeyboard 按鈕引導，認知負擔降 65%
+- **遠端管理** — `/admin` 狀態、診斷、日誌、重啟、遠端指令，搭配 loop 模式自動恢復
+- **多模型智慧路由** — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理
+- **自動降級擷取** — 平台 Extractor 失敗自動 fallback 到通用網頁擷取
+- **批次翻譯** — 英文 / 簡中筆記自動翻譯為繁體中文
+- **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV
 
 </details>
 
