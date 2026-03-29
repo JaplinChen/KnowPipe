@@ -22,6 +22,7 @@ function typeIcon(type: RadarQueryType): string {
     case 'hn': return '🟠';
     case 'reddit': return '🔴';
     case 'devto': return '📝';
+    case 'custom': return '🔌';
     default: return '🔍';
   }
 }
@@ -73,7 +74,11 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     for (const q of radarConfig.queries) {
       const src = q.source === 'auto' ? '🤖' : '✍️';
       const typeTag = typeIcon(q.type ?? 'search');
-      const desc = q.type === 'rss' ? q.keywords[0] : q.keywords.join(' ');
+      const desc = q.type === 'rss'
+        ? q.keywords[0]
+        : q.type === 'custom'
+          ? (q.customConfig?.name ?? '自訂來源')
+          : q.keywords.join(' ');
       const hit = q.lastHitCount != null ? ` (${q.lastHitCount}篇)` : '';
       const fail = (q.consecutiveFailures ?? 0) > 0 ? ` ⚠️${q.consecutiveFailures}次失敗` : '';
       const paused = q.paused ? ' ⏸️已暫停' : '';
@@ -210,6 +215,44 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     return;
   }
 
+  // /radar add custom <name> <url> <itemsPath> <urlField> <titleField> [snippetField]
+  // Example: /radar add custom "AI News" "https://api.example.com/posts?q={query}" "items" "url" "title" "summary"
+  if (arg.startsWith('add custom')) {
+    const rest = arg.slice(10).trim();
+    // Parse quoted or space-separated tokens
+    const tokens: string[] = [];
+    const tokenRe = /"([^"]*)"|\S+/g;
+    for (const m of rest.matchAll(tokenRe)) {
+      tokens.push(m[1] ?? m[0]);
+    }
+    if (tokens.length < 5) {
+      await ctx.reply(
+        '用法: /radar add custom <名稱> <url> <itemsPath> <urlField> <titleField> [snippetField]\n\n' +
+        '範例:\n' +
+        '/radar add custom "AI News" "https://api.ex.com/search?q={query}" "results" "link" "title" "description"\n\n' +
+        '說明:\n' +
+        '• url: 支援 {query} 佔位符（會被關鍵字取代）\n' +
+        '• itemsPath: JSON 回傳中項目陣列的路徑（留空 "" 表示根層陣列）\n' +
+        '• urlField / titleField: 每個項目中對應欄位名稱',
+      );
+      return;
+    }
+    const [name, url, itemsPath, urlField, titleField, snippetField] = tokens;
+    if (!url.startsWith('http')) {
+      await ctx.reply('❌ url 必須以 http 開頭');
+      return;
+    }
+    const query = addQuery(radarConfig, [], 'manual', 'custom');
+    query.customConfig = { name, url, itemsPath, urlField, titleField, snippetField };
+    await saveRadarConfig(radarConfig);
+    await ctx.reply(
+      `✅ 已新增自訂來源 [${query.id}]: ${name}\n` +
+      `• URL: ${url.slice(0, 60)}${url.length > 60 ? '…' : ''}\n` +
+      `• 解析: items=${itemsPath || '根'} / url=${urlField} / title=${titleField}`,
+    );
+    return;
+  }
+
   // /radar add <keywords>
   if (arg.startsWith('add ')) {
     const keywords = arg.slice(4).trim().split(/\s+/);
@@ -245,6 +288,7 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     '/radar add devto [tags] — 新增 Dev.to 來源\n' +
     '/radar add github [語言] — 新增 GitHub Trending\n' +
     '/radar add rss <URL> — 新增 RSS 來源\n' +
+    '/radar add custom <名稱> <url> <itemsPath> <urlField> <titleField> — 新增 JSON API 自訂來源\n' +
     '/radar remove <id> — 移除查詢\n' +
     '/radar resume <id> — 恢復暫停的查詢\n' +
     '/radar auto — 從 Vault 自動生成\n' +

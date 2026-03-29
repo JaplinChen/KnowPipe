@@ -22,6 +22,10 @@ import type { ToolEntry, ToolMatchResult } from './wall-types.js';
 import { buildToolIndex, matchNewTool } from './wall-index.js';
 import { loadWallConfig, addPendingMatches } from './wall-service.js';
 import { loadKnowledge } from '../knowledge/knowledge-store.js';
+import { VIDEO_PLATFORMS, enqueueVideo } from './video-queue.js';
+import { createCustomSource } from './sources/custom-source.js';
+import type { CustomSourceConfig } from './sources/custom-source.js';
+import { buildCycleSummary, sourceLabel } from './radar-cycle-utils.js';
 
 /** Max consecutive failures before auto-pausing a query. */
 const MAX_CONSECUTIVE_FAILURES = 3;
@@ -31,6 +35,7 @@ async function fetchCandidates(
   type: RadarQueryType,
   keywords: string[],
   maxResults: number,
+  customConfig?: CustomSourceConfig,
 ): Promise<RadarSourceResult[]> {
   switch (type) {
     case 'github':
@@ -43,6 +48,9 @@ async function fetchCandidates(
       return radarRedditSource.fetch(keywords, maxResults);
     case 'devto':
       return radarDevtoSource.fetch(keywords, maxResults);
+    case 'custom':
+      if (!customConfig) return [];
+      return createCustomSource(customConfig).fetch(keywords, maxResults);
     case 'search':
     default:
       return (await webSearch(keywords.join(' '), maxResults)).map(r => ({
@@ -58,11 +66,11 @@ async function runQuery(
   maxResults: number,
   wallToolIndex?: ToolEntry[] | null,
 ): Promise<{ result: RadarResult; matches: ToolMatchResult[] }> {
-  const result: RadarResult = { query, saved: 0, skipped: 0, errors: 0 };
+  const result: RadarResult = { query, saved: 0, skipped: 0, errors: 0, queued: 0 };
   const matches: ToolMatchResult[] = [];
 
   try {
-    const candidates = await fetchCandidates(query.type ?? 'search', query.keywords, maxResults);
+    const candidates = await fetchCandidates(query.type ?? 'search', query.keywords, maxResults, query.customConfig);
 
     if (candidates.length === 0) {
       // No candidates — count as failure for auto-pause
@@ -86,6 +94,14 @@ async function runQuery(
         // Find extractor
         const extractor = findExtractor(sr.url);
         if (!extractor) { result.skipped++; continue; }
+
+        // Video platforms: push to async queue instead of blocking the cycle
+        if (VIDEO_PLATFORMS.has(extractor.platform)) {
+          const queued = await enqueueVideo(sr.url);
+          if (queued) result.queued++;
+          else result.skipped++;
+          continue;
+        }
 
         // Extract content
         const content = await extractor.extract(sr.url);
@@ -137,41 +153,6 @@ async function runQuery(
   return { result, matches };
 }
 
-/** Build cycle summary for proactive digest integration. */
-function buildCycleSummary(results: RadarResult[]): RadarCycleSummary {
-  const byType: Partial<Record<RadarQueryType, number>> = {};
-  let totalSaved = 0;
-  let totalSkipped = 0;
-  let totalErrors = 0;
-
-  for (const r of results) {
-    const qType = r.query.type ?? 'search';
-    byType[qType] = (byType[qType] ?? 0) + r.saved;
-    totalSaved += r.saved;
-    totalSkipped += r.skipped;
-    totalErrors += r.errors;
-  }
-
-  return {
-    timestamp: new Date().toISOString(),
-    totalSaved,
-    totalSkipped,
-    totalErrors,
-    byType,
-  };
-}
-
-/** Format source type label for display. */
-function sourceLabel(type: RadarQueryType): string {
-  switch (type) {
-    case 'github': return 'GitHub';
-    case 'rss': return 'RSS';
-    case 'hn': return 'HN';
-    case 'reddit': return 'Reddit';
-    case 'devto': return 'Dev.to';
-    default: return '搜尋';
-  }
-}
 
 /** Run a full radar cycle across all queries */
 export async function runRadarCycle(
@@ -223,22 +204,26 @@ export async function runRadarCycle(
   radarConfig.lastRunAt = new Date().toISOString();
   await saveRadarConfig(radarConfig);
 
-  // Notify user if any new content found
-  if (totalSaved > 0) {
+  // Notify user if any new content found or queued
+  const totalQueued = results.reduce((s, r) => s + r.queued, 0);
+  if (totalSaved > 0 || totalQueued > 0) {
     const userId = getOwnerUserId(config);
     if (userId) {
       const lines = [`🔍 內容雷達：發現 ${totalSaved} 篇新內容`, ''];
       for (const r of results) {
         if (r.saved > 0) {
-          const label = sourceLabel(r.query.type ?? 'search');
+          const label = sourceLabel(r.query.type ?? 'search', r.query.customConfig?.name);
           const desc = r.query.type === 'rss'
             ? r.query.keywords[0]
-            : r.query.keywords.join(' ');
+            : r.query.type === 'custom'
+              ? (r.query.customConfig?.name ?? r.query.keywords.join(' '))
+              : r.query.keywords.join(' ');
           lines.push(`• [${label}] ${r.saved} 篇 — ${desc}`);
         }
       }
       const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
       if (totalSkipped > 0) lines.push(`\n（${totalSkipped} 篇已存在，已跳過）`);
+      if (totalQueued > 0) lines.push(`🎬 ${totalQueued} 部影片已排入轉錄佇列`);
 
       await bot.telegram.sendMessage(userId, lines.join('\n')).catch(() => {});
     }

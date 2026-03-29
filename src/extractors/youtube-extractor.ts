@@ -12,6 +12,7 @@ import { mkdir, rm, readFile, readdir } from 'node:fs/promises';
 import type { ExtractedContent, Extractor, ChapterInfo } from './types.js';
 import { getTimedTranscript, formatTimestamp } from '../utils/transcript-service.js';
 import { extractPlaylist } from './youtube-playlist.js';
+import { detectChaptersFromTranscript } from '../utils/chapter-detector.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -141,6 +142,12 @@ async function extractVideo(url: string): Promise<ExtractedContent> {
       endTime: formatTimestamp(ch.end_time),
       title: ch.title,
     }));
+  }
+
+  // Fallback: generate synthetic chapters from Whisper timed transcript
+  if (!chapters && timedTranscript && timedTranscript.length > 0) {
+    const synthetic = detectChaptersFromTranscript(timedTranscript);
+    if (synthetic.length > 0) chapters = synthetic;
   }
 
   if (!localPath) {

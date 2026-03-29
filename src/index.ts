@@ -13,6 +13,7 @@ import { loadSubscriptions } from './subscriptions/subscription-store.js';
 import { startSubscriptionChecker } from './subscriptions/subscription-checker.js';
 import { loadRadarConfig } from './radar/radar-store.js';
 import { startRadarChecker } from './radar/radar-service.js';
+import { startVideoQueue } from './radar/video-queue.js';
 import { startProactiveService } from './proactive/proactive-service.js';
 import { startMonitorService } from './monitoring/monitor-service.js';
 import { startWallService } from './radar/wall-service.js';
@@ -75,6 +76,9 @@ loadRadarConfig()
     }
   })
   .catch((e) => logger.warn('radar', '載入雷達失敗', { message: (e as Error).message }));
+
+// Start async video transcription queue
+registerTimers(startVideoQueue(bot, config));
 
 // Start proactive intelligence service
 startProactiveService(bot, config)

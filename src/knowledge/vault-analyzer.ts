@@ -9,6 +9,8 @@ import { createHash } from 'node:crypto';
 import { getAllMdFiles } from '../vault/frontmatter-utils.js';
 import { loadKnowledge, saveKnowledge, computeContentHash } from './knowledge-store.js';
 import type { VaultKnowledge, KnowledgeEntity, EntityType } from './types.js';
+import { classifyEntityType } from './entity-classifier.js';
+import { extractRelations } from './relation-extractor.js';
 import { logger } from '../core/logger.js';
 
 interface AnalyzeResult {
@@ -16,106 +18,6 @@ interface AnalyzeResult {
   skipped: number;
   totalEntities: number;
   topEntities: Array<{ name: string; mentions: number }>;
-}
-
-// ─── Entity Type Classifier ────────────────────────────────────────────────
-
-const KNOWN_LANGUAGES = new Set([
-  'typescript', 'javascript', 'python', 'rust', 'go', 'swift', 'kotlin',
-  'java', 'ruby', 'php', 'dart', 'c++', 'c#', 'scala', 'elixir', 'haskell',
-  'bash', 'shell', 'sql', 'r',
-]);
-
-const KNOWN_PLATFORMS = new Set([
-  'github', 'twitter', 'x', 'youtube', 'reddit', 'hn', 'hacker news',
-  'discord', 'telegram', 'notion', 'obsidian', 'cloudflare', 'vercel', 'hacker news',
-  'netlify', 'hugging face', 'huggingface', 'producthunt', 'dev.to',
-  'npm', 'pypi', 'docker hub', 'dockerhub', 'google', 'apple',
-  'linkedin', 'medium', 'substack',
-]);
-
-const KNOWN_TOOLS = new Set([
-  'claude', 'gpt', 'gemini', 'llama', 'mistral', 'ollama', 'omlx',
-  'cursor', 'copilot', 'codeium', 'tabnine',
-  'ffmpeg', 'yt-dlp', 'homebrew', 'brew',
-  'vscode', 'vs code', 'neovim', 'vim', 'emacs',
-  'docker', 'podman', 'kubernetes', 'k8s',
-  'nginx', 'caddy', 'traefik',
-  'telegraf', 'obsidian', 'notion', 'logseq',
-  'tailscale', 'zerotier',
-  'openai', 'anthropic',
-  // Multi-word known tools
-  'claude code', 'claude api', 'github copilot', 'visual studio',
-  'vs code', 'xcode', 'android studio',
-]);
-
-const TOOL_SUFFIXES = [
-  'sdk', 'cli', 'api', 'bot', 'app', 'tool', 'agent',
-  '.js', '.py', '.ts', '-cli', '-sdk',
-];
-
-const FRAMEWORK_KEYWORDS = [
-  'framework', 'library', 'runtime', 'engine', 'stack',
-];
-
-const TECH_ACRONYM_RE = /^[A-Z]{2,6}(\+\+)?$/;
-
-const CAMEL_CASE_RE = /^[A-Z][a-z]+[A-Z]/;
-const KEBAB_CODE_RE = /^[a-z][a-z0-9]*(-[a-z0-9]+)+$/;
-const VERSION_RE = /\d+\.\d+/;
-// Two PascalCase words: "Claude Code", "Visual Studio", "Type Whisper"
-const TITLE_CASE_TOOL_RE = /^[A-Z][a-z]+ [A-Z][a-z]+$/;
-
-/**
- * Classify an entity type using heuristic rules.
- * Checks known sets first, then structural patterns.
- */
-function classifyEntityType(name: string, category: string): EntityType {
-  const lower = name.toLowerCase().trim();
-
-  // Category-based quick path
-  const catLower = category.toLowerCase();
-  if (catLower.includes('程式語言')) return 'language';
-
-  // Known language check
-  if (KNOWN_LANGUAGES.has(lower)) return 'language';
-
-  // Known platform check
-  if (KNOWN_PLATFORMS.has(lower)) return 'platform';
-
-  // Known tool check
-  if (KNOWN_TOOLS.has(lower)) return 'tool';
-
-  // Tech acronyms (LLM, RAG, OCR, GPU, etc.) — keep as technology
-  if (TECH_ACRONYM_RE.test(name)) return 'technology';
-
-  // Framework indicators
-  for (const kw of FRAMEWORK_KEYWORDS) {
-    if (lower.endsWith(kw) || lower.includes(kw + ' ')) return 'framework';
-  }
-
-  // Tool suffix indicators
-  for (const suf of TOOL_SUFFIXES) {
-    if (lower.endsWith(suf)) return 'tool';
-  }
-
-  // Kebab-case (code-style names like "claude-code", "yt-dlp")
-  if (KEBAB_CODE_RE.test(name) && name.length <= 30) return 'tool';
-
-  // CamelCase proper nouns (e.g. TypeWhisper, GraphRAG, VibeEdit)
-  if (CAMEL_CASE_RE.test(name) && name.length <= 30) return 'tool';
-
-  // Two Title-Case words (e.g. "Claude Code", "Visual Studio")
-  if (TITLE_CASE_TOOL_RE.test(name) && name.length <= 30) return 'tool';
-
-  // Contains version number → likely a tool/tech
-  if (VERSION_RE.test(name)) return 'tool';
-
-  // Mostly English + short → likely a tool/technology
-  const isEnglishHeavy = (name.match(/[a-zA-Z]/g) ?? []).length / name.length > 0.7;
-  if (isEnglishHeavy && name.length <= 20 && !name.includes(' ')) return 'tool';
-
-  return 'concept';
 }
 
 /** Parse frontmatter from raw markdown */
@@ -201,10 +103,12 @@ export async function runVaultAnalysis(vaultPath: string): Promise<AnalyzeResult
         if (trimmed.length >= 2) addEntity(entityMap, trimmed, 'concept', noteId);
       }
 
+      const relations = extractRelations(keywords, summary, noteId);
+
       knowledge.notes[noteId] = {
         noteId, filePath: fullPath, title, category, contentHash: hash,
         qualityScore: summary.length > 20 ? 3 : 1,
-        entities, insights: [], relations: [],
+        entities, insights: [], relations,
         analyzedAt: new Date().toISOString(),
       };
       processed++;
