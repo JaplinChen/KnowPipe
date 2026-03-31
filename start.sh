@@ -16,6 +16,7 @@ fi
 
 if [ "$1" = "--stop" ]; then
   echo "🛑 停止所有 ObsBot 進程..."
+  pkill -f "scripts/loop.mjs" 2>/dev/null
   pkill -f "node.*src/index" 2>/dev/null
   pkill -f "tsx.*src/index" 2>/dev/null
   sleep 1
@@ -23,7 +24,8 @@ if [ "$1" = "--stop" ]; then
   exit 0
 fi
 
-# 先清除舊進程，避免 409 衝突
+# 先清除舊進程，避免多個 loop.mjs 互相干擾（code=137 問題）
+pkill -f "scripts/loop.mjs" 2>/dev/null
 pkill -f "node.*src/index" 2>/dev/null
 pkill -f "tsx.*src/index" 2>/dev/null
 sleep 2

@@ -16,16 +16,20 @@ const RESTART_DELAY_MS = 3_000;
 const CRASH_DELAY_MS = 10_000;
 
 let running = true;
+let currentChild = null;
 
-process.on('SIGINT', () => {
+function stopLoop(signal) {
   running = false;
-  console.log('\n[loop] 收到 SIGINT，停止重啟');
-});
+  console.log(`\n[loop] 收到 ${signal}，停止重啟`);
+  if (currentChild) {
+    try { currentChild.kill('SIGTERM'); } catch {}
+  }
+  // 強制退出，避免殭屍 loop 殘留
+  setTimeout(() => process.exit(0), 3000);
+}
 
-process.on('SIGTERM', () => {
-  running = false;
-  console.log('[loop] 收到 SIGTERM，停止重啟');
-});
+process.on('SIGINT', () => stopLoop('SIGINT'));
+process.on('SIGTERM', () => stopLoop('SIGTERM'));
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -52,10 +56,12 @@ async function run() {
       env: { ...process.env, LOOP_WRAPPER: '1' },
     });
 
+    currentChild = child;
     const code = await new Promise((resolve) => {
       child.on('exit', (c) => resolve(c ?? 1));
       child.on('error', () => resolve(1));
     });
+    currentChild = null;
 
     if (!running) break;
 
