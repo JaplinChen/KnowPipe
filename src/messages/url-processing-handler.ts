@@ -17,7 +17,7 @@ import { enrichExtractedContent } from './services/enrich-content-service.js';
 import { extractContentWithComments } from './services/extract-content-service.js';
 import { saveExtractedContent } from './services/save-content-service.js';
 import { processSeriesBatch } from './services/series-processing-service.js';
-import type { BotStats } from './types.js';
+import { classifyFailureReason, type BotStats } from './types.js';
 import { parseIntent, replySuggestion } from './intent-parser.js';
 import { handleWeeklyDigest } from '../commands/digest-command.js';
 import { handleCompareByArg } from '../commands/knowledge-query-command.js';
@@ -176,7 +176,10 @@ export function registerUrlProcessingHandler(
         stats.errors++;
         if (stats.failedUrls.length >= 50) stats.failedUrls.shift();
         const urlHash = createHash('md5').update(url).digest('hex').slice(0, 12);
-        stats.failedUrls.push({ url, hash: urlHash, error: formatErrorMessage(err), timestamp: Date.now() });
+        const errorMsg = formatErrorMessage(err);
+        const reason = classifyFailureReason(errorMsg);
+        stats.failedUrls.push({ url, hash: urlHash, error: errorMsg, reason, timestamp: Date.now() });
+        logger.info('msg', '失敗原因分類', { url, reason });
         await ctx.reply(formatErrorMessage(err), {
           reply_markup: {
             inline_keyboard: [[{ text: '🔄 重試', callback_data: `retry:${urlHash}` }]],

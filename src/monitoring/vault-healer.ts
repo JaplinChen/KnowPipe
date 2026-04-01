@@ -1,15 +1,20 @@
 /**
  * Vault self-healer — scans notes for common issues and auto-fixes them.
  * Fixes: empty summaries, HTML remnants, missing frontmatter fields.
+ * Quality audit: short summaries, too few keywords → tag pending-review.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { getAllMdFiles } from '../vault/frontmatter-utils.js';
+import { getAllMdFiles, parseFrontmatter, parseArrayField } from '../vault/frontmatter-utils.js';
 import type { VaultIssue } from './health-types.js';
 import { logger } from '../core/logger.js';
 
 const HTML_TAG_RE = /<(?:div|span|br|p|a|img|table|tr|td|th|ul|ol|li|h[1-6])\b[^>]*\/?>/gi;
 const HTML_CLOSE_RE = /<\/(?:div|span|p|a|table|tr|td|th|ul|ol|li|h[1-6])>/gi;
+
+const SUMMARY_MIN_CHARS = 20;
+const KEYWORDS_MIN_COUNT = 3;
+const PENDING_REVIEW_TAG = 'pending-review';
 
 /** Strip HTML tags from text, preserving content */
 function stripHtml(text: string): string {
@@ -36,10 +41,28 @@ function splitNote(raw: string): { frontmatter: string; body: string; fmEnd: num
   };
 }
 
+/**
+ * 為低品質筆記加上 pending-review tag。
+ * 只修改 frontmatter 的 tags 行，不動其他欄位。
+ */
+function addPendingReviewTag(raw: string): string {
+  // 找到 tags: [...] 行並插入 pending-review
+  return raw.replace(
+    /^(tags:\s*\[)(.*?)(\])/m,
+    (_m, open, inner, close) => {
+      const existing = inner.split(',').map((t: string) => t.trim()).filter(Boolean);
+      if (existing.includes(PENDING_REVIEW_TAG)) return _m; // 已有則跳過
+      const updated = [...existing, PENDING_REVIEW_TAG].join(', ');
+      return `${open}${updated}${close}`;
+    },
+  );
+}
+
 interface ScanResult {
   issues: VaultIssue[];
   totalNotes: number;
   autoFixed: number;
+  pendingReviewTagged: number;
 }
 
 /** Scan and auto-fix vault issues */
@@ -48,6 +71,7 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
   const files = await getAllMdFiles(rootDir);
   const issues: VaultIssue[] = [];
   let autoFixed = 0;
+  let pendingReviewTagged = 0;
 
   for (const filePath of files) {
     try {
@@ -66,7 +90,7 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
         if (cleanBody !== parsed.body) {
           newContent = raw.slice(0, parsed.fmEnd) + cleanBody;
           modified = true;
-          issues.push({ file: relPath, issue: 'HTML 殘留（已修復）', autoFixable: true, fixed: true });
+          issues.push({ file: relPath, issue: 'HTML 殘留（已修復）', autoFixable: true, fixed: true, severity: 'auto_fixed' });
         }
       }
 
@@ -78,7 +102,7 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
           return `![${alt}](${path.replace(/\\/g, '/')})`;
         });
         modified = true;
-        issues.push({ file: relPath, issue: '圖片路徑反斜線（已修復）', autoFixable: true, fixed: true });
+        issues.push({ file: relPath, issue: '圖片路徑反斜線（已修復）', autoFixable: true, fixed: true, severity: 'auto_fixed' });
       }
 
       // Fix 3: Excess blank lines (>3 consecutive)
@@ -86,12 +110,35 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
       if (excessBlankRe.test(newContent)) {
         newContent = newContent.replace(excessBlankRe, '\n\n\n');
         modified = true;
-        issues.push({ file: relPath, issue: '過多空行（已修復）', autoFixable: true, fixed: true });
+        issues.push({ file: relPath, issue: '過多空行（已修復）', autoFixable: true, fixed: true, severity: 'auto_fixed' });
       }
 
-      // Report-only: missing fields (not auto-fixable)
-      if (!parsed.frontmatter.match(/^summary:\s*.+/m)) {
-        issues.push({ file: relPath, issue: '空白摘要', autoFixable: false });
+      // Quality audit: evaluate frontmatter fields
+      const fm = parseFrontmatter(newContent);
+      const qualityIssues: string[] = [];
+
+      const summary = fm.get('summary') ?? '';
+      if (summary.length < SUMMARY_MIN_CHARS) {
+        qualityIssues.push('摘要過短');
+        issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字）`, autoFixable: false, severity: 'needs_review' });
+      }
+
+      const keywordsRaw = fm.get('keywords') ?? '';
+      const keywords = parseArrayField(keywordsRaw);
+      if (keywords.length < KEYWORDS_MIN_COUNT) {
+        qualityIssues.push('關鍵字不足');
+        issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length} 個）`, autoFixable: false, severity: 'needs_review' });
+      }
+
+      // Tag low-quality notes with pending-review
+      if (qualityIssues.length > 0) {
+        const tagged = addPendingReviewTag(newContent);
+        if (tagged !== newContent) {
+          newContent = tagged;
+          modified = true;
+          pendingReviewTagged++;
+          logger.info('vault-healer', '標記低品質筆記', { file: relPath, issues: qualityIssues });
+        }
       }
 
       if (modified && !dryRun) {
@@ -107,7 +154,8 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
     total: files.length,
     issues: issues.length,
     fixed: autoFixed,
+    pendingReviewTagged,
   });
 
-  return { issues, totalNotes: files.length, autoFixed };
+  return { issues, totalNotes: files.length, autoFixed, pendingReviewTagged };
 }

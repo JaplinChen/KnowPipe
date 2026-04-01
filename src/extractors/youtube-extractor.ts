@@ -13,6 +13,7 @@ import type { ExtractedContent, Extractor, ChapterInfo } from './types.js';
 import { getTimedTranscript, formatTimestamp } from '../utils/transcript-service.js';
 import { extractPlaylist } from './youtube-playlist.js';
 import { detectChaptersFromTranscript } from '../utils/chapter-detector.js';
+import { retry } from '../utils/fetch-with-timeout.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -84,10 +85,12 @@ async function fetchSubtitles(url: string, dir: string): Promise<string | null> 
 async function extractVideo(url: string): Promise<ExtractedContent> {
   let stdout: string;
   try {
-    const result = await execFileAsync('yt-dlp', [
-      '--dump-json', '--no-playlist', '--no-warnings', url,
-    ], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 });
-    stdout = result.stdout;
+    stdout = await retry(async () => {
+      const result = await execFileAsync('yt-dlp', [
+        '--dump-json', '--no-playlist', '--no-warnings', url,
+      ], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 });
+      return result.stdout;
+    }, 3, 1000);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (msg.includes('ENOENT') || msg.includes('not found')) {

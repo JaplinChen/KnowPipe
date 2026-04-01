@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import type { ExtractedContent, Extractor, ThreadComment } from './types.js';
-import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
+import { fetchWithTimeout, retry } from '../utils/fetch-with-timeout.js';
 import { getTimedTranscript } from '../utils/transcript-service.js';
 import { logger } from '../core/logger.js';
 
@@ -79,9 +79,12 @@ export const bilibiliExtractor: Extractor & {
 
     let data: YtDlpOutput;
     try {
-      const { stdout } = await execFileAsync('yt-dlp', [
-        '--dump-json', '--no-playlist', '--no-warnings', resolvedUrl,
-      ], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 });
+      const { stdout } = await retry(async () => {
+        const result = await execFileAsync('yt-dlp', [
+          '--dump-json', '--no-playlist', '--no-warnings', resolvedUrl,
+        ], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 });
+        return result;
+      }, 3, 1000);
       data = JSON.parse(stdout) as YtDlpOutput;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

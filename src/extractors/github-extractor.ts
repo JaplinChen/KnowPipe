@@ -1,5 +1,5 @@
 import type { ExtractedContent, Extractor } from './types.js';
-import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
+import { fetchWithTimeout, retry } from '../utils/fetch-with-timeout.js';
 import { htmlFragmentToMarkdown } from '../utils/html-to-markdown.js';
 
 const GITHUB_PATTERN = /github\.com\/([\w.-]+)\/([\w.-]+)(?:\/(?:issues|pull)\/(\d+))?/i;
@@ -81,10 +81,15 @@ async function fetchChineseReadme(
 ): Promise<string | null> {
   try {
     const rawUrl = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${filename}`;
-    const res = await fetchWithTimeout(rawUrl, 10_000, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-    });
-    if (!res.ok) return null;
+    const res = await retry(async () => {
+      const response = await fetchWithTimeout(rawUrl, 10_000, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      });
+      if (!response.ok) {
+        throw new Error(`GitHub raw file error: ${response.status} ${response.statusText}`);
+      }
+      return response;
+    }, 3, 1000);
     return await res.text();
   } catch {
     return null;
@@ -109,12 +114,15 @@ export const githubExtractor: Extractor = {
     if (!m) throw new Error(`Invalid GitHub URL: ${url}`);
 
     const [, owner, repo, number] = m;
-    const res = await fetchWithTimeout(url, 30_000, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
-    });
-    if (!res.ok) {
-      throw new Error(`GitHub page error: ${res.status} ${res.statusText}`);
-    }
+    const res = await retry(async () => {
+      const response = await fetchWithTimeout(url, 30_000, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36' },
+      });
+      if (!response.ok) {
+        throw new Error(`GitHub page error: ${response.status} ${response.statusText}`);
+      }
+      return response;
+    }, 3, 1000);
 
     const html = await res.text();
     const isIssue = url.includes('/issues/');

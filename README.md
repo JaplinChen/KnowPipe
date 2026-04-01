@@ -38,7 +38,9 @@ ObsBot 讓你在 Telegram 裡丟一個連結，**3 秒後它就躺在你的 Obsi
 
 #### Vault 維護
 - **品質管理** — `/vault` 統一入口：品質報告（含自動修復按鈕）、重複掃描、AI 重處理、排版修正
-- **自我修復** — 排程掃描自動修復 HTML 殘留 / 壞路徑，Extractor 健康探測 + 降級告警
+- **自我修復** — 排程掃描自動修復 HTML 殘留 / 壞路徑，Extractor 健康探測 + 降級告警；品質評估器自動標記摘要過短 / 關鍵字不足的筆記（`pending-review` tag）
+- **影片語意搜尋** — `/vsearch` 用自然語言搜尋 Vault 影片筆記（SQLite FTS5 三元組索引，支援中英文混合查詢）
+- **失敗反思系統** — Extractor 失敗自動分類原因（`auth_blocked` / `timeout` / `structure_changed`），重試時輸出診斷日誌
 - **相關筆記推薦** — 兩層演算法（實體圖譜 → 關鍵字比對）自動附加 `[[wikilink]]` 連結
 
 #### 系統特性
@@ -382,7 +384,7 @@ src/
     ├── vision-llm.ts           # 圖片辨識（OpenCode gpt-5-nano）
     ├── url-canonicalizer.ts    # URL 正規化（去重用）
     ├── ttl-cache.ts            # 通用 TTL 快取（callback token 用）
-    ├── camoufox-pool.ts        # 反偵測瀏覽器池（max 2, idle 10min）
+    ├── camoufox-pool.ts        # 反偵測瀏覽器池（max 4，閒置立即釋放）
     └── chapter-detector.ts     # Whisper 逐字稿合成章節偵測（120 秒窗口）
 ```
 

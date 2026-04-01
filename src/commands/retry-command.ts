@@ -31,6 +31,7 @@ export function createRetryHandler(stats: BotStats) {
     let failed = 0;
 
     for (const target of targets) {
+      logger.info('retry', '重試 URL', { url: target.url, reason: target.reason });
       const result = await processUrl(target.url, config, stats);
       if (result.success) {
         success++;

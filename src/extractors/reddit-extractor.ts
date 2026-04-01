@@ -1,5 +1,5 @@
 import type { ExtractedContent, ExtractorWithComments, ThreadComment } from './types.js';
-import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
+import { fetchWithTimeout, retry } from '../utils/fetch-with-timeout.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 
 const REDDIT_PATTERN = /reddit\.com\/r\/([\w]+)\/comments\/([\w]+)/i;
@@ -32,13 +32,15 @@ async function extractViaJson(url: string): Promise<ExtractedContent | null> {
   try {
     // Normalize URL: strip trailing slash, append .json
     const jsonUrl = url.replace(/\/+$/, '') + '.json';
-    const res = await fetchWithTimeout(jsonUrl, 15_000, {
-      headers: {
-        'User-Agent': BROWSER_UA,
-        Accept: 'application/json',
-      },
-      redirect: 'follow',
-    });
+    const res = await retry(async () => {
+      return await fetchWithTimeout(jsonUrl, 15_000, {
+        headers: {
+          'User-Agent': BROWSER_UA,
+          Accept: 'application/json',
+        },
+        redirect: 'follow',
+      });
+    }, 3, 1000);
     if (!res.ok) return null;
 
     const data = await res.json();

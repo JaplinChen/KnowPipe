@@ -8,6 +8,7 @@ import { tmpdir } from 'node:os';
 import type { ExtractedContent, Extractor } from './types.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 import { getPlainTranscript } from '../utils/transcript-service.js';
+import { retry } from '../utils/fetch-with-timeout.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -202,9 +203,12 @@ export const tiktokExtractor: Extractor = {
 
     let meta: TikTokMeta;
     try {
-      const { stdout } = await execFileAsync('yt-dlp', [
-        '--dump-json', '--encoding', 'utf-8', '--no-playlist', '--no-warnings', metaUrl,
-      ], { maxBuffer: 10 * 1024 * 1024, timeout: 30_000 });
+      const { stdout } = await retry(async () => {
+        const result = await execFileAsync('yt-dlp', [
+          '--dump-json', '--encoding', 'utf-8', '--no-playlist', '--no-warnings', metaUrl,
+        ], { maxBuffer: 10 * 1024 * 1024, timeout: 30_000 });
+        return result;
+      }, 3, 1000);
       meta = JSON.parse(stdout);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);

@@ -1,5 +1,5 @@
 import type { ExtractedContent, ExtractorWithComments, ThreadComment, VideoInfo } from './types.js';
-import { fetchWithTimeout } from '../utils/fetch-with-timeout.js';
+import { fetchWithTimeout, retry } from '../utils/fetch-with-timeout.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 
 interface ArticleBlock {
@@ -117,10 +117,13 @@ export const xExtractor: ExtractorWithComments = {
     const [, screenName, tweetId] = match;
     const apiUrl = `https://api.fxtwitter.com/${screenName}/status/${tweetId}`;
 
-    const res = await fetchWithTimeout(apiUrl, 30_000);
-    if (!res.ok) {
-      throw new Error(`FxTwitter API error: ${res.status} ${res.statusText}`);
-    }
+    const res = await retry(async () => {
+      const response = await fetchWithTimeout(apiUrl, 30_000);
+      if (!response.ok) {
+        throw new Error(`FxTwitter API error: ${response.status} ${response.statusText}`);
+      }
+      return response;
+    }, 3, 1000);
 
     const data = (await res.json()) as FxTweetResponse;
     if (data.code !== 200) {

@@ -1,10 +1,13 @@
 /** Types for self-healing monitoring system. */
 
+export type IssueSeverity = 'auto_fixed' | 'needs_review' | 'info';
+
 export interface VaultIssue {
   file: string;
   issue: string;
   autoFixable: boolean;
   fixed?: boolean;
+  severity?: IssueSeverity;
 }
 
 export interface ExtractorHealth {
