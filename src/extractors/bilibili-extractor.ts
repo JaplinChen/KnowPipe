@@ -13,45 +13,73 @@ const execFileAsync = promisify(execFile);
 const BV_PATTERN = /bilibili\.com\/video\/(BV[\w]+)/i;
 const B23_PATTERN = /b23\.tv\/([\w]+)/i;
 
-interface YtDlpOutput {
-  id: string;
+/** Bilibili API /x/web-interface/view response shape (fields we use) */
+interface BiliViewData {
+  bvid: string;
+  aid: number;
   title: string;
-  description?: string;
-  uploader?: string;
-  uploader_id?: string;
-  upload_date?: string;
-  thumbnail?: string;
-  duration?: number;
-  view_count?: number;
-  like_count?: number;
-  comment_count?: number;
-  webpage_url: string;
-  chapters?: Array<{ start_time: number; end_time: number; title: string }>;
+  desc: string;
+  owner: { mid: number; name: string };
+  pubdate: number;
+  pic: string;
+  duration: number;
+  stat: {
+    view: number;
+    danmaku: number;
+    like: number;
+    reply: number;
+    favorite: number;
+    coin: number;
+    share: number;
+  };
+  pages?: Array<{ part: string; duration: number }>;
+  ugc_season?: { sections?: Array<{ episodes?: Array<{ title: string; arc?: { pic?: string } }> }> };
 }
 
 function parseBvid(url: string): string | null {
   return url.match(BV_PATTERN)?.[1] ?? null;
 }
 
-function formatDate(uploadDate?: string): string {
-  if (!uploadDate || uploadDate.length !== 8) return new Date().toISOString().split('T')[0];
-  return `${uploadDate.slice(0, 4)}-${uploadDate.slice(4, 6)}-${uploadDate.slice(6, 8)}`;
+function formatUnixDate(ts: number): string {
+  const d = new Date(ts * 1000);
+  return d.toISOString().split('T')[0];
 }
 
-function buildText(meta: YtDlpOutput): string {
-  const duration = meta.duration ?? 0;
-  const durationStr = duration > 0
-    ? `${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`
-    : 'n/a';
+function formatDuration(seconds: number): string {
+  if (seconds <= 0) return 'n/a';
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, '0')}`;
+}
 
+function buildText(data: BiliViewData): string {
   const stats = [
-    `Views: ${(meta.view_count ?? 0).toLocaleString()}`,
-    `Likes: ${(meta.like_count ?? 0).toLocaleString()}`,
-    `Comments: ${(meta.comment_count ?? 0).toLocaleString()}`,
-    `Duration: ${durationStr}`,
+    `Views: ${data.stat.view.toLocaleString()}`,
+    `Likes: ${data.stat.like.toLocaleString()}`,
+    `Comments: ${data.stat.reply.toLocaleString()}`,
+    `Duration: ${formatDuration(data.duration)}`,
   ].join(' | ');
 
-  return [stats, '', meta.description?.slice(0, 3000) || '[No description]'].join('\n');
+  return [stats, '', data.desc?.slice(0, 3000) || '[No description]'].join('\n');
+}
+
+/** Fetch video metadata from Bilibili public API (no login required) */
+async function fetchBiliMeta(bvid: string): Promise<BiliViewData> {
+  const apiUrl = `https://api.bilibili.com/x/web-interface/view?bvid=${bvid}`;
+  const res = await retry(async () => {
+    const r = await fetchWithTimeout(apiUrl, 15_000, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+        'Referer': 'https://www.bilibili.com/',
+      },
+    });
+    if (!r.ok) throw new Error(`Bilibili API HTTP ${r.status}`);
+    return r;
+  }, 3, 1000);
+
+  const json = await res.json() as { code: number; message: string; data: BiliViewData };
+  if (json.code !== 0) throw new Error(`Bilibili API error: ${json.message} (code=${json.code})`);
+  return json.data;
 }
 
 export const bilibiliExtractor: Extractor & {
@@ -68,6 +96,7 @@ export const bilibiliExtractor: Extractor & {
   },
 
   async extract(url: string): Promise<ExtractedContent> {
+    // Resolve b23.tv short links
     let resolvedUrl = url;
     if (B23_PATTERN.test(url) && !BV_PATTERN.test(url)) {
       const r = await fetchWithTimeout(url, 15_000, { redirect: 'follow' });
@@ -77,33 +106,22 @@ export const bilibiliExtractor: Extractor & {
     const bvid = parseBvid(resolvedUrl);
     if (!bvid) throw new Error(`Invalid Bilibili URL: ${url}`);
 
-    let data: YtDlpOutput;
-    try {
-      const { stdout } = await retry(async () => {
-        const result = await execFileAsync('yt-dlp', [
-          '--dump-json', '--no-playlist', '--no-warnings', resolvedUrl,
-        ], { maxBuffer: 10 * 1024 * 1024, timeout: 120_000 });
-        return result;
-      }, 3, 1000);
-      data = JSON.parse(stdout) as YtDlpOutput;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('ENOENT')) throw new Error('yt-dlp is not installed');
-      throw new Error(`Bilibili extraction failed: ${msg.slice(0, 200)}`);
-    }
+    // Fetch metadata via public API (replaces yt-dlp --dump-json)
+    const data = await fetchBiliMeta(bvid);
+    const videoUrl = `https://www.bilibili.com/video/${bvid}`;
 
-    // Try fetching subtitles via yt-dlp
+    // Subtitles & STT
     let transcript: string | undefined;
     let timedTranscript: ExtractedContent['timedTranscript'];
-    const tmpDir = join(tmpdir(), `obsbot-bili-${data.id}`);
+    const tmpDir = join(tmpdir(), `obsbot-bili-${bvid}`);
     await mkdir(tmpDir, { recursive: true });
 
     try {
-      // Attempt subtitle download
+      // yt-dlp still used for subtitle download only
       await execFileAsync('yt-dlp', [
         '--skip-download', '--write-auto-sub', '--sub-lang', 'zh-Hans,zh-Hant,zh,en',
         '--convert-subs', 'srt', '-o', join(tmpDir, 'subs'),
-        '--no-playlist', '--no-warnings', resolvedUrl,
+        '--no-playlist', '--no-warnings', videoUrl,
       ], { timeout: 30_000 }).catch(() => {});
 
       const files = await readdir(tmpDir);
@@ -118,14 +136,14 @@ export const bilibiliExtractor: Extractor & {
         if (text.length >= 50) transcript = text;
       }
 
-      // Whisper fallback: download video temporarily for STT
+      // Whisper fallback
       if (!transcript) {
         logger.info('bilibili', 'no subtitles, trying whisper STT');
         const videoPath = join(tmpDir, 'video.mp4');
         try {
           await execFileAsync('yt-dlp', [
             '-f', 'best[ext=mp4]/best', '-o', videoPath,
-            '--no-playlist', '--no-warnings', resolvedUrl,
+            '--no-playlist', '--no-warnings', videoUrl,
           ], { maxBuffer: 10 * 1024 * 1024, timeout: 300_000 });
           const result = await getTimedTranscript(videoPath, tmpDir);
           if (result) {
@@ -142,36 +160,24 @@ export const bilibiliExtractor: Extractor & {
       await rm(tmpDir, { recursive: true, force: true }).catch(() => {});
     }
 
-    // Map native chapters
-    const { formatTimestamp } = await import('../utils/transcript-service.js');
-    const chapters = data.chapters?.length
-      ? data.chapters.map(ch => ({
-          startTime: formatTimestamp(ch.start_time),
-          endTime: formatTimestamp(ch.end_time),
-          title: ch.title,
-        }))
-      : undefined;
-
     return {
       platform: 'bilibili',
-      author: data.uploader ?? 'Unknown',
-      authorHandle: data.uploader_id ? `uid:${data.uploader_id}` : (data.uploader ?? 'Unknown'),
+      author: data.owner.name,
+      authorHandle: `uid:${data.owner.mid}`,
       title: data.title,
       text: buildText(data),
-      images: data.thumbnail ? [data.thumbnail] : [],
-      videos: [{ url: data.webpage_url ?? resolvedUrl, thumbnailUrl: data.thumbnail, type: 'video' }],
-      date: formatDate(data.upload_date),
+      images: data.pic ? [data.pic] : [],
+      videos: [{ url: videoUrl, thumbnailUrl: data.pic, type: 'video' }],
+      date: formatUnixDate(data.pubdate),
       url,
-      likes: data.like_count,
-      commentCount: data.comment_count,
+      likes: data.stat.like,
+      commentCount: data.stat.reply,
       transcript,
       timedTranscript,
-      chapters,
     };
   },
 
   async extractComments(_url: string, _limit = 20): Promise<ThreadComment[]> {
-    // Keep extractor API-free: comments are not fetched via Bilibili API.
     return [];
   },
 };

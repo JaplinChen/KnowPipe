@@ -12,6 +12,7 @@ import { xiaohongshuExtractor } from './xiaohongshu-extractor.js';
 import { douyinExtractor } from './douyin-extractor.js';
 import { tiktokExtractor } from './tiktok-extractor.js';
 import { ithomeExtractor } from './ithome-extractor.js';
+import { zhihuExtractor } from './zhihu-extractor.js';
 import { directVideoExtractor } from './direct-video-extractor.js';
 import { webExtractor } from './web-extractor.js';
 import { loadPlugins } from '../plugins/plugin-loader.js';
@@ -31,6 +32,7 @@ export async function registerAllExtractors(): Promise<void> {
   registerExtractor(douyinExtractor);
   registerExtractor(tiktokExtractor);
   registerExtractor(ithomeExtractor);
+  registerExtractor(zhihuExtractor);
   registerExtractor(directVideoExtractor);
 
   // Load plugins before fallback extractor

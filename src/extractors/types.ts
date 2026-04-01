@@ -1,7 +1,8 @@
 /** Supported platform identifiers ??add new platforms here */
 export type Platform =
   | 'x' | 'threads' | 'youtube' | 'github' | 'reddit' | 'web'
-  | 'weibo' | 'xhs' | 'bilibili' | 'douyin' | 'tiktok' | 'ithome';
+  | 'weibo' | 'xhs' | 'bilibili' | 'douyin' | 'tiktok' | 'ithome'
+  | 'zhihu';
 
 /** A single comment or reply on a post */
 export interface ThreadComment {
