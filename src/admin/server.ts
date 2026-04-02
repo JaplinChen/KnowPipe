@@ -201,7 +201,16 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   // --- User config endpoints (runtime) ---
   if (url === '/api/user-config' && method === 'GET') {
-    res.end(JSON.stringify(getUserConfig()));
+    const cfg = JSON.parse(JSON.stringify(getUserConfig())) as Record<string, unknown>;
+    // Merge .env API keys into response so UI shows them pre-filled
+    const llm = cfg.llm as Record<string, unknown>;
+    const omlx = llm.omlx as Record<string, string>;
+    const openai = llm.openai as Record<string, string>;
+    const gemini = llm.gemini as Record<string, string>;
+    if (!omlx.apiKey && process.env['OMLX_API_KEY']) omlx.apiKey = process.env['OMLX_API_KEY'];
+    if (!openai.apiKey && process.env['OPENAI_API_KEY']) openai.apiKey = process.env['OPENAI_API_KEY'];
+    if (!gemini.apiKey && process.env['GEMINI_API_KEY']) gemini.apiKey = process.env['GEMINI_API_KEY'];
+    res.end(JSON.stringify(cfg));
     return;
   }
 
