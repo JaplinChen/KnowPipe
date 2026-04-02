@@ -41,6 +41,8 @@ import { handleFind } from './find-command.js';
 import { handlePatrol } from './patrol-command.js';
 import { handleCodeAction } from './code-command.js';
 import { handleVsearch } from './vsearch-command.js';
+import { handleToolkit } from './toolkit-command.js';
+import { handleMemoryExport } from './memory-export-command.js';
 // Hub dispatchers
 import { handleSearchHub, handleSearchCallback } from './search-hub.js';
 import { handleTrackHub, handleTrackCallback } from './track-hub.js';
@@ -124,6 +126,8 @@ export function registerCommands(
   registerAsyncCommand(bot, 'benchmark', 'benchmark', config, handleBenchmark);
   registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
   registerAsyncCommand(bot, 'suggest', 'suggest', config, handleSuggest);
+  registerAsyncCommand(bot, 'toolkit', 'toolkit', config, handleToolkit);
+  registerAsyncCommand(bot, 'memory', 'memory-export', config, handleMemoryExport);
 
   // --- InlineKeyboard: /knowledge sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {

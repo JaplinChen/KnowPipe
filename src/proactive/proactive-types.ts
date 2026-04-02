@@ -40,6 +40,8 @@ export interface ProactiveDigest {
   trends: TrendAlert[];
   gaps: CategoryGap[];
   summary?: string;
+  /** Formatted insight lines from daily-insights generator. */
+  insights?: string[];
 }
 
 export const DEFAULT_PROACTIVE_CONFIG: ProactiveConfig = {

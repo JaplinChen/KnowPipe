@@ -93,6 +93,8 @@ export interface SaveResult {
   imageCount: number;
   videoCount: number;
   duplicate?: boolean;
+  /** Path to generated info card PNG (if available). */
+  cardPath?: string;
 }
 
 /** Build URL index by scanning all .md files (runs once, then cached in memory). */

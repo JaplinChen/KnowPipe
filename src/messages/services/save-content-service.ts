@@ -3,6 +3,7 @@ import { logger } from '../../core/logger.js';
 import type { ExtractedContent } from '../../extractors/types.js';
 import { saveToVault, type SaveResult } from '../../saver.js';
 import { recordSave } from '../../memory/memory-store.js';
+import { generateInfoCard } from '../../cards/card-renderer.js';
 
 export async function saveExtractedContent(
   content: ExtractedContent,
@@ -24,6 +25,15 @@ export async function saveExtractedContent(
       content.platform,
       content.title,
     ).catch(() => {});
+  }
+
+  // Generate info card (best-effort, 10s timeout)
+  if (!result.duplicate) {
+    try {
+      const cardTimeout = new Promise<null>(r => setTimeout(() => r(null), 10_000));
+      const cardResult = await Promise.race([generateInfoCard(content, vaultPath), cardTimeout]);
+      if (cardResult) result.cardPath = cardResult;
+    } catch { /* best-effort */ }
   }
 
   return result;

@@ -163,6 +163,13 @@ export function registerUrlProcessingHandler(
         const fallbackNote = wasFallback ? '\n⚠️ 平台擷取失敗，已使用通用網頁擷取' : '';
         await ctx.reply(formatSavedSummary(content, result, config.vaultPath) + fallbackNote, { parse_mode: 'HTML' });
 
+        // 回傳資訊卡圖片到 Telegram
+        if (result.cardPath) {
+          try {
+            await ctx.replyWithPhoto({ source: result.cardPath });
+          } catch { /* 圖片回傳非關鍵，靜默失敗 */ }
+        }
+
         // 回傳 .md 檔案到 Telegram
         try {
           await ctx.replyWithDocument({ source: result.mdPath, filename: result.mdPath.split('/').pop() ?? 'note.md' });

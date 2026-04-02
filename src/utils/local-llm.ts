@@ -5,6 +5,7 @@
 import { spawn } from 'node:child_process';
 import { runViaDdgChat } from './ddg-chat.js';
 import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
+import { resolveModelTier, type TaskType } from './model-router.js';
 
 const CLI_TIMEOUT_MS = 90_000;
 
@@ -16,11 +17,14 @@ export const LLM_MODELS = {
 } as const;
 
 export type ModelTier = keyof typeof LLM_MODELS;
+export type { TaskType } from './model-router.js';
 
 interface RunOptions {
   timeoutMs?: number;
   /** Model tier for routing. Default: 'standard'. */
   model?: ModelTier;
+  /** Semantic task type — auto-resolves to optimal tier via model-router. */
+  task?: TaskType;
   /** Max tokens for oMLX inference. Default: 4096. */
   maxTokens?: number;
 }
@@ -78,7 +82,9 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
-  const tier = options.model ?? 'standard';
+  const tier = options.task
+    ? resolveModelTier(options.task, options.model)
+    : (options.model ?? 'standard');
   const model = LLM_MODELS[tier];
 
   // 1) oMLX local inference (tier-aware: flash→4B, standard→9B, deep→27B)

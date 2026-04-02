@@ -15,6 +15,7 @@ import { formatWallSummaryForDigest } from '../radar/wall-service.js';
 import { logger } from '../core/logger.js';
 import { runLocalLlmPrompt } from '../utils/local-llm.js';
 import { runWeeklyCycle } from './proactive-weekly.js';
+import { generateDailyInsights, formatInsightsSection } from './daily-insights.js';
 
 /** Format radar cycle summary for digest. */
 function formatRadarSection(summary: RadarCycleSummary | undefined): string[] {
@@ -78,10 +79,16 @@ function formatDigestMessage(
     lines.push('');
   }
 
-  // AI summary
+  // AI summary (legacy, brief)
   if (digest.summary) {
-    lines.push('💡 【AI 洞察】');
+    lines.push('🧠 【AI 總結】');
     lines.push(digest.summary);
+    lines.push('');
+  }
+
+  // Deep insights section (injected from daily-insights generator)
+  if (digest.insights && digest.insights.length > 0) {
+    lines.push(...digest.insights);
   }
 
   return lines.join('\n');
@@ -182,8 +189,16 @@ async function runDigestCycle(
       gaps,
     };
 
-    // Best-effort AI insight
+    // Best-effort AI insight (brief summary)
     digest.summary = await generateDigestInsight(digest);
+
+    // Deep insights from daily-insights generator (cross-domain patterns)
+    try {
+      const insights = await generateDailyInsights(config.vaultPath);
+      if (insights.length > 0) {
+        digest.insights = formatInsightsSection(insights);
+      }
+    } catch { /* best-effort */ }
 
     // Load radar cycle summary for integrated report
     const radarConfig = await loadRadarConfig();

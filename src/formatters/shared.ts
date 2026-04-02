@@ -1,5 +1,6 @@
 import type { ChapterInfo, ExtractedContent, LinkedContentMeta, ThreadComment } from '../extractors/types.js';
 import { extractKeywords } from '../classifier.js';
+import { PIPELINE_VERSION } from '../pipeline/version-config.js';
 
 export const PLATFORM_LABELS: Record<string, string> = {
   x: 'X (Twitter)',
@@ -121,6 +122,7 @@ export function buildFrontmatter(
   ];
   if (content.stars != null) lines.push(`stars: ${content.stars}`);
   if (content.language) lines.push(`language: ${content.language}`);
+  lines.push(`pipeline_version: "${PIPELINE_VERSION}"`);
   lines.push('---');
   return lines;
 }

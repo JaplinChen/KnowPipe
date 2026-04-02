@@ -8,6 +8,7 @@ import { Markup } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { handleLogs, handleHealth, handleRestart } from './admin-command.js';
 import { handleDoctor } from './doctor-command.js';
+import { handleDoctorUpgrade, handleDoctorUpgradeRun } from './doctor-upgrade-command.js';
 import { handleCode } from './code-command.js';
 import type { BotStats } from '../messages/types.js';
 
@@ -47,6 +48,12 @@ export function createAdminHub(
     }
 
     // Config-based handlers
+    if (sub === 'upgrade') {
+      if (rest === 'run') { await handleDoctorUpgradeRun(ctx, config); return; }
+      if (rest === 'recent') { await handleDoctorUpgradeRun(ctx, config, true); return; }
+      await handleDoctorUpgrade(ctx, config); return;
+    }
+
     const configHandlers: Record<string, CtxHandler> = {
       health: handleHealth, doctor: handleDoctor, logs: handleLogs,
       restart: handleRestart, code: handleCode,
@@ -73,6 +80,7 @@ export function createAdminHub(
           Markup.button.callback('📚 學習', 'adm:learn'),
         ],
         [
+          Markup.button.callback('⬆️ 版本升級', 'adm:upgrade'),
           Markup.button.callback('🔄 重啟', 'adm:restart'),
           Markup.button.callback('🗑 清除統計', 'adm:clear'),
         ],
@@ -98,6 +106,9 @@ export function createAdminCallback(
       case 'logs': rewriteText(ctx, '/logs', ''); await handleLogs(ctx, config); break;
       case 'restart': rewriteText(ctx, '/restart', ''); await handleRestart(ctx, config); break;
       case 'code': rewriteText(ctx, '/code', ''); await handleCode(ctx, config); break;
+      case 'upgrade': await handleDoctorUpgrade(ctx, config); break;
+      case 'upgrade-run': await handleDoctorUpgradeRun(ctx, config); break;
+      case 'upgrade-recent': await handleDoctorUpgradeRun(ctx, config, true); break;
       case 'learn':
         await ctx.reply(
           '選擇 Vault 學習操作：',
