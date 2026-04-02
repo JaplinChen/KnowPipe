@@ -67,6 +67,10 @@ export interface UserConfig {
 
 /* ── Defaults ───────────────────────────────────────────────────────── */
 
+const IS_DOCKER = process.env.NODE_ENV === 'production';
+/** Docker 容器內用 host.docker.internal 連到主機服務 */
+const LOCAL_HOST = IS_DOCKER ? 'host.docker.internal' : '127.0.0.1';
+
 const ALL_PLATFORMS = [
   'x', 'threads', 'youtube', 'github', 'reddit', 'bilibili',
   'weibo', 'xiaohongshu', 'douyin', 'tiktok', 'ithome', 'zhihu',
@@ -93,7 +97,7 @@ const DEFAULTS: UserConfig = {
       gemini: false, opencode: true, ddg: true,
     },
     omlx: {
-      baseUrl: 'http://127.0.0.1:8000',
+      baseUrl: `http://${LOCAL_HOST}:8000`,
       apiKey: '',
       model: '',
       models: {
@@ -103,7 +107,7 @@ const DEFAULTS: UserConfig = {
       },
     },
     ollama: {
-      baseUrl: 'http://127.0.0.1:11434',
+      baseUrl: `http://${LOCAL_HOST}:11434`,
       apiKey: '',
       model: '',
       models: { flash: '', standard: '', deep: '' },
