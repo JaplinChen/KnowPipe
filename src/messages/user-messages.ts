@@ -1,5 +1,18 @@
+import { basename, relative } from 'node:path';
 import type { ExtractedContent } from '../extractors/types.js';
 import type { SaveResult } from '../saver.js';
+
+/** Escape HTML special characters for Telegram HTML parse mode */
+function escapeHtml(text: string): string {
+  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/** Build an obsidian:// URI that opens the note directly in Obsidian */
+export function buildObsidianUri(vaultPath: string, absoluteMdPath: string): string {
+  const vaultName = basename(vaultPath);
+  const relPath = relative(vaultPath, absoluteMdPath);
+  return `obsidian://open?vault=${encodeURIComponent(vaultName)}&file=${encodeURIComponent(relPath)}`;
+}
 
 export function formatUnsupportedUrlMessage(url: string): string {
   return `不支援的連結：${url}`;
@@ -17,20 +30,32 @@ export function formatProcessingMessage(platform: string, stage?: keyof typeof S
   return `⏳ 正在處理 ${platform} 連結…${stageText}`;
 }
 
-export function formatDuplicateMessage(mdPath: string): string {
+export function formatDuplicateMessage(mdPath: string, vaultPath?: string): string {
+  if (vaultPath) {
+    const fileName = mdPath.split('/').pop() ?? mdPath;
+    const uri = buildObsidianUri(vaultPath, mdPath);
+    return `📋 已儲存過，略過：\n<a href="${uri}">${escapeHtml(fileName)}</a>`;
+  }
   return `📋 已儲存過，略過：\n${mdPath}`;
 }
 
-export function formatSavedSummary(content: ExtractedContent, result: SaveResult): string {
-  return [
-    `✅ 已儲存：${content.author} (${content.authorHandle})`,
-    `📂 分類：${content.category}`,
+export function formatSavedSummary(content: ExtractedContent, result: SaveResult, vaultPath?: string): string {
+  const fileName = result.mdPath.split('/').pop() ?? 'note.md';
+  const fileDisplay = vaultPath
+    ? `<a href="${buildObsidianUri(vaultPath, result.mdPath)}">${escapeHtml(fileName)}</a>`
+    : result.mdPath;
+  const text = content.text.length > 200 ? content.text.slice(0, 200) + '...' : content.text;
+
+  const lines = [
+    `✅ 已儲存：${escapeHtml(content.author)} (${escapeHtml(content.authorHandle)})`,
+    `📂 分類：${escapeHtml(content.category ?? '其他')}`,
     '',
-    content.text.length > 200 ? content.text.slice(0, 200) + '...' : content.text,
+    escapeHtml(text),
     '',
     `🖼 圖片：${result.imageCount} | 🎬 影片：${result.videoCount}${content.comments?.length ? ` | 💬 評論：${content.comments.length}` : ''}`,
-    `📄 檔案：${result.mdPath}`,
-  ].join('\n');
+    `📄 檔案：${fileDisplay}`,
+  ];
+  return lines.join('\n');
 }
 
 export const AI_TRANSCRIPT_PREFIX = '\n\n文字稿：';

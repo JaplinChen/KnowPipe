@@ -108,12 +108,11 @@ export function registerPhotoHandler(
       if (stats.recent.length >= 50) stats.recent.shift();
       stats.recent.push(`[圖片] ${content.title.slice(0, 50)}`);
 
-      await ctx.reply(formatSavedSummary(content, result));
+      await ctx.reply(formatSavedSummary(content, result, config.vaultPath), { parse_mode: 'HTML' });
 
       // 回傳 .md 檔案
       try {
-        const fullPath = join(config.vaultPath, result.mdPath);
-        await ctx.replyWithDocument({ source: fullPath, filename: result.mdPath.split('/').pop() ?? 'note.md' });
+        await ctx.replyWithDocument({ source: result.mdPath, filename: result.mdPath.split('/').pop() ?? 'note.md' });
       } catch { /* 非關鍵 */ }
 
       logger.info('photo', 'saved', { path: result.mdPath });

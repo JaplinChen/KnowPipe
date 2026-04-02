@@ -1,6 +1,5 @@
 import type { Telegraf } from 'telegraf';
 import { createHash } from 'node:crypto';
-import { join } from 'node:path';
 import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
 import type { ExtractorWithComments, ExtractorWithSeries } from '../extractors/types.js';
@@ -150,7 +149,7 @@ export function registerUrlProcessingHandler(
 
         if (result.duplicate) {
           stopTyping();
-          await ctx.reply(formatDuplicateMessage(result.mdPath));
+          await ctx.reply(formatDuplicateMessage(result.mdPath, config.vaultPath), { parse_mode: 'HTML' });
           try { await ctx.deleteMessage(msgId); } catch { /* */ }
           continue;
         }
@@ -162,12 +161,11 @@ export function registerUrlProcessingHandler(
         stopTyping();
         react(ctx, '✅');
         const fallbackNote = wasFallback ? '\n⚠️ 平台擷取失敗，已使用通用網頁擷取' : '';
-        await ctx.reply(formatSavedSummary(content, result) + fallbackNote);
+        await ctx.reply(formatSavedSummary(content, result, config.vaultPath) + fallbackNote, { parse_mode: 'HTML' });
 
         // 回傳 .md 檔案到 Telegram
         try {
-          const fullPath = join(config.vaultPath, result.mdPath);
-          await ctx.replyWithDocument({ source: fullPath, filename: result.mdPath.split('/').pop() ?? 'note.md' });
+          await ctx.replyWithDocument({ source: result.mdPath, filename: result.mdPath.split('/').pop() ?? 'note.md' });
         } catch { /* 檔案回傳非關鍵，靜默失敗 */ }
       } catch (err) {
         stopTyping();

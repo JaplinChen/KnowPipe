@@ -42,24 +42,31 @@ describe('user-messages', () => {
     expect(msg).toContain(STAGE.extracting);
   });
 
-  it('formats duplicate message', () => {
+  it('formats duplicate message with obsidian URI', () => {
+    const msg = formatDuplicateMessage('/Users/me/vault/ObsBot/note.md', '/Users/me/vault');
+    expect(msg).toContain('obsidian://open?vault=vault');
+    expect(msg).toContain('note.md');
+  });
+
+  it('formats duplicate message without vaultPath (fallback)', () => {
     expect(formatDuplicateMessage('/vault/abc.md')).toContain('/vault/abc.md');
   });
 
-  it('formats saved summary with counts', () => {
+  it('formats saved summary with obsidian link', () => {
     const content = makeContent({ comments: [{ author: 'u', authorHandle: '@u', text: 'long useful comment here', date: '2026-03-08' }] });
     const summary = formatSavedSummary(content, {
-      mdPath: '/vault/a.md',
+      mdPath: '/Users/me/vault/ObsBot/a.md',
       imageCount: 2,
       videoCount: 1,
-    });
+    }, '/Users/me/vault');
 
     expect(summary).toContain('已儲存：Alice (@alice)');
     expect(summary).toContain('分類：技術');
     expect(summary).toContain('圖片：2');
     expect(summary).toContain('影片：1');
     expect(summary).toContain('評論：1');
-    expect(summary).toContain('/vault/a.md');
+    expect(summary).toContain('obsidian://open?vault=vault');
+    expect(summary).toContain('a.md</a>');
   });
 
   it('uses transcript prefix constant', () => {

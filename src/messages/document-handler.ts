@@ -94,7 +94,7 @@ export function registerDocumentHandler(
       if (stats.recent.length >= 50) stats.recent.shift();
       stats.recent.push(`[PDF] ${content.title.slice(0, 50)}`);
 
-      await ctx.reply(formatSavedSummary(content, result));
+      await ctx.reply(formatSavedSummary(content, result, config.vaultPath), { parse_mode: 'HTML' });
       logger.info('doc', 'pdf-saved', { fileName, path: result.mdPath });
     } catch (err) {
       logger.error('doc', 'pdf-failed', { fileName, err });
