@@ -365,7 +365,7 @@ var PROVIDERS = [
   { key: 'ollama', icon: '🦙', label: 'Ollama', desc: '本機模型伺服器', hasModels: true, hasBaseUrl: true, hasApiKey: false, detectProvider: 'ollama' },
   { key: 'openai', icon: '🤖', label: 'OpenAI', desc: 'GPT-4.1 / 相容 API', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'openai' },
   { key: 'gemini', icon: '✨', label: 'Gemini', desc: 'Google AI', hasModels: false, hasBaseUrl: false, hasApiKey: true },
-  { key: 'opencode', icon: '⌨️', label: 'OpenCode', desc: '免費 CLI', hasModels: true, hasBaseUrl: false },
+  { key: 'opencode', icon: '⌨️', label: 'OpenCode', desc: '免費 CLI', hasModels: true, hasBaseUrl: false, presetModels: ['opencode/big-pickle','opencode/gpt-5-nano','opencode/mimo-v2-omni-free','opencode/mimo-v2-pro-free','opencode/minimax-m2.5-free','opencode/nemotron-3-super-free','opencode/qwen3.6-plus-free'] },
   { key: 'ddg', icon: '🦆', label: 'DDG Chat', desc: '瀏覽器備援', hasModels: false },
 ];
 var _activeProvider = 'omlx';
@@ -529,19 +529,22 @@ function renderProviderPanel() {
 function renderModelFields(provider, models) {
   var tiers = ['flash', 'standard', 'deep'];
   var tierLabels = { flash: 'Flash（快速）', standard: 'Standard（平衡）', deep: 'Deep（深度）' };
+  var pInfo = PROVIDERS.find(function(x) { return x.key === provider; }) || {};
   var html = '';
   tiers.forEach(function(tier) {
     var detected = (_detectedModels[provider] || []);
+    var presets = pInfo.presetModels || [];
+    var options = detected.length > 0 ? detected : presets;
     var val = models[tier] || '';
     html += '<div class="llm-field"><label>' + tierLabels[tier] + '</label>';
-    if (detected.length > 0) {
+    if (options.length > 0) {
       html += '<div class="model-row"><select id="model-' + provider + '-' + tier + '" onchange="onModelSelect(\'' + provider + '\',\'' + tier + '\',this.value)">';
       html += '<option value="">（自訂）</option>';
-      detected.forEach(function(m) {
+      options.forEach(function(m) {
         html += '<option value="' + esc(m) + '"' + (m === val ? ' selected' : '') + '>' + m + '</option>';
       });
       html += '</select></div>';
-      var isCustom = val && detected.indexOf(val) === -1;
+      var isCustom = val && options.indexOf(val) === -1;
       if (isCustom) {
         html += '<input type="text" id="model-custom-' + provider + '-' + tier + '" value="' + esc(val) + '" placeholder="自訂模型名稱" style="margin-top:4px" />';
       }
