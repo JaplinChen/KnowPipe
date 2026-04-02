@@ -361,7 +361,7 @@ var FEATURE_LABELS = {
 };
 
 var PROVIDERS = [
-  { key: 'omlx', icon: '🖥️', label: 'oMLX', desc: '本機 Apple Silicon', hasModels: true, hasBaseUrl: true, detectProvider: 'omlx' },
+  { key: 'omlx', icon: '🖥️', label: 'oMLX', desc: '本機 Apple Silicon', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'omlx' },
   { key: 'ollama', icon: '🦙', label: 'Ollama', desc: '本機模型伺服器', hasModels: true, hasBaseUrl: true, hasApiKey: false, detectProvider: 'ollama' },
   { key: 'openai', icon: '🤖', label: 'OpenAI', desc: 'GPT-4.1 / 相容 API', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'openai' },
   { key: 'gemini', icon: '✨', label: 'Gemini', desc: 'Google AI', hasModels: false, hasBaseUrl: false, hasApiKey: true },
@@ -631,7 +631,7 @@ async function saveUserConfig() {
   var curBase = baseUrlEl ? baseUrlEl.value.trim() : '';
   var curKey = apiKeyEl ? apiKeyEl.value.trim() : '';
 
-  if (p === 'omlx') llmPatch.omlx = { baseUrl: curBase || _userConfig.llm.omlx.baseUrl, models: readProviderModels('omlx') };
+  if (p === 'omlx') llmPatch.omlx = { baseUrl: curBase || _userConfig.llm.omlx.baseUrl, apiKey: curKey, models: readProviderModels('omlx') };
   if (p === 'ollama') llmPatch.ollama = { baseUrl: curBase || _userConfig.llm.ollama.baseUrl, apiKey: curKey, models: readProviderModels('ollama') };
   if (p === 'openai') llmPatch.openai = { baseUrl: curBase || _userConfig.llm.openai.baseUrl, apiKey: curKey, models: readProviderModels('openai') };
   if (p === 'gemini') llmPatch.gemini = { apiKey: curKey, model: geminiModelEl ? geminiModelEl.value.trim() : _userConfig.llm.gemini.model };
