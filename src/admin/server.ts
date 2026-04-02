@@ -14,10 +14,13 @@ const RAW_HTML = readFileSync(join(__dirname, 'ui.html'), 'utf-8');
 
 const UI_HTML = RAW_HTML;
 
-/** Only allow localhost connections (127.0.0.1 / ::1 / ::ffff:127.0.0.1). */
-function isLocalhost(req: IncomingMessage): boolean {
+/** Access control: Docker (production) allows all; local dev restricts to localhost. */
+function isAllowed(req: IncomingMessage): boolean {
+  // Docker: port mapping is the access control, allow all connections
+  if (BIND_HOST === '0.0.0.0') return true;
+  // Local dev: only allow localhost
   const remote = req.socket.remoteAddress ?? '';
-  return remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1';
+  return remote === '127.0.0.1' || remote === '::1' || remote.startsWith('::ffff:127.');
 }
 
 function readEnv(): Record<string, string> {
@@ -136,7 +139,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (url.startsWith('/api/') && !isLocalhost(req)) {
+  if (url.startsWith('/api/') && !isAllowed(req)) {
     res.statusCode = 403;
     res.end(JSON.stringify({ error: 'Unauthorized' }));
     return;
