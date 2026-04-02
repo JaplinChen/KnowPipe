@@ -44,16 +44,18 @@ export function formatSavedSummary(content: ExtractedContent, result: SaveResult
   const fileDisplay = vaultPath
     ? `<a href="${buildObsidianUri(vaultPath, result.mdPath)}">${escapeHtml(fileName)}</a>`
     : result.mdPath;
-  const text = content.text.length > 200 ? content.text.slice(0, 200) + '...' : content.text;
+  // Prefer AI-enriched summary over raw text for consistency with Obsidian note
+  const displayText = content.enrichedSummary ?? content.text;
+  const text = displayText.length > 200 ? displayText.slice(0, 200) + '...' : displayText;
 
   const lines = [
-    `✅ 已儲存：${escapeHtml(content.author)} (${escapeHtml(content.authorHandle)})`,
-    `📂 分類：${escapeHtml(content.category ?? '其他')}`,
+    `✅ <b>${escapeHtml(content.title)}</b>`,
+    `👤 ${escapeHtml(content.author)} (${escapeHtml(content.authorHandle)}) | 📂 ${escapeHtml(content.category ?? '其他')}`,
     '',
     escapeHtml(text),
     '',
     `🖼 圖片：${result.imageCount} | 🎬 影片：${result.videoCount}${content.comments?.length ? ` | 💬 評論：${content.comments.length}` : ''}`,
-    `📄 檔案：${fileDisplay}`,
+    `📄 ${fileDisplay}`,
   ];
   return lines.join('\n');
 }

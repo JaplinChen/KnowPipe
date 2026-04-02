@@ -52,7 +52,7 @@ describe('user-messages', () => {
     expect(formatDuplicateMessage('/vault/abc.md')).toContain('/vault/abc.md');
   });
 
-  it('formats saved summary with obsidian link', () => {
+  it('formats saved summary with title and obsidian link', () => {
     const content = makeContent({ comments: [{ author: 'u', authorHandle: '@u', text: 'long useful comment here', date: '2026-03-08' }] });
     const summary = formatSavedSummary(content, {
       mdPath: '/Users/me/vault/ObsBot/a.md',
@@ -60,13 +60,25 @@ describe('user-messages', () => {
       videoCount: 1,
     }, '/Users/me/vault');
 
-    expect(summary).toContain('已儲存：Alice (@alice)');
-    expect(summary).toContain('分類：技術');
+    expect(summary).toContain('<b>Sample title</b>');
+    expect(summary).toContain('Alice (@alice)');
+    expect(summary).toContain('技術');
     expect(summary).toContain('圖片：2');
     expect(summary).toContain('影片：1');
     expect(summary).toContain('評論：1');
     expect(summary).toContain('obsidian://open?vault=vault');
     expect(summary).toContain('a.md</a>');
+  });
+
+  it('prefers enrichedSummary over raw text', () => {
+    const content = makeContent({ enrichedSummary: 'AI 生成的摘要' });
+    const summary = formatSavedSummary(content, {
+      mdPath: '/vault/b.md',
+      imageCount: 0,
+      videoCount: 0,
+    });
+    expect(summary).toContain('AI 生成的摘要');
+    expect(summary).not.toContain('short text');
   });
 
   it('uses transcript prefix constant', () => {
