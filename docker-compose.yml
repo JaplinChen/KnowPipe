@@ -1,0 +1,26 @@
+# ObsBot — Docker Compose
+# 使用方式：
+#   1. cp .env.example .env && 編輯 .env
+#   2. docker compose up -d
+#   3. 在 Telegram 貼連結給你的 bot
+
+services:
+  obsbot:
+    build: .
+    container_name: obsbot
+    env_file: .env
+    environment:
+      # 容器內 vault 路徑固定，由 volume 掛載外部目錄
+      - VAULT_PATH=/vault
+    volumes:
+      # Obsidian Vault — 改成你的 vault 實際路徑
+      - ${HOST_VAULT_PATH:-./_vault}:/vault
+      # 持久化狀態（分類規則、知識庫、用戶記憶等）
+      - ./data:/app/data
+    ports:
+      # Admin UI（首次設定用，可移除）
+      - "3001:3001"
+    restart: unless-stopped
+    # Camoufox (Firefox) 需要 SYS_ADMIN 才能啟動 sandbox
+    cap_add:
+      - SYS_ADMIN
