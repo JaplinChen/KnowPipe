@@ -31,9 +31,22 @@ export interface LlmTierModels {
 
 export type ModelTier = keyof LlmTierModels;
 
+/** OpenAI-compatible provider config (oMLX, Ollama, OpenAI all share this shape). */
+export interface OpenAIProviderConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  models: LlmTierModels;
+}
+
+export type LlmProviderKey = 'auto' | 'omlx' | 'ollama' | 'openai' | 'gemini' | 'opencode' | 'ddg' | 'none';
+
 export interface LlmConfig {
-  provider: 'auto' | 'omlx' | 'opencode' | 'ddg' | 'none';
-  omlx: { baseUrl: string; models: LlmTierModels };
+  provider: LlmProviderKey;
+  omlx: OpenAIProviderConfig;
+  ollama: OpenAIProviderConfig;
+  openai: OpenAIProviderConfig;
+  gemini: { apiKey: string; model: string };
   opencode: { models: LlmTierModels; timeoutMs: number };
   routing: Record<TaskType, ModelTier>;
 }
@@ -74,11 +87,29 @@ const DEFAULTS: UserConfig = {
     provider: 'auto',
     omlx: {
       baseUrl: 'http://127.0.0.1:8000',
+      apiKey: '',
+      model: '',
       models: {
         flash: 'MLX-Qwen3.5-4B-Claude-4.6-Opus-Reasoning-Distilled-4bit',
         standard: 'Qwen3.5-9B-MLX-4bit',
         deep: 'Qwen3.5-27B-4bit',
       },
+    },
+    ollama: {
+      baseUrl: 'http://127.0.0.1:11434',
+      apiKey: '',
+      model: '',
+      models: { flash: '', standard: '', deep: '' },
+    },
+    openai: {
+      baseUrl: 'https://api.openai.com/v1',
+      apiKey: '',
+      model: '',
+      models: { flash: 'gpt-4.1-mini', standard: 'gpt-4.1-mini', deep: 'gpt-4.1' },
+    },
+    gemini: {
+      apiKey: '',
+      model: 'gemini-2.5-flash',
     },
     opencode: {
       models: {

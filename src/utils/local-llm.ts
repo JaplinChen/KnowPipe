@@ -7,6 +7,9 @@ import { runViaDdgChat } from './ddg-chat.js';
 import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
 import { resolveModelTier, type TaskType } from './model-router.js';
 import { getUserConfig } from './user-config.js';
+import {
+  isProviderAvailable, openaiChatCompletion, geminiChatCompletion,
+} from './openai-client.js';
 
 /** Read CLI timeout from user config. */
 function getCliTimeout(): number {
@@ -80,28 +83,63 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
 
 /**
  * Run a prompt against LLM providers with tier-based model selection.
- * Priority: oMLX (local, tier-aware) → OpenCode CLI (remote) → DDG AI Chat.
+ * Priority chain (configurable via user-config.json):
+ *   auto: oMLX → Ollama → OpenAI → Gemini → OpenCode CLI → DDG Chat
+ *   specific: use only the selected provider, then DDG fallback
  */
 export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}): Promise<string | null> {
   const timeoutMs = options.timeoutMs ?? 30_000;
   const tier = options.task
     ? resolveModelTier(options.task, options.model)
     : (options.model ?? 'standard');
-  const model = getLlmModels()[tier];
+  const ocModel = getLlmModels()[tier];
+  const llmCfg = getUserConfig().llm;
+  const selected = llmCfg.provider;
 
-  // 1) oMLX local inference (tier-aware: flash→4B, standard→9B, deep→27B)
-  if (await isOmlxAvailable()) {
-    const omlxResult = await omlxChatCompletion(prompt, { model: tier, timeoutMs, maxTokens: options.maxTokens });
-    if (omlxResult) return omlxResult;
+  if (selected === 'none') return null;
+
+  const messages = [{ role: 'user' as const, content: prompt }];
+  const compOpts = { timeoutMs, maxTokens: options.maxTokens };
+
+  // Build provider attempt chain
+  const chain: Array<() => Promise<string | null>> = [];
+
+  const tryOmlx = async () => {
+    if (!await isOmlxAvailable()) return null;
+    return omlxChatCompletion(prompt, { model: tier, timeoutMs, maxTokens: options.maxTokens });
+  };
+  const tryOllama = async () => {
+    if (!await isProviderAvailable('ollama')) return null;
+    const m = llmCfg.ollama.models[tier] || llmCfg.ollama.model;
+    return m ? openaiChatCompletion('ollama', m, messages, compOpts) : null;
+  };
+  const tryOpenai = async () => {
+    if (!llmCfg.openai.apiKey) return null;
+    const m = llmCfg.openai.models[tier] || llmCfg.openai.model;
+    return m ? openaiChatCompletion('openai', m, messages, compOpts) : null;
+  };
+  const tryGemini = async () => {
+    if (!llmCfg.gemini.apiKey) return null;
+    return geminiChatCompletion(llmCfg.gemini.model || 'gemini-2.5-flash', messages, compOpts);
+  };
+  const tryCli = async () => runViaCli(prompt, timeoutMs, ocModel);
+  const tryDdg = async () => runViaDdgChat(prompt, timeoutMs);
+
+  if (selected === 'auto') {
+    chain.push(tryOmlx, tryOllama, tryOpenai, tryGemini, tryCli, tryDdg);
+  } else {
+    const providerMap: Record<string, () => Promise<string | null>> = {
+      omlx: tryOmlx, ollama: tryOllama, openai: tryOpenai,
+      gemini: tryGemini, opencode: tryCli, ddg: tryDdg,
+    };
+    if (providerMap[selected]) chain.push(providerMap[selected]);
+    chain.push(tryDdg); // always add DDG as final fallback
   }
 
-  // 2) OpenCode CLI with best-performing model per tier
-  const cliResult = await runViaCli(prompt, timeoutMs, model);
-  if (cliResult) return cliResult;
-
-  // 3) Fallback to DuckDuckGo AI Chat via Camoufox (free, slower)
-  const ddgResult = await runViaDdgChat(prompt, timeoutMs);
-  if (ddgResult) return ddgResult;
+  for (const attempt of chain) {
+    const result = await attempt();
+    if (result) return result;
+  }
 
   return null;
 }

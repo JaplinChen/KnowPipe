@@ -352,9 +352,12 @@ var FEATURE_LABELS = {
 };
 
 var PROVIDERS = [
-  { key: 'omlx', icon: '🖥️', label: 'oMLX', desc: '本機 Apple Silicon' },
-  { key: 'opencode', icon: '🤖', label: 'OpenCode', desc: '遠端免費模型' },
-  { key: 'ddg', icon: '🦆', label: 'DDG Chat', desc: '瀏覽器備援' },
+  { key: 'omlx', icon: '🖥️', label: 'oMLX', desc: '本機 Apple Silicon', hasModels: true, hasBaseUrl: true, detectProvider: 'omlx' },
+  { key: 'ollama', icon: '🦙', label: 'Ollama', desc: '本機模型伺服器', hasModels: true, hasBaseUrl: true, hasApiKey: false, detectProvider: 'ollama' },
+  { key: 'openai', icon: '🤖', label: 'OpenAI', desc: 'GPT-4.1 / 相容 API', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'openai' },
+  { key: 'gemini', icon: '✨', label: 'Gemini', desc: 'Google AI', hasModels: false, hasBaseUrl: false, hasApiKey: true },
+  { key: 'opencode', icon: '⌨️', label: 'OpenCode', desc: '免費 CLI', hasModels: true, hasBaseUrl: false },
+  { key: 'ddg', icon: '🦆', label: 'DDG Chat', desc: '瀏覽器備援', hasModels: false },
 ];
 var _activeProvider = 'omlx';
 var _detectedModels = {};
@@ -368,7 +371,7 @@ var PLATFORM_LABELS = {
 
 var _userConfig = {
   features: { translation:true, linkEnrichment:true, imageAnalysis:true, videoTranscription:true, comments:true, proactive:true, monitor:true, wall:true, patrol:false, consolidation:true },
-  llm: { provider:'auto', omlx:{baseUrl:'http://127.0.0.1:8000',models:{flash:'',standard:'',deep:''}}, opencode:{models:{flash:'opencode/mimo-v2-pro-free',standard:'opencode/big-pickle',deep:'opencode/big-pickle'},timeoutMs:90000}, routing:{} },
+  llm: { provider:'auto', omlx:{baseUrl:'http://127.0.0.1:8000',apiKey:'',model:'',models:{flash:'',standard:'',deep:''}}, ollama:{baseUrl:'http://127.0.0.1:11434',apiKey:'',model:'',models:{flash:'',standard:'',deep:''}}, openai:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',models:{flash:'gpt-4.1-mini',standard:'gpt-4.1-mini',deep:'gpt-4.1'}}, gemini:{apiKey:'',model:'gemini-2.5-flash'}, opencode:{models:{flash:'opencode/mimo-v2-pro-free',standard:'opencode/big-pickle',deep:'opencode/big-pickle'},timeoutMs:90000}, routing:{} },
   extractors: { enabled:Object.keys(PLATFORM_LABELS), disabled:[] }
 };
 
@@ -432,7 +435,8 @@ function renderProviderPanel() {
   var panel = document.getElementById('providerPanel');
   var p = _activeProvider;
   var cfg = _userConfig.llm;
-  var isActive = cfg.provider === p || cfg.provider === 'auto';
+  var pInfo = PROVIDERS.find(function(x) { return x.key === p; }) || {};
+  var pCfg = cfg[p] || {};
   var html = '';
 
   // Active provider selector
@@ -444,16 +448,46 @@ function renderProviderPanel() {
   });
   html += '<option value="none"' + (cfg.provider === 'none' ? ' selected' : '') + '>停用 AI</option></select></div>';
 
-  if (p === 'omlx') {
+  // API Key (OpenAI, Gemini)
+  if (pInfo.hasApiKey) {
+    var key = p === 'gemini' ? (cfg.gemini.apiKey || '') : (pCfg.apiKey || '');
+    html += '<div class="llm-field"><label>API Key</label>' +
+      '<div class="input-row"><input type="password" id="provApiKey" value="' + esc(key) + '" placeholder="sk-... 或 AIza..." />' +
+      '<button class="btn btn-ghost" onclick="togglePass(\'provApiKey\')">👁</button></div></div>';
+  }
+
+  // Base URL (oMLX, Ollama, OpenAI)
+  if (pInfo.hasBaseUrl) {
+    var defaultUrls = { omlx: 'http://127.0.0.1:8000', ollama: 'http://127.0.0.1:11434', openai: 'https://api.openai.com/v1' };
     html += '<div class="llm-field"><label>Base URL</label>' +
-      '<input type="text" id="provBaseUrl" value="' + esc(cfg.omlx.baseUrl) + '" placeholder="http://127.0.0.1:8000" /></div>';
-    html += renderModelFields('omlx', cfg.omlx.models);
-    html += renderDetectBtn('omlx');
-  } else if (p === 'opencode') {
-    html += renderModelFields('opencode', cfg.opencode.models);
+      '<input type="text" id="provBaseUrl" value="' + esc(pCfg.baseUrl || defaultUrls[p] || '') + '" placeholder="' + (defaultUrls[p] || '') + '" /></div>';
+  }
+
+  // Gemini model (single model, no tiers)
+  if (p === 'gemini') {
+    html += '<div class="llm-field"><label>模型</label>' +
+      '<input type="text" id="geminiModel" value="' + esc(cfg.gemini.model || 'gemini-2.5-flash') + '" placeholder="gemini-2.5-flash" /></div>';
+  }
+
+  // Tier models (oMLX, Ollama, OpenAI, OpenCode)
+  if (pInfo.hasModels) {
+    var models = p === 'opencode' ? cfg.opencode.models : (pCfg.models || {});
+    html += renderModelFields(p, models);
+  }
+
+  // Detect button
+  if (pInfo.detectProvider) {
+    html += renderDetectBtn(pInfo.detectProvider);
+  }
+
+  // OpenCode specific
+  if (p === 'opencode') {
     html += '<div class="llm-field"><label>CLI Timeout (ms)</label>' +
       '<input type="text" id="provTimeout" value="' + cfg.opencode.timeoutMs + '" /></div>';
-  } else if (p === 'ddg') {
+  }
+
+  // DDG specific
+  if (p === 'ddg') {
     html += '<div class="hint" style="margin-top:8px">DuckDuckGo Chat 為瀏覽器自動化備援，透過 Camoufox 操作 duck.ai。無需額外設定。</div>';
   }
 
@@ -551,30 +585,26 @@ async function saveUserConfig() {
   var provSelect = document.getElementById('llmProviderSelect');
   var baseUrlEl = document.getElementById('provBaseUrl');
   var timeoutEl = document.getElementById('provTimeout');
+  var apiKeyEl = document.getElementById('provApiKey');
+  var geminiModelEl = document.getElementById('geminiModel');
 
-  var patch = {
-    features: features,
-    extractors: { disabled: disabled },
-    llm: {
-      provider: provSelect ? provSelect.value : _userConfig.llm.provider,
-      omlx: {
-        baseUrl: baseUrlEl ? baseUrlEl.value.trim() : _userConfig.llm.omlx.baseUrl,
-        models: {
-          flash: readModelValue('omlx', 'flash'),
-          standard: readModelValue('omlx', 'standard'),
-          deep: readModelValue('omlx', 'deep')
-        }
-      },
-      opencode: {
-        models: {
-          flash: readModelValue('opencode', 'flash'),
-          standard: readModelValue('opencode', 'standard'),
-          deep: readModelValue('opencode', 'deep')
-        },
-        timeoutMs: timeoutEl ? parseInt(timeoutEl.value, 10) || 90000 : _userConfig.llm.opencode.timeoutMs
-      }
-    }
-  };
+  function readProviderModels(prov) {
+    return { flash: readModelValue(prov, 'flash'), standard: readModelValue(prov, 'standard'), deep: readModelValue(prov, 'deep') };
+  }
+
+  // Only update the currently visible provider's settings
+  var p = _activeProvider;
+  var llmPatch = { provider: provSelect ? provSelect.value : _userConfig.llm.provider };
+  var curBase = baseUrlEl ? baseUrlEl.value.trim() : '';
+  var curKey = apiKeyEl ? apiKeyEl.value.trim() : '';
+
+  if (p === 'omlx') llmPatch.omlx = { baseUrl: curBase || _userConfig.llm.omlx.baseUrl, models: readProviderModels('omlx') };
+  if (p === 'ollama') llmPatch.ollama = { baseUrl: curBase || _userConfig.llm.ollama.baseUrl, apiKey: curKey, models: readProviderModels('ollama') };
+  if (p === 'openai') llmPatch.openai = { baseUrl: curBase || _userConfig.llm.openai.baseUrl, apiKey: curKey, models: readProviderModels('openai') };
+  if (p === 'gemini') llmPatch.gemini = { apiKey: curKey, model: geminiModelEl ? geminiModelEl.value.trim() : _userConfig.llm.gemini.model };
+  if (p === 'opencode') llmPatch.opencode = { models: readProviderModels('opencode'), timeoutMs: timeoutEl ? parseInt(timeoutEl.value, 10) || 90000 : _userConfig.llm.opencode.timeoutMs };
+
+  var patch = { features: features, extractors: { disabled: disabled }, llm: llmPatch };
 
   var el = document.getElementById('saveStatus');
   el.textContent = '儲存中...';
