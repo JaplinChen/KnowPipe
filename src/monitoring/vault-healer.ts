@@ -6,6 +6,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getAllMdFiles, parseFrontmatter, parseArrayField } from '../vault/frontmatter-utils.js';
+import { extractKeywords } from '../classifier.js';
 import type { VaultIssue } from './health-types.js';
 import { logger } from '../core/logger.js';
 
@@ -39,6 +40,26 @@ function splitNote(raw: string): { frontmatter: string; body: string; fmEnd: num
     body: raw.slice(match[0].length),
     fmEnd: match[0].length,
   };
+}
+
+/** 從正文提取摘要（前 150 字有意義的文字） */
+function extractSummaryFromBody(body: string): string {
+  const lines = body.split('\n')
+    .map(l => l.trim())
+    .filter(l => l.length > 0 && !/^[#>*\-|]/.test(l) && !/^!\[/.test(l));
+  const text = lines.join(' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim();
+  return text.slice(0, 150).replace(/\n/g, ' ');
+}
+
+/** 替換 frontmatter 中的 keywords 行 */
+function replaceKeywords(raw: string, keywords: string[]): string {
+  return raw.replace(/^keywords:\s*\[.*\]/m, `keywords: [${keywords.join(', ')}]`);
+}
+
+/** 替換 frontmatter 中的 summary 行 */
+function replaceSummary(raw: string, summary: string): string {
+  const escaped = summary.replace(/"/g, '\\"').replace(/\n/g, ' ');
+  return raw.replace(/^summary:\s*".*"/m, `summary: "${escaped}"`);
 }
 
 /**
@@ -113,31 +134,50 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
         issues.push({ file: relPath, issue: '過多空行（已修復）', autoFixable: true, fixed: true, severity: 'auto_fixed' });
       }
 
-      // Quality audit: evaluate frontmatter fields
+      // Quality audit: evaluate and auto-fix frontmatter fields
       const fm = parseFrontmatter(newContent);
-      const qualityIssues: string[] = [];
+      const unfixableIssues: string[] = [];
+      const title = fm.get('title') ?? '';
+      const bodyText = parsed.body;
 
+      // Fix 4: 摘要過短 → 從正文提取
       const summary = fm.get('summary') ?? '';
       if (summary.length < SUMMARY_MIN_CHARS) {
-        qualityIssues.push('摘要過短');
-        issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字）`, autoFixable: false, severity: 'needs_review' });
+        const extracted = extractSummaryFromBody(bodyText);
+        if (extracted.length >= SUMMARY_MIN_CHARS) {
+          newContent = replaceSummary(newContent, extracted);
+          modified = true;
+          issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字→已修復）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });
+        } else {
+          unfixableIssues.push('摘要過短');
+          issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字）`, autoFixable: false, severity: 'needs_review' });
+        }
       }
 
+      // Fix 5: 關鍵字不足 → 從正文提取並合併
       const keywordsRaw = fm.get('keywords') ?? '';
       const keywords = parseArrayField(keywordsRaw);
       if (keywords.length < KEYWORDS_MIN_COUNT) {
-        qualityIssues.push('關鍵字不足');
-        issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length} 個）`, autoFixable: false, severity: 'needs_review' });
+        const extracted = extractKeywords(title, bodyText);
+        const merged = [...new Set([...keywords, ...extracted])].slice(0, 5);
+        if (merged.length >= KEYWORDS_MIN_COUNT) {
+          newContent = replaceKeywords(newContent, merged);
+          modified = true;
+          issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length}→${merged.length} 個，已修復）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });
+        } else {
+          unfixableIssues.push('關鍵字不足');
+          issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length} 個）`, autoFixable: false, severity: 'needs_review' });
+        }
       }
 
-      // Tag low-quality notes with pending-review
-      if (qualityIssues.length > 0) {
+      // 只有真正無法修復的才標記 pending-review
+      if (unfixableIssues.length > 0) {
         const tagged = addPendingReviewTag(newContent);
         if (tagged !== newContent) {
           newContent = tagged;
           modified = true;
           pendingReviewTagged++;
-          logger.info('vault-healer', '標記低品質筆記', { file: relPath, issues: qualityIssues });
+          logger.info('vault-healer', '標記低品質筆記', { file: relPath, issues: unfixableIssues });
         }
       }
 
