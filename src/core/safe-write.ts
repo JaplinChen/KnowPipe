@@ -63,7 +63,10 @@ export async function safeReadJSON<T>(path: string, defaultValue: T): Promise<T>
     }
   } catch { /* no tmp file */ }
 
-  logger.warn('safe-io', `檔案不存在或損壞，使用預設值: ${path}`);
+  // Only warn if file exists but is corrupt; missing files are normal on first run
+  if (await fileExists(path)) {
+    logger.warn('safe-io', `檔案損壞，使用預設值: ${path}`);
+  }
   return defaultValue;
 }
 
@@ -73,6 +76,16 @@ async function tryParseJSON<T>(path: string): Promise<T | null> {
     return JSON.parse(raw) as T;
   } catch {
     return null;
+  }
+}
+
+/** Check if a file exists (without reading). */
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await stat(path);
+    return true;
+  } catch {
+    return false;
   }
 }
 
