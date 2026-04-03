@@ -154,7 +154,7 @@ function renderRight(){
   if(S.tab==='overview'){
     if(!S.overview){el.innerHTML='<div class="empty">分析後顯示概覽</div>';return;}
     let h='<div class="overview-section"><h3>摘要</h3><div class="overview-item">'+esc(S.overview.summary)+'</div></div>';
-    h+='<div class="overview-section"><h3>關鍵問題</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'")+'\')">'+esc(q)+'</div>').join('')+'</div>';
+    h+='<div class="overview-section"><h3>關鍵問題</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'"))+'\')">' +esc(q)+'</div>').join('')+'</div>';
     h+='<div class="overview-section"><h3>核心概念</h3>'+(S.overview.keyConcepts||[]).map(c=>'<div class="overview-item">'+esc(c)+'</div>').join('')+'</div>';
     el.innerHTML=h;
   }else if(S.tab==='tools'){
