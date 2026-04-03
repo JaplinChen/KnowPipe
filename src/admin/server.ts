@@ -8,6 +8,7 @@ import { homedir } from 'node:os';
 import { getUserConfig, updateUserConfig } from '../utils/user-config.js';
 import { getMetricsSummary } from '../core/metrics.js';
 import { getBreakerStatus } from '../monitoring/circuit-breaker.js';
+import { handleResearchRequest } from '../research/research-routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 3001;
@@ -147,6 +148,17 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
     res.end(UI_HTML);
     return;
+  }
+
+  // Research module routes
+  if (url === '/research' || url.startsWith('/api/research/')) {
+    if (url.startsWith('/api/') && !isAllowed(req)) {
+      res.statusCode = 403;
+      res.end(JSON.stringify({ error: 'Unauthorized' }));
+      return;
+    }
+    const handled = await handleResearchRequest(req, res);
+    if (handled) return;
   }
 
   if (url.startsWith('/api/') && !isAllowed(req)) {

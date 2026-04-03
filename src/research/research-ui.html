@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ObsBot Research</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0f1117;--card:#181c27;--border:#2e3450;--text:#eceef5;--muted:#9aa6c1;--accent:#4ec994;--accent2:#9d8fff;--hover:rgba(78,201,148,.08)}
+body{background:var(--bg);color:var(--text);font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang TC",sans-serif;height:100vh;display:flex;flex-direction:column}
+header{padding:12px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:14px;flex-shrink:0}
+header h1{font-size:18px;color:var(--accent);font-weight:700}
+header .status{font-size:12px;color:var(--muted)}
+.main{display:grid;grid-template-columns:280px 1fr 320px;flex:1;overflow:hidden}
+/* 左欄：筆記列表 */
+.left{border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.search-bar{padding:10px;border-bottom:1px solid var(--border)}
+.search-bar input{width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;outline:none}
+.search-bar input:focus{border-color:var(--accent)}
+.note-list{flex:1;overflow-y:auto;padding:6px}
+.note-item{padding:8px 10px;border-radius:8px;cursor:pointer;font-size:13px;line-height:1.4;display:flex;align-items:center;gap:8px}
+.note-item:hover{background:var(--hover)}
+.note-item.selected{background:rgba(78,201,148,.15)}
+.note-item input[type=checkbox]{accent-color:var(--accent)}
+.note-name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.note-folder{font-size:11px;color:var(--muted)}
+/* 中欄：對話 */
+.center{display:flex;flex-direction:column;overflow:hidden}
+.topic-bar{padding:10px;border-bottom:1px solid var(--border);display:flex;gap:8px}
+.topic-bar input{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;outline:none}
+.topic-bar button{padding:8px 16px;border:none;border-radius:8px;background:var(--accent);color:#0f1117;font-weight:600;cursor:pointer;font-size:13px}
+.topic-bar button:hover{opacity:.9}
+.messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:85%;padding:10px 14px;border-radius:14px;line-height:1.6;font-size:14px;white-space:pre-wrap}
+.msg.user{background:var(--accent);color:#0f1117;align-self:flex-end;border-bottom-right-radius:4px}
+.msg.assistant{background:var(--card);border:1px solid var(--border);align-self:flex-start;border-bottom-left-radius:4px}
+.chat-input{padding:10px;border-top:1px solid var(--border);display:flex;gap:8px}
+.chat-input textarea{flex:1;padding:8px 12px;border:1px solid var(--border);border-radius:8px;background:var(--card);color:var(--text);font-size:13px;outline:none;resize:none;min-height:36px;max-height:120px;font-family:inherit}
+.chat-input button{padding:8px 14px;border:none;border-radius:8px;background:var(--accent2);color:white;font-weight:600;cursor:pointer;font-size:13px}
+/* 右欄：概覽+工具 */
+.right{border-left:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+.right-tabs{display:flex;border-bottom:1px solid var(--border)}
+.right-tabs button{flex:1;padding:10px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:12px;font-weight:600;border-bottom:2px solid transparent}
+.right-tabs button.active{color:var(--accent);border-bottom-color:var(--accent)}
+.right-content{flex:1;overflow-y:auto;padding:14px}
+.overview-section{margin-bottom:16px}
+.overview-section h3{font-size:13px;color:var(--accent);margin-bottom:8px;text-transform:uppercase;letter-spacing:.08em}
+.overview-item{padding:6px 10px;background:rgba(127,127,127,.06);border-radius:8px;margin-bottom:6px;font-size:13px;cursor:pointer}
+.overview-item:hover{background:var(--hover)}
+.tool-btn{display:block;width:100%;padding:10px 12px;margin-bottom:8px;border:1px solid var(--border);border-radius:10px;background:var(--card);color:var(--text);font-size:13px;cursor:pointer;text-align:left}
+.tool-btn:hover{border-color:var(--accent);background:var(--hover)}
+.tool-btn .icon{margin-right:8px}
+.loading{color:var(--muted);font-size:13px;padding:10px;text-align:center}
+.empty{color:var(--muted);font-size:13px;padding:20px;text-align:center}
+@media(max-width:900px){.main{grid-template-columns:1fr}.left,.right{display:none}}
+</style>
+</head>
+<body>
+<header>
+  <h1>ObsBot Research</h1>
+  <span class="status" id="status">載入中...</span>
+</header>
+<div class="main">
+  <div class="left">
+    <div class="search-bar"><input id="search" placeholder="搜尋筆記..." /></div>
+    <div class="note-list" id="noteList"><div class="empty">正在掃描 Vault...</div></div>
+  </div>
+  <div class="center">
+    <div class="topic-bar">
+      <input id="topic" placeholder="輸入研究主題..." />
+      <button id="analyzeBtn" onclick="analyze()">分析</button>
+    </div>
+    <div class="messages" id="messages"><div class="empty">選擇筆記，輸入主題，開始研究</div></div>
+    <div class="chat-input">
+      <textarea id="chatInput" rows="1" placeholder="輸入問題..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
+      <button onclick="sendMsg()">發送</button>
+    </div>
+  </div>
+  <div class="right">
+    <div class="right-tabs">
+      <button class="active" onclick="switchTab(this,'overview')">概覽</button>
+      <button onclick="switchTab(this,'tools')">工具</button>
+      <button onclick="switchTab(this,'slides')">投影片</button>
+    </div>
+    <div class="right-content" id="rightContent">
+      <div class="empty">分析後顯示概覽</div>
+    </div>
+  </div>
+</div>
+<script>
+const S={notes:[],selected:new Set(),topic:'',history:[],overview:null,tab:'overview'};
+const $=id=>document.getElementById(id);
+
+async function loadNotes(q){
+  const url=q?'/api/research/notes?q='+encodeURIComponent(q):'/api/research/notes';
+  const r=await fetch(url);const notes=await r.json();
+  S.notes=notes;renderNotes();
+  $('status').textContent=notes.length+' 篇筆記';
+}
+
+function renderNotes(){
+  const el=$('noteList');
+  if(!S.notes.length){el.innerHTML='<div class="empty">找不到筆記</div>';return;}
+  el.innerHTML=S.notes.map(n=>{
+    const sel=S.selected.has(n.path)?'selected':'';
+    const chk=S.selected.has(n.path)?'checked':'';
+    return '<div class="note-item '+sel+'" onclick="toggleNote(\''+n.path.replace(/'/g,"\\'")+'\')"><input type="checkbox" '+chk+' onclick="event.stopPropagation();toggleNote(\''+n.path.replace(/'/g,"\\'")+'\')"><div><div class="note-name">'+esc(n.name)+'</div><div class="note-folder">'+esc(n.folder)+'</div></div></div>';
+  }).join('');
+}
+
+function toggleNote(p){if(S.selected.has(p))S.selected.delete(p);else S.selected.add(p);renderNotes();}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+async function analyze(){
+  const topic=$('topic').value.trim();if(!topic)return;
+  S.topic=topic;S.history=[];
+  $('messages').innerHTML='<div class="loading">正在分析...</div>';
+  try{
+    const r=await fetch('/api/research/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
+    const d=await r.json();S.overview=d.overview;
+    S.history=[{role:'assistant',content:'已載入 '+d.noteCount+' 篇筆記。\n\n'+(d.overview?.summary||'分析完成。')+'\n\n點擊右側關鍵問題展開，或直接輸入問題。'}];
+    renderMessages();renderRight();
+  }catch(e){$('messages').innerHTML='<div class="msg assistant">分析失敗：'+esc(e.message)+'</div>';}
+}
+
+async function sendMsg(){
+  const txt=$('chatInput').value.trim();if(!txt||!S.topic)return;
+  $('chatInput').value='';
+  S.history.push({role:'user',content:txt});renderMessages();
+  const msgEl=document.createElement('div');msgEl.className='msg assistant';msgEl.textContent='思考中...';
+  $('messages').appendChild(msgEl);$('messages').scrollTop=$('messages').scrollHeight;
+  try{
+    const r=await fetch('/api/research/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],history:S.history,message:txt})});
+    const d=await r.json();
+    S.history.push({role:'assistant',content:d.reply});
+    msgEl.textContent=d.reply;$('messages').scrollTop=$('messages').scrollHeight;
+  }catch(e){msgEl.textContent='錯誤：'+e.message;}
+}
+
+function renderMessages(){
+  $('messages').innerHTML=S.history.map(m=>'<div class="msg '+m.role+'">'+esc(m.content)+'</div>').join('');
+  $('messages').scrollTop=$('messages').scrollHeight;
+}
+
+function switchTab(btn,tab){
+  S.tab=tab;
+  document.querySelectorAll('.right-tabs button').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');renderRight();
+}
+
+function renderRight(){
+  const el=$('rightContent');
+  if(S.tab==='overview'){
+    if(!S.overview){el.innerHTML='<div class="empty">分析後顯示概覽</div>';return;}
+    let h='<div class="overview-section"><h3>摘要</h3><div class="overview-item">'+esc(S.overview.summary)+'</div></div>';
+    h+='<div class="overview-section"><h3>關鍵問題</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'")+'\')">'+esc(q)+'</div>').join('')+'</div>';
+    h+='<div class="overview-section"><h3>核心概念</h3>'+(S.overview.keyConcepts||[]).map(c=>'<div class="overview-item">'+esc(c)+'</div>').join('')+'</div>';
+    el.innerHTML=h;
+  }else if(S.tab==='tools'){
+    el.innerHTML=[
+      {icon:'📊',label:'研究報告',tool:'report'},
+      {icon:'📋',label:'比較表',tool:'compare'},
+      {icon:'🃏',label:'Anki 閃卡',tool:'anki'},
+      {icon:'📚',label:'教學大綱',tool:'outline'},
+    ].map(t=>'<button class="tool-btn" onclick="runTool(\''+t.tool+'\')"><span class="icon">'+t.icon+'</span>'+t.label+'</button>').join('');
+  }else if(S.tab==='slides'){
+    el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>HTML 預覽</button>'
+      +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>下載 PPTX</button>';
+  }
+}
+
+function askQuestion(q){$('chatInput').value=q;sendMsg();}
+
+async function runTool(tool){
+  if(!S.topic){alert('請先輸入主題並分析');return;}
+  $('rightContent').innerHTML='<div class="loading">正在生成...</div>';
+  try{
+    const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected]})});
+    const d=await r.json();
+    S.history.push({role:'assistant',content:d.result});renderMessages();
+    $('rightContent').innerHTML='<div class="overview-item" style="white-space:pre-wrap">'+esc(d.result).slice(0,500)+'...</div>';
+  }catch(e){$('rightContent').innerHTML='<div class="empty">生成失敗：'+esc(e.message)+'</div>';}
+}
+
+async function exportPreview(){
+  if(!S.topic)return;
+  const content=S.history.filter(m=>m.role==='assistant').map(m=>m.content).join('\n\n');
+  const form=document.createElement('form');form.method='POST';form.action='/api/research/export/preview';form.target='_blank';
+  const inp=document.createElement('input');inp.type='hidden';inp.name='json';
+  inp.value=JSON.stringify({content,topic:S.topic});form.appendChild(inp);
+  document.body.appendChild(form);form.submit();form.remove();
+}
+
+async function exportPptx(){
+  if(!S.topic)return;
+  const content=S.history.filter(m=>m.role==='assistant').map(m=>m.content).join('\n\n');
+  try{
+    const r=await fetch('/api/research/export/pptx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content,topic:S.topic})});
+    const blob=await r.blob();const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download='research.pptx';a.click();URL.revokeObjectURL(url);
+  }catch(e){alert('匯出失敗：'+e.message);}
+}
+
+let searchTimer;
+$('search').addEventListener('input',function(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadNotes(this.value),300);});
+loadNotes();
+</script>
+</body>
+</html>
