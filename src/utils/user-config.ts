@@ -21,6 +21,7 @@ export interface FeatureFlags {
   wall: boolean;
   patrol: boolean;
   consolidation: boolean;
+  qualityReview: boolean;
 }
 
 export interface LlmTierModels {
@@ -89,6 +90,7 @@ const DEFAULTS: UserConfig = {
     wall: true,
     patrol: false,
     consolidation: true,
+    qualityReview: true,
   },
   llm: {
     order: ['omlx', 'ollama', 'openai', 'gemini', 'opencode', 'ddg'],

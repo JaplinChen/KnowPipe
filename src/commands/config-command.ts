@@ -21,6 +21,7 @@ const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
   wall: '情報牆',
   patrol: '自動巡邏',
   consolidation: '記憶整合',
+  qualityReview: '品質審查',
 };
 
 /** Main /config handler */

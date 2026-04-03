@@ -22,6 +22,7 @@ export function formatUnsupportedUrlMessage(url: string): string {
 export const STAGE = {
   extracting: '🔍 擷取內容中…',
   enriching: '🧠 AI 豐富化中…',
+  reviewing: '🔎 品質審查中…',
   saving: '💾 儲存至 Vault…',
 } as const;
 

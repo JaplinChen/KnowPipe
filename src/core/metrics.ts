@@ -12,7 +12,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB, then rotate
 
 export interface MetricEntry {
   ts: number;
-  type: 'extract' | 'enrich' | 'save' | 'error';
+  type: 'extract' | 'enrich' | 'review' | 'save' | 'error';
   platform: string;
   url?: string;
   durationMs?: number;

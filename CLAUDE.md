@@ -1,58 +1,54 @@
-# ObsBot 專案規則
+# ObsBot
 
-## Hard Rules（硬規則——絕對不可違反）
+## 硬規則
 
-### 建置驗證
-- 修改任何 `.ts` 檔案後，**必須執行 `npx tsc --noEmit`** 確認零錯誤才算完成。
-- Hook 已自動檢查，但手動確認仍為最終標準——不要忽略 hook 輸出的錯誤。
-- 所有 TypeScript 檔案 **≤ 300 行**，超過必須拆分。
+- 回覆與 commit message 一律**繁體中文**。Commit 格式：`<type>: <描述>`（feat/fix/refactor/docs/chore）。
+- **禁用 API SDK**（無 Anthropic/OpenAI/任何 LLM SDK）。LLM 呼叫走 oMLX REST API（native fetch）或外部 CLI。
+- TypeScript 檔案 **≤ 300 行**，超過必須拆分。
+- 新功能**整合進現有 pipeline**（extractor → classifier → enricher → reviewer → saver），不另建獨立 command。
 
-### 程式碼品質
-- **不使用任何 API SDK**（無 Anthropic SDK / OpenAI SDK / 任何 LLM SDK）。LLM 呼叫走外部 CLI 或本機 oMLX REST API（native fetch）。
-- **不使用本地 LLM / Ollama**（oMLX 除外，允許用於翻譯和 AI 豐富化）。
-- 使用 `import type` 處理純型別引入。
-- 避免使用 `any`，除非真的無替代方案。
-- 不在同一 commit 做無關重構。
+## 踩坑教訓
 
-### 架構原則
-- 新功能**整合進現有 URL 處理 pipeline**（extractor → classifier → formatter → saver），不另建獨立 command（除非用戶明確要求）。
-- 新 extractor 用 `/extractor-scaffold` 腳手架生成，不從零手寫。
+- 修改 extractor 或 formatter 後，**同時修復** Vault 中受影響的筆記——不要只修 code 不修 output。
+- 修改分類器關鍵字後，**必須跑** `/test classify` 回歸測試。注意 substring 陷阱（如 `ads` 匹配 `attachments`）。
+- 搬移 Vault 檔案前先 **dry-run**，列出所有變更讓用戶確認。
 
-### 語言與溝通
-- 所有回覆使用**繁體中文**。
-- Commit message 格式：`<type>: <描述>`（繁體中文）。
-  - type：feat / fix / refactor / docs / chore
+<!-- AUTO-GENERATED-START — 由 scripts/sync-context.ts 自動產生，請勿手動編輯此區段 -->
+## 專案即時狀態（自動同步）
 
-### Debug 策略
-- 遇到 runtime 問題時，**先診斷、再修復**——不要直接猜測修改。
-- 一次只驗證一個假設。
-- 不重試相同失敗方法超過 **2 次**。
+> 上次同步：2026-04-03 01:43:54
 
----
+### 提取器（14 個平台）
+bilibili, direct-video, douyin, github, ithome, reddit, threads, tiktok, web, weibo, x, xiaohongshu, youtube, zhihu
 
-## Guidelines（軟指引——最佳實踐）
+### 指令（29 個）
+admin, ask, benchmark, code, config, consolidate, dedup, digest, discover, distill, doctor, doctor-upgrade, explore-deep, find, knowledge, knowledge-query, memory-export, monitor, patrol, quality, radar, reformat, reprocess, retry, subscribe, suggest, timeline, toolkit, vsearch
 
-### Post-Fix Checklist
-- 修改 extractor 或 formatter 後，**必須同時檢查並修復**已存在的 Obsidian vault 筆記。
-- 不要只修 code——也要修 output。用修正後的邏輯重新處理受影響的筆記。
-- 修復完成後確認：無空白摘要、無壞連結、無 HTML 殘留。
+### 處理管線
+extractor → classifier → enricher → reviewer → saver
 
-### Classifier / Vault 組織
-- 修改分類器關鍵字後，**必須跑回歸測試**（`/test classify`）檢查 false positives。
-- 特別注意 **substring 匹配陷阱**（如 `ads` 會匹配 `attachments`）——用 word boundary 或完整比對。
-- 搬移檔案前先做 **dry-run**：列出所有檔案的新分類，人工確認後再執行。
+### 功能開關
+| 功能 | 狀態 |
+|------|------|
+| translation | 啟用 |
+| linkEnrichment | 啟用 |
+| imageAnalysis | 啟用 |
+| videoTranscription | 啟用 |
+| comments | 啟用 |
+| proactive | 啟用 |
+| monitor | 啟用 |
+| wall | 啟用 |
+| patrol | 啟用 |
+| consolidation | 啟用 |
+| qualityReview | 啟用 |
 
-### Git Workflow
-- 功能完成後，將 commit + push 視為標準流程的一部分（除非用戶另有指示）。
-- 功能有顯著變更時，同步更新 README。
-- 使用 `/ship` 完成標準提交流程。
-
-### macOS 環境
-- 開發環境為 macOS (Apple Silicon)，不使用 Windows 特定命令。
-- 路徑分隔符：TypeScript 中用 `path.join()`，Shell 中用正斜線。
-- 外部 CLI 工具透過 Homebrew 安裝（opencode、yt-dlp、ffmpeg）。
-
-### 自訂技能規範
-- 建立 `.claude/skills/` 下的 SKILL.md 時，**必須包含 YAML frontmatter**（title、description 等）。
-- 新技能建立後提醒用戶：**需要重啟 Claude Code** 才會出現在 `/` 選單。
-- 技能的 prompt 必須具體、可執行，避免模糊指令。
+### 近期變更（最近 14 天）
+- 1c0c300 fix: 情報牆 AI 洞察強制繁體中文，移除 LLM thinking 輸出
+- 30e7095 fix: 卡片中文亂碼 — 改用 Google Fonts web font 取代系統字型
+- 6f3deec feat: 產品化功能改善 — 10 項可靠性與使用體驗提升
+- 5d1c547 feat: OpenCode 模型改為下拉選單，列出 7 個免費模型可選
+- d9b2907 fix: Admin UI 自動帶入 .env 的 API key，用戶不必重新輸入
+- 6ae788d fix: oMLX 面板加入 API Key 輸入框，用戶可自行填入並儲存
+- e85a492 fix: 模型偵測帶入 API key — 解決 oMLX 401 認證問題
+- a2403dc fix: oMLX 預設 port 改為 11435（Homebrew service 預設值）
+<!-- AUTO-GENERATED-END -->

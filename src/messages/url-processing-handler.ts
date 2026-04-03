@@ -14,6 +14,7 @@ import {
 } from './user-messages.js';
 import { enrichExtractedContent } from './services/enrich-content-service.js';
 import { extractContentWithComments } from './services/extract-content-service.js';
+import { reviewEnrichedContent } from './services/review-content-service.js';
 import { saveExtractedContent } from './services/save-content-service.js';
 import { isDuplicateUrl } from '../saver.js';
 import { createReclassifyButton } from '../commands/reclassify-action.js';
@@ -168,6 +169,12 @@ export function registerUrlProcessingHandler(
         await enrichExtractedContent(content, config);
         logger.info('perf', 'enrich', { ms: Date.now() - t1 });
 
+        updateProgress('reviewing');
+        const tR = Date.now();
+        const review = await reviewEnrichedContent(content, config);
+        logger.info('perf', 'review', { ms: Date.now() - tR, passed: review.passed, autoFixed: review.autoFixed });
+        recordMetric({ ts: Date.now(), type: 'review', platform: extractor.platform, url, durationMs: Date.now() - tR, success: review.passed }).catch(() => {});
+
         updateProgress('saving');
         const t2 = Date.now();
         const userId = ctx.from?.id;
@@ -189,10 +196,13 @@ export function registerUrlProcessingHandler(
         stopTyping();
         react(ctx, '✅');
         const fallbackNote = wasFallback ? '\n⚠️ 平台擷取失敗，已使用通用網頁擷取' : '';
+        const reviewNote = (review.issues.length > 0 && !review.autoFixed)
+          ? `\n⚠️ 品質提醒：${review.issues.map(i => i.problem).join('、')}`
+          : '';
         const recatBtn = createReclassifyButton(
           result.mdPath, content.category ?? '其他', content.title, content.enrichedKeywords ?? [],
         );
-        await ctx.reply(formatSavedSummary(content, result, config.vaultPath) + fallbackNote, {
+        await ctx.reply(formatSavedSummary(content, result, config.vaultPath) + fallbackNote + reviewNote, {
           parse_mode: 'HTML',
           reply_markup: { inline_keyboard: [[recatBtn]] },
         });
