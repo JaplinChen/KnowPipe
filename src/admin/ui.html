@@ -150,6 +150,31 @@
     .section { margin-bottom: 24px; }
     .section-title { font-size: 15px; font-weight: 600; color: #555; margin-bottom: 12px; }
 
+    /* Collapsible accordion card */
+    .section:has(> .section-title.collapsible) {
+      background: #fff; border-radius: 12px; border: 1px solid #e8e8ee;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04); margin-bottom: 16px;
+      transition: box-shadow 0.2s; overflow: hidden;
+    }
+    .section:has(> .section-title.collapsible):hover { box-shadow: 0 4px 12px rgba(102,126,234,0.10); }
+    .section-title.collapsible {
+      cursor: pointer; user-select: none; display: flex; align-items: center; gap: 8px;
+      padding: 14px 18px; margin: 0; border-left: 3px solid #667eea;
+      background: linear-gradient(to right, #f7f8fc, #fff); border-radius: 0;
+      transition: background 0.2s;
+    }
+    .section-title.collapsible:hover { background: linear-gradient(to right, #eef0fa, #f7f8fc); }
+    .section-title.collapsible::before {
+      content: ''; display: inline-block; width: 8px; height: 8px;
+      border-right: 2px solid #667eea; border-bottom: 2px solid #667eea;
+      transform: rotate(45deg); transition: transform 0.25s; flex-shrink: 0;
+      margin-top: -2px;
+    }
+    .section-title.collapsible.collapsed::before { transform: rotate(-45deg); margin-top: 2px; }
+    .section-title.collapsible::after { content: none; }
+    .section-body { overflow: hidden; transition: max-height 0.3s ease, opacity 0.2s ease; max-height: 2000px; opacity: 1; padding: 4px 18px 18px; }
+    .section-body.collapsed { max-height: 0; opacity: 0; padding-top: 0; padding-bottom: 0; }
+
     /* LLM inputs */
     .llm-field { margin-bottom: 12px; }
     .llm-field label { display: block; font-size: 13px; color: #888; margin-bottom: 4px; }
@@ -299,19 +324,25 @@
   <!-- ===== Tab 2: Config ===== -->
   <div class="tab-content" id="tab-config">
     <div class="section">
-      <div class="section-title">🔘 <span data-i18n="config.features">功能開關</span></div>
-      <div class="toggle-grid" id="featureToggles"></div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">🔘 <span data-i18n="config.features">功能開關</span></div>
+      <div class="section-body">
+        <div class="toggle-grid" id="featureToggles"></div>
+      </div>
     </div>
 
     <div class="section">
-      <div class="section-title">🌐 <span data-i18n="config.platforms">平台 Extractors</span></div>
-      <div class="platform-grid" id="platformGrid"></div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">🌐 <span data-i18n="config.platforms">平台 Extractors</span></div>
+      <div class="section-body">
+        <div class="platform-grid" id="platformGrid"></div>
+      </div>
     </div>
 
     <div class="section">
-      <div class="section-title">🤖 <span data-i18n="config.llm">LLM Provider（拖曳排序 · 點擊設定）</span></div>
-      <div class="provider-list" id="providerList"></div>
-      <div class="provider-panel" id="providerPanel"></div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">🤖 <span data-i18n="config.llm">LLM Provider（拖曳排序 · 點擊設定）</span></div>
+      <div class="section-body">
+        <div class="provider-list" id="providerList"></div>
+        <div class="provider-panel" id="providerPanel"></div>
+      </div>
     </div>
 
     <div class="divider"></div>
@@ -322,20 +353,28 @@
   <!-- ===== Tab 3: Dashboard ===== -->
   <div class="tab-content" id="tab-dashboard">
     <div class="section">
-      <div class="section-title">📊 <span data-i18n="dashboard.system">系統狀態</span></div>
-      <div id="sysStatus" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">📊 <span data-i18n="dashboard.system">系統狀態</span></div>
+      <div class="section-body">
+        <div id="sysStatus" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
+      </div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">📈 <span data-i18n="dashboard.metrics">24 小時指標</span></div>
-      <div id="metricsPanel" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">📈 <span data-i18n="dashboard.metrics">24 小時指標</span></div>
+      <div class="section-body">
+        <div id="metricsPanel" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
+      </div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">🌐 <span data-i18n="dashboard.platforms">平台統計</span></div>
-      <div id="platformPanel" style="font-size:13px;color:#555;"></div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">🌐 <span data-i18n="dashboard.platforms">平台統計</span></div>
+      <div class="section-body">
+        <div id="platformPanel" style="font-size:13px;color:#555;"></div>
+      </div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">⚡ <span data-i18n="dashboard.breakers">熔斷器狀態</span></div>
-      <div id="breakerPanel" style="font-size:13px;color:#555;" data-i18n="dashboard.allNormal">所有平台正常</div>
+      <div class="section-title collapsible" onclick="toggleSection(this)">⚡ <span data-i18n="dashboard.breakers">熔斷器狀態</span></div>
+      <div class="section-body">
+        <div id="breakerPanel" style="font-size:13px;color:#555;" data-i18n="dashboard.allNormal">所有平台正常</div>
+      </div>
     </div>
     <div style="margin-top:16px;">
       <button class="btn btn-ghost" onclick="loadDashboard()">🔄 <span data-i18n="dashboard.refresh">重新整理</span></button>
@@ -394,6 +433,26 @@ function changeLang(lang) {
 document.addEventListener('click', function(e) {
   var sw = document.querySelector('.lang-switcher');
   if (sw && !sw.contains(e.target)) document.getElementById('langMenu').classList.remove('open');
+});
+
+/* ── Collapsible sections ──────────────────────────────────────────── */
+function toggleSection(titleEl) {
+  var body = titleEl.nextElementSibling;
+  var key = 'obsbot-collapse-' + titleEl.textContent.trim().substring(0, 10);
+  titleEl.classList.toggle('collapsed');
+  body.classList.toggle('collapsed');
+  localStorage.setItem(key, titleEl.classList.contains('collapsed') ? '1' : '0');
+}
+
+// Restore collapsed state on load
+document.addEventListener('DOMContentLoaded', function() {
+  document.querySelectorAll('.section-title.collapsible').forEach(function(el) {
+    var key = 'obsbot-collapse-' + el.textContent.trim().substring(0, 10);
+    if (localStorage.getItem(key) === '1') {
+      el.classList.add('collapsed');
+      el.nextElementSibling.classList.add('collapsed');
+    }
+  });
 });
 
 /* ── Tab switching ──────────────────────────────────────────────────── */
