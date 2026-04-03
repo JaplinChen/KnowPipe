@@ -17,6 +17,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .sb-sub{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.8px;margin-top:1px}
 .back-btn{background:transparent;border:1px solid var(--bdr);border-radius:6px;padding:4px 10px;color:var(--txt3);font-size:12px;cursor:pointer;text-decoration:none;font-family:inherit;transition:all .2s;flex-shrink:0}
 .back-btn:hover{border-color:var(--pu3);color:var(--pu)}
+.lang-sw{position:relative;flex-shrink:0}
+.lang-sw-btn{background:transparent;border:1px solid var(--bdr);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:16px;line-height:1;transition:border-color .2s}
+.lang-sw-btn:hover{border-color:var(--pu3)}
+.lang-sw-menu{display:none;position:absolute;left:0;top:100%;margin-top:4px;background:var(--bg1);border:1px solid var(--bdr);border-radius:8px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:100;min-width:140px;overflow:hidden}
+.lang-sw-menu.open{display:block}
+.lang-sw-opt{display:flex;align-items:center;gap:7px;padding:8px 12px;cursor:pointer;font-size:12px;color:var(--txt2);border:none;background:none;width:100%;font-family:inherit;text-align:left;transition:background .15s}
+.lang-sw-opt:hover{background:var(--pu2)}
+.lang-sw-opt.active{background:var(--pu2);color:var(--pu);font-weight:600}
 .search-bar{padding:8px 14px;border-bottom:1px solid var(--bdr);flex-shrink:0}
 .search-bar input{width:100%;background:var(--bg0);border:1px solid var(--bdr);border-radius:6px;padding:7px 10px;color:var(--txt1);font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
 .search-bar input:focus{border-color:var(--pu)}
@@ -102,49 +110,81 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
   <div class="left">
     <div class="sb-top">
       <div class="sb-icon">⚡</div>
-      <div style="flex:1;min-width:0"><div class="sb-name">Vault Research</div><div class="sb-sub">本機 AI × Obsidian</div></div>
-      <a href="/" class="back-btn">← 管理</a>
+      <div style="flex:1;min-width:0"><div class="sb-name" data-i18n="research.title">Vault Research</div><div class="sb-sub" data-i18n="research.subtitle">本機 AI × Obsidian</div></div>
+      <div class="lang-sw">
+        <button class="lang-sw-btn" onclick="toggleRLangMenu()" id="rLangBtn" title="Language">🇹🇼</button>
+        <div class="lang-sw-menu" id="rLangMenu">
+          <button class="lang-sw-opt active" data-lang="zh-TW" onclick="changeRLang('zh-TW')">🇹🇼 繁體中文</button>
+          <button class="lang-sw-opt" data-lang="en" onclick="changeRLang('en')">🇺🇸 English</button>
+          <button class="lang-sw-opt" data-lang="vi" onclick="changeRLang('vi')">🇻🇳 Tiếng Việt</button>
+        </div>
+      </div>
+      <a href="/" class="back-btn" data-i18n="research.back">← 管理</a>
     </div>
-    <div class="search-bar"><input id="search" placeholder="搜尋筆記…" /></div>
+    <div class="search-bar"><input id="search" data-i18n-placeholder="research.search" placeholder="搜尋筆記…" /></div>
     <div id="tagBar"></div>
-    <div class="note-list" id="noteList"><div class="empty">正在掃描 Vault…</div></div>
+    <div class="note-list" id="noteList"><div class="empty" data-i18n="research.scanning">正在掃描 Vault…</div></div>
     <div class="bot-bar">
-      <span class="sel-ct"><b id="selCount">0</b> 篇已選</span>
-      <button class="clr" onclick="clearSelection()">清除</button>
+      <span class="sel-ct"><b id="selCount">0</b> <span data-i18n="research.selected"> 篇已選</span></span>
+      <button class="clr" onclick="clearSelection()" data-i18n="research.clear">清除</button>
     </div>
   </div>
   <div class="center">
     <div class="topic-bar">
-      <input id="topic" placeholder="輸入研究主題…" onkeydown="if(event.key==='Enter')analyze()" />
+      <input id="topic" data-i18n-placeholder="research.topicPlaceholder" placeholder="輸入研究主題…" onkeydown="if(event.key==='Enter')analyze()" />
       <span id="status" style="font-size:11px;color:var(--txt3);white-space:nowrap"></span>
-      <button id="analyzeBtn" onclick="analyze()">分析</button>
+      <button id="analyzeBtn" onclick="analyze()" data-i18n="research.analyze">分析</button>
     </div>
     <div class="messages" id="messages">
       <div class="empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:9px">
         <div style="font-size:48px;opacity:.15">⚡</div>
-        <div style="font-size:18px;font-weight:600">本機 AI 研究助手</div>
-        <div style="font-size:13px;color:var(--txt2);max-width:340px;text-align:center;line-height:1.8">開啟左側 Vault，勾選筆記，輸入研究主題後開始分析</div>
+        <div style="font-size:18px;font-weight:600" data-i18n="research.heroTitle">本機 AI 研究助手</div>
+        <div style="font-size:13px;color:var(--txt2);max-width:340px;text-align:center;line-height:1.8" data-i18n="research.heroDesc">開啟左側 Vault，勾選筆記，輸入研究主題後開始分析</div>
       </div>
     </div>
     <div class="chat-input">
       <div class="chat-wrap">
-        <textarea id="chatInput" rows="1" placeholder="詢問問題…（Enter 送出）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
+        <textarea id="chatInput" rows="1" data-i18n-placeholder="research.chatPlaceholder" placeholder="詢問問題…（Enter 送出）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
         <button onclick="sendMsg()">▶</button>
       </div>
     </div>
   </div>
   <div class="right">
     <div class="right-tabs">
-      <button class="active" onclick="switchTab(this,'overview')">概覽</button>
-      <button onclick="switchTab(this,'tools')">工具</button>
-      <button onclick="switchTab(this,'slides')">投影片</button>
+      <button class="active" onclick="switchTab(this,'overview')" data-i18n="research.tabOverview">概覽</button>
+      <button onclick="switchTab(this,'tools')" data-i18n="research.tabTools">工具</button>
+      <button onclick="switchTab(this,'slides')" data-i18n="research.tabSlides">投影片</button>
     </div>
     <div class="right-content" id="rightContent">
-      <div class="empty">分析後顯示概覽</div>
+      <div class="empty" data-i18n="research.emptyOverview">分析後顯示概覽</div>
     </div>
   </div>
 </div>
 <script>
+/* ── i18n engine ── */
+/* __LOCALES_INJECT__ */
+var _lang = localStorage.getItem('obsbot-lang') || 'zh-TW';
+var _langFlags = {'zh-TW':'🇹🇼','en':'🇺🇸','vi':'🇻🇳'};
+function t(key, params) {
+  var s = (_locales[_lang] && _locales[_lang][key]) || (_locales['zh-TW'] && _locales['zh-TW'][key]) || key;
+  if (params) { Object.keys(params).forEach(function(k) { s = s.replace('{' + k + '}', params[k]); }); }
+  return s;
+}
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) { el.textContent = t(el.getAttribute('data-i18n')); });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) { el.placeholder = t(el.getAttribute('data-i18n-placeholder')); });
+  document.documentElement.lang = _lang === 'vi' ? 'vi' : _lang === 'en' ? 'en' : 'zh-TW';
+}
+function toggleRLangMenu() { document.getElementById('rLangMenu').classList.toggle('open'); }
+function changeRLang(lang) {
+  _lang = lang; localStorage.setItem('obsbot-lang', lang);
+  document.getElementById('rLangMenu').classList.remove('open');
+  document.getElementById('rLangBtn').textContent = _langFlags[lang] || '🌐';
+  document.querySelectorAll('.lang-sw-opt').forEach(function(el) { el.classList.toggle('active', el.getAttribute('data-lang') === lang); });
+  applyI18n(); renderRight();
+}
+document.addEventListener('click', function(e) { var sw = document.querySelector('.lang-sw'); if (sw && !sw.contains(e.target)) document.getElementById('rLangMenu').classList.remove('open'); });
+
 const S={notes:[],selected:new Set(),topic:'',history:[],overview:null,tab:'overview',folderOpen:{},activeTag:'',allTags:[]};
 const $=id=>document.getElementById(id);
 
@@ -157,7 +197,7 @@ async function loadNotes(q){
   notes.forEach(n=>(n.tags||[]).forEach(t=>tagSet.add(t)));
   S.allTags=[...tagSet].sort();
   renderTags();renderTree();updateSelCount();
-  $('status').textContent=notes.length+' 篇筆記';
+  $('status').textContent=t('research.notesCount',{n:notes.length});
 }
 
 function getFilteredNotes(){
@@ -179,7 +219,7 @@ function renderTags(){
   const el=$('tagBar');
   if(!S.allTags.length){el.innerHTML='';el.className='';return;}
   el.className='tag-bar';
-  el.innerHTML='<span class="tag-chip'+(S.activeTag?'':' on')+'" onclick="setTag(\'\')">全部</span>'
+  el.innerHTML='<span class="tag-chip'+(S.activeTag?'':' on')+'" onclick="setTag(\'\')">'+t('research.allTags')+'</span>'
     +S.allTags.slice(0,20).map(t=>'<span class="tag-chip'+(S.activeTag===t?' on':'')+'" onclick="setTag(\''+esc(t.replace(/'/g,"\\'"))+'\')">'+esc(t)+'</span>').join('');
 }
 
@@ -189,7 +229,7 @@ function renderTree(){
   const el=$('noteList');
   const map=buildFolderMap();
   const folders=Object.keys(map).sort();
-  if(!folders.length){el.innerHTML='<div class="empty">找不到筆記</div>';return;}
+  if(!folders.length){el.innerHTML='<div class="empty">'+t('research.noNotes')+'</div>';return;}
   let html='';
   for(const folder of folders){
     const files=map[folder];
@@ -197,7 +237,7 @@ function renderTree(){
     const selCt=files.filter(f=>S.selected.has(f.path)).length;
     const chkCls=selCt===files.length&&files.length>0?'all':selCt>0?'part':'';
     const chkTxt=selCt===files.length&&files.length>0?'✓':selCt>0?'−':'';
-    const label=folder==='.'?'根目錄':folder.split('/').pop();
+    const label=folder==='.'?t('research.rootFolder'):folder.split('/').pop();
     html+='<div>';
     html+='<div class="folder-hdr" onclick="toggleFolder(\''+esc(folder.replace(/'/g,"\\'"))+'\')">';
     html+='<span class="folder-arrow'+(isOpen?' open':'')+'">▶</span>';
@@ -244,13 +284,13 @@ function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 async function analyze(){
   const topic=$('topic').value.trim();if(!topic)return;
   S.topic=topic;S.history=[];
-  $('messages').innerHTML='<div class="loading">正在分析...</div>';
+  $('messages').innerHTML='<div class="loading">'+t('research.analyzing')+'</div>';
   try{
     const r=await fetch('/api/research/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
     const d=await r.json();S.overview=d.overview;
-    S.history=[{role:'assistant',content:'已載入 '+d.noteCount+' 篇筆記。\n\n'+(d.overview?.summary||'分析完成。')+'\n\n點擊右側關鍵問題展開，或直接輸入問題。'}];
+    S.history=[{role:'assistant',content:t('research.analyzeLoaded',{n:d.noteCount})+'\n\n'+(d.overview?.summary||t('research.analyzeDone'))}];
     renderMessages();renderRight();
-  }catch(e){$('messages').innerHTML='<div class="msg assistant">分析失敗：'+esc(e.message)+'</div>';}
+  }catch(e){$('messages').innerHTML='<div class="msg assistant">'+t('research.analyzeFail')+esc(e.message)+'</div>';}
 }
 
 async function sendMsg(){
@@ -258,20 +298,20 @@ async function sendMsg(){
   $('chatInput').value='';
   S.history.push({role:'user',content:txt});renderMessages();
   const msgEl=document.createElement('div');msgEl.className='msg';
-  msgEl.innerHTML='<div class="msg-ava ai">AI</div><div class="msg-body"><div class="msg-role">研究助手</div><div class="msg-text" style="color:var(--txt3)">思考中…</div></div>';
+  msgEl.innerHTML='<div class="msg-ava ai">'+t('research.avatarAI')+'</div><div class="msg-body"><div class="msg-role">'+t('research.roleAI')+'</div><div class="msg-text" style="color:var(--txt3)">'+t('research.thinking')+'</div></div>';
   $('messages').appendChild(msgEl);$('messages').scrollTop=$('messages').scrollHeight;
   try{
     const r=await fetch('/api/research/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],history:S.history,message:txt})});
     const d=await r.json();
     S.history.push({role:'assistant',content:d.reply});
     renderMessages();
-  }catch(e){msgEl.querySelector('.msg-text').textContent='錯誤：'+e.message;}
+  }catch(e){msgEl.querySelector('.msg-text').textContent=t('research.error')+e.message;}
 }
 
 function renderMessages(){
   $('messages').innerHTML=S.history.map(m=>{
     const isAi=m.role==='assistant';
-    return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?'AI':'我')+'</div><div class="msg-body"><div class="msg-role">'+(isAi?'研究助手':'你')+'</div><div class="msg-text">'+esc(m.content)+'</div></div></div>';
+    return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+esc(m.content)+'</div></div></div>';
   }).join('');
   $('messages').scrollTop=$('messages').scrollHeight;
 }
@@ -285,59 +325,59 @@ function switchTab(btn,tab){
 function renderRight(){
   const el=$('rightContent');
   if(S.tab==='overview'){
-    if(!S.overview){el.innerHTML='<div class="empty">分析後顯示概覽</div>';return;}
-    let h='<div class="overview-section"><h3>摘要</h3><div class="overview-item">'+esc(S.overview.summary)+'</div></div>';
-    h+='<div class="overview-section"><h3>關鍵問題</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'"))+'\')">' +esc(q)+'</div>').join('')+'</div>';
-    h+='<div class="overview-section"><h3>核心概念</h3>'+(S.overview.keyConcepts||[]).map(c=>'<div class="overview-item">'+esc(c)+'</div>').join('')+'</div>';
+    if(!S.overview){el.innerHTML='<div class="empty">'+t('research.emptyOverview')+'</div>';return;}
+    let h='<div class="overview-section"><h3>'+t('research.summary')+'</h3><div class="overview-item">'+esc(S.overview.summary)+'</div></div>';
+    h+='<div class="overview-section"><h3>'+t('research.keyQuestions')+'</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'"))+'\')">' +esc(q)+'</div>').join('')+'</div>';
+    h+='<div class="overview-section"><h3>'+t('research.keyConcepts')+'</h3>'+(S.overview.keyConcepts||[]).map(c=>'<div class="overview-item">'+esc(c)+'</div>').join('')+'</div>';
     el.innerHTML=h;
   }else if(S.tab==='tools'){
     const apiTools=[
-      {icon:'📄',label:'生成研究報告',tool:'report'},
-      {icon:'📊',label:'比較觀點（表格）',tool:'compare'},
-      {icon:'🃏',label:'Anki 卡片',tool:'anki'},
-      {icon:'✏️',label:'生成教學大綱',tool:'outline'},
+      {icon:'📄',labelKey:'research.tool.report',tool:'report'},
+      {icon:'📊',labelKey:'research.tool.compare',tool:'compare'},
+      {icon:'🃏',labelKey:'research.tool.anki',tool:'anki'},
+      {icon:'✏️',labelKey:'research.tool.outline',tool:'outline'},
     ];
     const promptTools=[
-      {icon:'🗺️',label:'繪製知識地圖',prompt:'請分析筆記間的概念關聯，用階層式清單描述各主題與子主題的連結。'},
-      {icon:'❓',label:'找出知識缺口',prompt:'請分析目前筆記的覆蓋範圍，指出哪些重要面向尚未記錄。'},
-      {icon:'📝',label:'PPTX 大綱',prompt:'請生成一份 15-20 張的 PPTX 簡報大綱，每張用 ## 標題開頭，下方 3-5 個 - 要點，可直接匯出為 PPTX。'},
-      {icon:'🧠',label:'心智圖大綱',prompt:'請嚴格按以下格式輸出心智圖：\n# 主題名稱\n## 分支一\n- 子項目\n## 分支二\n- 子項目\n\n要求：6-8個主要分支，每支2-4個子項目。'},
-      {icon:'📰',label:'資訊圖表文字',prompt:'請生成適合製作資訊圖表的文字：## 標題、## 5個關鍵數據/事實、## 3個核心洞察、## 行動建議。'},
-      {icon:'🎙️',label:'Podcast 腳本',prompt:'請生成 5-8 分鐘的 Podcast 對話腳本（主持人 A 與來賓 B），討論核心議題，輕鬆對話風格，含開場與結語。'},
-      {icon:'📧',label:'執行摘要',prompt:'請生成 200 字以內的執行摘要，適合用 Email 寄給忙碌的主管或客戶，重點突出、結構清晰。'},
+      {icon:'🗺️',labelKey:'research.tool.knowledgeMap',promptKey:'research.prompt.knowledgeMap'},
+      {icon:'❓',labelKey:'research.tool.gaps',promptKey:'research.prompt.gaps'},
+      {icon:'📝',labelKey:'research.tool.pptxOutline',promptKey:'research.prompt.pptxOutline'},
+      {icon:'🧠',labelKey:'research.tool.mindmap',promptKey:'research.prompt.mindmap'},
+      {icon:'📰',labelKey:'research.tool.infographic',promptKey:'research.prompt.infographic'},
+      {icon:'🎙️',labelKey:'research.tool.podcast',promptKey:'research.prompt.podcast'},
+      {icon:'📧',labelKey:'research.tool.execSummary',promptKey:'research.prompt.execSummary'},
     ];
-    let h='<div class="overview-section"><h3>快速匯出</h3>';
-    h+='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>預覽簡報（HTML）</button>';
-    h+='<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>下載 PPTX</button></div>';
-    h+='<div class="overview-section"><h3>AI 操作</h3>';
-    h+=apiTools.map(t=>'<button class="tool-btn" onclick="runTool(\''+t.tool+'\')"><span class="icon">'+t.icon+'</span>'+t.label+'</button>').join('');
-    h+=promptTools.map((t,i)=>'<button class="tool-btn" onclick="sendPromptTool('+i+')"><span class="icon">'+t.icon+'</span>'+t.label+'</button>').join('');
+    let h='<div class="overview-section"><h3>'+t('research.quickExport')+'</h3>';
+    h+='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>';
+    h+='<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button></div>';
+    h+='<div class="overview-section"><h3>'+t('research.aiTools')+'</h3>';
+    h+=apiTools.map(a=>'<button class="tool-btn" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
+    h+=promptTools.map((p,i)=>'<button class="tool-btn" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
     h+='</div>';
     el.innerHTML=h;
-    window._promptTools=promptTools;
+    window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
   }else if(S.tab==='slides'){
-    el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>預覽簡報（HTML）</button>'
-      +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>下載 PPTX</button>';
+    el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>'
+      +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>';
   }
 }
 
 function askQuestion(q){$('chatInput').value=q;sendMsg();}
 
 function sendPromptTool(idx){
-  if(!S.topic){alert('請先輸入主題並分析');return;}
-  const t=window._promptTools[idx];if(!t)return;
-  $('chatInput').value=t.prompt;sendMsg();
+  if(!S.topic){alert(t('research.noTopic'));return;}
+  const p=window._promptTools[idx];if(!p)return;
+  $('chatInput').value=p.prompt;sendMsg();
 }
 
 async function runTool(tool){
-  if(!S.topic){alert('請先輸入主題並分析');return;}
-  $('rightContent').innerHTML='<div class="loading">正在生成...</div>';
+  if(!S.topic){alert(t('research.noTopic'));return;}
+  $('rightContent').innerHTML='<div class="loading">'+t('research.generating')+'</div>';
   try{
     const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected]})});
     const d=await r.json();
     S.history.push({role:'assistant',content:d.result});renderMessages();
     $('rightContent').innerHTML='<div class="overview-item" style="white-space:pre-wrap">'+esc(d.result).slice(0,500)+'...</div>';
-  }catch(e){$('rightContent').innerHTML='<div class="empty">生成失敗：'+esc(e.message)+'</div>';}
+  }catch(e){$('rightContent').innerHTML='<div class="empty">'+t('research.generateFail')+esc(e.message)+'</div>';}
 }
 
 async function exportPreview(){
@@ -356,8 +396,16 @@ async function exportPptx(){
     const r=await fetch('/api/research/export/pptx',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({content,topic:S.topic})});
     const blob=await r.blob();const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download='research.pptx';a.click();URL.revokeObjectURL(url);
-  }catch(e){alert('匯出失敗：'+e.message);}
+  }catch(e){alert(t('research.exportFail')+e.message);}
 }
+
+// Apply saved language on load
+(function(){
+  var f=_langFlags[_lang];
+  if(f) $('rLangBtn').textContent=f;
+  document.querySelectorAll('.lang-sw-opt').forEach(function(el){el.classList.toggle('active',el.getAttribute('data-lang')===_lang);});
+  applyI18n();
+})();
 
 let searchTimer;
 $('search').addEventListener('input',function(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadNotes(this.value),300);});

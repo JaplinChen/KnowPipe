@@ -8,14 +8,33 @@ import { homedir } from 'node:os';
 import { getUserConfig, updateUserConfig } from '../utils/user-config.js';
 import { getMetricsSummary } from '../core/metrics.js';
 import { getBreakerStatus } from '../monitoring/circuit-breaker.js';
-import { handleResearchRequest } from '../research/research-routes.js';
+import { handleResearchRequest, injectResearchLocales } from '../research/research-routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 3001;
 const ENV_PATH = join(__dirname, '../../.env');
 const RAW_HTML = readFileSync(join(__dirname, 'ui.html'), 'utf-8');
 
-const UI_HTML = RAW_HTML;
+/* ── i18n: 讀取 locale 並注入 HTML ─────────────────────────────────── */
+function loadLocales(): Record<string, Record<string, string>> {
+  const localeDir = join(__dirname, 'locales');
+  const locales: Record<string, Record<string, string>> = {};
+  for (const lang of ['zh-TW', 'en', 'vi']) {
+    const file = join(localeDir, `${lang}.json`);
+    if (existsSync(file)) {
+      locales[lang] = JSON.parse(readFileSync(file, 'utf-8')) as Record<string, string>;
+    }
+  }
+  return locales;
+}
+
+const LOCALES = loadLocales();
+const LOCALES_JSON = JSON.stringify(LOCALES);
+injectResearchLocales(LOCALES_JSON);
+const UI_HTML = RAW_HTML.replace(
+  '/* __LOCALES_INJECT__ */',
+  `var _locales = ${JSON.stringify(LOCALES)};`,
+);
 
 /** Access control: Docker (production) allows all; local dev restricts to localhost. */
 function isAllowed(req: IncomingMessage): boolean {

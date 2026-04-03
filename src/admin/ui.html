@@ -157,6 +157,33 @@
 
     .save-status { text-align: center; font-size: 14px; margin-top: 12px; min-height: 20px; }
 
+    /* Language switcher */
+    .header-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .lang-switcher { position: relative; }
+    .lang-btn {
+      display: flex; align-items: center; gap: 6px;
+      padding: 6px 12px; border: 2px solid #e8e8e8; border-radius: 8px;
+      background: #fafafa; cursor: pointer; font-size: 13px; font-family: inherit;
+      color: #555; transition: all 0.2s;
+    }
+    .lang-btn:hover { border-color: #667eea; color: #667eea; }
+    .lang-menu {
+      display: none; position: absolute; right: 0; top: 100%; margin-top: 4px;
+      background: white; border: 2px solid #e8e8e8; border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 100; min-width: 160px;
+      overflow: hidden;
+    }
+    .lang-menu.open { display: block; }
+    .lang-option {
+      display: flex; align-items: center; gap: 8px;
+      padding: 10px 14px; cursor: pointer; font-size: 13px; color: #444;
+      transition: background 0.15s; border: none; background: none; width: 100%;
+      font-family: inherit; text-align: left;
+    }
+    .lang-option:hover { background: #f0f2ff; }
+    .lang-option.active { background: #f0f2ff; color: #667eea; font-weight: 600; }
+    .lang-flag { font-size: 18px; line-height: 1; }
+
     /* Provider list */
     .provider-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 16px; }
     .provider-row {
@@ -186,115 +213,189 @@
 </head>
 <body>
 <div class="card">
-  <h1>🤖 ObsBot 管理</h1>
-  <p class="subtitle">Bot 設定與功能配置</p>
+  <div class="header-row">
+    <div>
+      <h1>🤖 <span data-i18n="app.title">ObsBot 管理</span></h1>
+      <p class="subtitle" data-i18n="app.subtitle">Bot 設定與功能配置</p>
+    </div>
+    <div class="lang-switcher">
+      <button class="lang-btn" onclick="toggleLangMenu()" id="langBtn">
+        <span class="lang-flag" id="langFlag">🇹🇼</span>
+        <span id="langLabel">繁體中文</span>
+        <span style="font-size:10px">▼</span>
+      </button>
+      <div class="lang-menu" id="langMenu">
+        <button class="lang-option active" data-lang="zh-TW" onclick="changeLang('zh-TW')">
+          <span class="lang-flag">🇹🇼</span> 繁體中文
+        </button>
+        <button class="lang-option" data-lang="en" onclick="changeLang('en')">
+          <span class="lang-flag">🇺🇸</span> English
+        </button>
+        <button class="lang-option" data-lang="vi" onclick="changeLang('vi')">
+          <span class="lang-flag">🇻🇳</span> Tiếng Việt
+        </button>
+      </div>
+    </div>
+  </div>
 
   <div class="tabs">
-    <div class="tab active" onclick="switchTab('setup')">初始設定</div>
-    <div class="tab" onclick="switchTab('config')">功能配置</div>
-    <div class="tab" onclick="switchTab('dashboard')">監控面板</div>
-    <a href="/research" class="tab" style="text-decoration:none">📚 研究工具</a>
+    <div class="tab active" onclick="switchTab('setup')" data-i18n="tab.setup">初始設定</div>
+    <div class="tab" onclick="switchTab('config')" data-i18n="tab.config">功能配置</div>
+    <div class="tab" onclick="switchTab('dashboard')" data-i18n="tab.dashboard">監控面板</div>
+    <a href="/research" class="tab" style="text-decoration:none" data-i18n="tab.research">📚 研究工具</a>
   </div>
 
   <!-- ===== Tab 1: Setup ===== -->
   <div class="tab-content active" id="tab-setup">
     <div class="step">
-      <div class="step-label">步驟 1</div>
-      <div class="step-title">Telegram Bot Token</div>
+      <div class="step-label" data-i18n="setup.step1">步驟 1</div>
+      <div class="step-title" data-i18n="setup.token.title">Telegram Bot Token</div>
       <div class="input-row">
-        <input type="password" id="token" placeholder="貼上你的 Bot Token" />
+        <input type="password" id="token" data-i18n-placeholder="setup.token.placeholder" placeholder="貼上你的 Bot Token" />
         <button class="btn btn-ghost" onclick="togglePass('token')" title="顯示/隱藏">👁</button>
-        <button class="btn btn-ghost" onclick="testToken()">測試連線</button>
+        <button class="btn btn-ghost" onclick="testToken()" data-i18n="setup.token.test">測試連線</button>
       </div>
       <div class="status" id="tokenStatus"></div>
       <p class="hint">
-        沒有 Token？<a href="https://t.me/botfather" target="_blank">點我前往 @BotFather 申請</a><br>
-        傳送 <span class="tag">/newbot</span> → 輸入 Bot 名稱 → 複製 Token 貼到這裡
+        <span data-i18n="setup.token.hint">沒有 Token？</span><a href="https://t.me/botfather" target="_blank" data-i18n="setup.token.link">點我前往 @BotFather 申請</a><br>
+        <span data-i18n="setup.token.howto">傳送 /newbot → 輸入 Bot 名稱 → 複製 Token 貼到這裡</span>
       </p>
     </div>
 
     <div class="step">
-      <div class="step-label">步驟 2</div>
-      <div class="step-title">Obsidian Vault 資料夾位置</div>
+      <div class="step-label" data-i18n="setup.step2">步驟 2</div>
+      <div class="step-title" data-i18n="setup.vault.title">Obsidian Vault 資料夾位置</div>
       <div class="input-row">
-        <input type="text" id="vault" placeholder="例如：/Users/xxx/Documents/MyVault" />
-        <button class="btn btn-ghost" onclick="detectVaults()">自動偵測</button>
+        <input type="text" id="vault" data-i18n-placeholder="setup.vault.placeholder" placeholder="例如：/Users/xxx/Documents/MyVault" />
+        <button class="btn btn-ghost" onclick="detectVaults()" data-i18n="setup.vault.detect">自動偵測</button>
       </div>
       <div class="vault-list" id="vaultList"></div>
-      <p class="hint">按「自動偵測」找看看，或直接貼上 Vault 資料夾的完整路徑</p>
+      <p class="hint" data-i18n="setup.vault.hint">按「自動偵測」找看看，或直接貼上 Vault 資料夾的完整路徑</p>
     </div>
 
     <div class="step">
-      <div class="step-label">步驟 3（建議）</div>
-      <div class="step-title">Bot 使用者白名單</div>
+      <div class="step-label" data-i18n="setup.step3">步驟 3（建議）</div>
+      <div class="step-title" data-i18n="setup.ids.title">Bot 使用者白名單</div>
       <div class="input-row">
-        <input type="text" id="allowedIds" placeholder="例如：123456789,987654321" />
-        <button class="btn btn-ghost" onclick="howToGetId()">如何取得？</button>
+        <input type="text" id="allowedIds" data-i18n-placeholder="setup.ids.placeholder" placeholder="例如：123456789,987654321" />
+        <button class="btn btn-ghost" onclick="howToGetId()" data-i18n="setup.ids.howto">如何取得？</button>
       </div>
       <div class="status" id="idsStatus"></div>
       <p class="hint">
-        填入允許使用 Bot 的 Telegram 用戶 ID（逗號分隔）。<br>
-        不填則任何人皆可使用，<strong>建議填入以防止濫用</strong>。
+        <span data-i18n="setup.ids.hint1">填入允許使用 Bot 的 Telegram 用戶 ID（逗號分隔）。</span><br>
+        <span data-i18n="setup.ids.hint2">不填則任何人皆可使用，</span><strong data-i18n="setup.ids.hint3">建議填入以防止濫用</strong>。
       </p>
     </div>
 
     <div class="divider"></div>
-    <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">✅ 儲存設定</button>
+    <button class="btn btn-primary" id="saveBtn" onclick="saveConfig()">✅ <span data-i18n="setup.save">儲存設定</span></button>
 
     <div class="success-box" id="successBox">
-      <h2>✅ 設定完成！</h2>
-      <p>設定已儲存。請關閉此視窗，之後執行 <strong>npm run dev</strong> 即可讓 Bot 開始運作。</p>
+      <h2>✅ <span data-i18n="setup.success.title">設定完成！</span></h2>
+      <p data-i18n="setup.success.msg">設定已儲存。請關閉此視窗，之後執行 npm run dev 即可讓 Bot 開始運作。</p>
     </div>
   </div>
 
   <!-- ===== Tab 2: Config ===== -->
   <div class="tab-content" id="tab-config">
     <div class="section">
-      <div class="section-title">🔘 功能開關</div>
+      <div class="section-title">🔘 <span data-i18n="config.features">功能開關</span></div>
       <div class="toggle-grid" id="featureToggles"></div>
     </div>
 
     <div class="section">
-      <div class="section-title">🌐 平台 Extractors</div>
+      <div class="section-title">🌐 <span data-i18n="config.platforms">平台 Extractors</span></div>
       <div class="platform-grid" id="platformGrid"></div>
     </div>
 
     <div class="section">
-      <div class="section-title">🤖 LLM Provider（拖曳排序 · 點擊設定）</div>
+      <div class="section-title">🤖 <span data-i18n="config.llm">LLM Provider（拖曳排序 · 點擊設定）</span></div>
       <div class="provider-list" id="providerList"></div>
       <div class="provider-panel" id="providerPanel"></div>
     </div>
 
     <div class="divider"></div>
-    <button class="btn btn-primary" onclick="saveUserConfig()">💾 儲存配置</button>
+    <button class="btn btn-primary" onclick="saveUserConfig()">💾 <span data-i18n="config.save">儲存配置</span></button>
     <div class="save-status" id="saveStatus"></div>
   </div>
 
   <!-- ===== Tab 3: Dashboard ===== -->
   <div class="tab-content" id="tab-dashboard">
     <div class="section">
-      <div class="section-title">📊 系統狀態</div>
-      <div id="sysStatus" style="font-size:14px;line-height:1.8;color:#555;">載入中…</div>
+      <div class="section-title">📊 <span data-i18n="dashboard.system">系統狀態</span></div>
+      <div id="sysStatus" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">📈 24 小時指標</div>
-      <div id="metricsPanel" style="font-size:14px;line-height:1.8;color:#555;">載入中…</div>
+      <div class="section-title">📈 <span data-i18n="dashboard.metrics">24 小時指標</span></div>
+      <div id="metricsPanel" style="font-size:14px;line-height:1.8;color:#555;" data-i18n="dashboard.loading">載入中…</div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">🌐 平台統計</div>
+      <div class="section-title">🌐 <span data-i18n="dashboard.platforms">平台統計</span></div>
       <div id="platformPanel" style="font-size:13px;color:#555;"></div>
     </div>
     <div class="section" style="margin-top:20px;">
-      <div class="section-title">⚡ 熔斷器狀態</div>
-      <div id="breakerPanel" style="font-size:13px;color:#555;">無異常</div>
+      <div class="section-title">⚡ <span data-i18n="dashboard.breakers">熔斷器狀態</span></div>
+      <div id="breakerPanel" style="font-size:13px;color:#555;" data-i18n="dashboard.allNormal">所有平台正常</div>
     </div>
     <div style="margin-top:16px;">
-      <button class="btn btn-ghost" onclick="loadDashboard()">🔄 重新整理</button>
+      <button class="btn btn-ghost" onclick="loadDashboard()">🔄 <span data-i18n="dashboard.refresh">重新整理</span></button>
     </div>
   </div>
 </div>
 
 <script>
+/* ── i18n engine ───────────────────────────────────────────────────── */
+/* __LOCALES_INJECT__ */
+var _lang = localStorage.getItem('obsbot-lang') || 'zh-TW';
+var _langMeta = {
+  'zh-TW': { flag: '🇹🇼', label: '繁體中文' },
+  'en':    { flag: '🇺🇸', label: 'English' },
+  'vi':    { flag: '🇻🇳', label: 'Tiếng Việt' }
+};
+
+function t(key, params) {
+  var s = (_locales[_lang] && _locales[_lang][key]) || (_locales['zh-TW'] && _locales['zh-TW'][key]) || key;
+  if (params) { Object.keys(params).forEach(function(k) { s = s.replace('{' + k + '}', params[k]); }); }
+  return s;
+}
+
+function applyI18n() {
+  document.querySelectorAll('[data-i18n]').forEach(function(el) {
+    el.textContent = t(el.getAttribute('data-i18n'));
+  });
+  document.querySelectorAll('[data-i18n-placeholder]').forEach(function(el) {
+    el.placeholder = t(el.getAttribute('data-i18n-placeholder'));
+  });
+  document.documentElement.lang = _lang === 'vi' ? 'vi' : _lang === 'en' ? 'en' : 'zh-TW';
+}
+
+function toggleLangMenu() {
+  document.getElementById('langMenu').classList.toggle('open');
+}
+
+function changeLang(lang) {
+  _lang = lang;
+  localStorage.setItem('obsbot-lang', lang);
+  document.getElementById('langMenu').classList.remove('open');
+  var meta = _langMeta[lang];
+  document.getElementById('langFlag').textContent = meta.flag;
+  document.getElementById('langLabel').textContent = meta.label;
+  document.querySelectorAll('.lang-option').forEach(function(el) {
+    el.classList.toggle('active', el.getAttribute('data-lang') === lang);
+  });
+  applyI18n();
+  // Re-render dynamic content
+  var activeTab = document.querySelector('.tab-content.active');
+  if (activeTab && activeTab.id === 'tab-config') { renderFeatures(); renderPlatforms(); renderLlm(); }
+  if (activeTab && activeTab.id === 'tab-dashboard') loadDashboard();
+}
+
+// Close menu on click outside
+document.addEventListener('click', function(e) {
+  var sw = document.querySelector('.lang-switcher');
+  if (sw && !sw.contains(e.target)) document.getElementById('langMenu').classList.remove('open');
+});
+
 /* ── Tab switching ──────────────────────────────────────────────────── */
 function switchTab(name) {
   const tabNames = ['setup', 'config', 'dashboard'];
@@ -319,18 +420,18 @@ async function loadDashboard() {
     const h = Math.floor(status.uptime / 3600);
     const m = Math.floor((status.uptime % 3600) / 60);
     document.getElementById('sysStatus').innerHTML = [
-      `⏱ 運行時間：${h}h ${m}m`,
-      `💾 記憶體：${status.heapMB} MB (Heap) / ${status.rssMB} MB (RSS)`,
-      `🔧 PID：${status.pid} | Node：${status.nodeVersion}`,
+      '⏱ ' + t('dashboard.uptime', {h:h, m:m}),
+      '💾 ' + t('dashboard.memory', {heap:status.heapMB, rss:status.rssMB}),
+      '🔧 ' + t('dashboard.pid', {pid:status.pid, ver:status.nodeVersion}),
     ].join('<br>');
 
     document.getElementById('metricsPanel').innerHTML = [
-      `📥 總請求：${metrics.totalRequests}`,
-      `✅ 成功率：${metrics.successRate}%`,
-      `⏳ 平均耗時：${metrics.avgDurationMs} ms`,
+      '📥 ' + t('dashboard.totalReqs', {n:metrics.totalRequests}),
+      '✅ ' + t('dashboard.successRate', {n:metrics.successRate}),
+      '⏳ ' + t('dashboard.avgDuration', {n:metrics.avgDurationMs}),
       metrics.recentErrors.length > 0
-        ? `❌ 近期錯誤：<br>${metrics.recentErrors.map(e => '&nbsp;&nbsp;• ' + e).join('<br>')}`
-        : '❌ 近期無錯誤',
+        ? '❌ ' + t('dashboard.recentErrors') + '<br>' + metrics.recentErrors.map(e => '&nbsp;&nbsp;• ' + e).join('<br>')
+        : '❌ ' + t('dashboard.noErrors'),
     ].join('<br>');
 
     if (metrics.platformStats.length > 0) {
@@ -338,22 +439,22 @@ async function loadDashboard() {
         `<tr><td>${p.platform}</td><td>${p.count}</td><td>${p.successRate}%</td><td>${p.avgMs}ms</td></tr>`
       ).join('');
       document.getElementById('platformPanel').innerHTML =
-        `<table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr style="text-align:left;border-bottom:1px solid #eee;"><th>平台</th><th>次數</th><th>成功率</th><th>平均耗時</th></tr>
-          ${rows}</table>`;
+        '<table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+          '<tr style="text-align:left;border-bottom:1px solid #eee;"><th>' + t('dashboard.table.platform') + '</th><th>' + t('dashboard.table.count') + '</th><th>' + t('dashboard.table.rate') + '</th><th>' + t('dashboard.table.avg') + '</th></tr>' +
+          rows + '</table>';
     } else {
-      document.getElementById('platformPanel').innerHTML = '尚無資料';
+      document.getElementById('platformPanel').innerHTML = t('dashboard.noData');
     }
 
     if (status.breakers && status.breakers.length > 0) {
       document.getElementById('breakerPanel').innerHTML = status.breakers.map(b =>
-        `⚡ ${b.platform}：${b.status}（${b.failures} 次失敗）`
+        `⚡ ${b.platform}：${b.status}（${b.failures}）`
       ).join('<br>');
     } else {
-      document.getElementById('breakerPanel').innerHTML = '✅ 所有平台正常';
+      document.getElementById('breakerPanel').innerHTML = '✅ ' + t('dashboard.allNormal');
     }
   } catch (err) {
-    document.getElementById('sysStatus').textContent = '載入失敗：' + err.message;
+    document.getElementById('sysStatus').textContent = t('dashboard.loadFail') + err.message;
   }
 }
 
@@ -365,19 +466,19 @@ function togglePass(id) {
 
 async function testToken() {
   var token = document.getElementById('token').value.trim();
-  if (!token) { setStatus('tokenStatus', '請先輸入 Token', false); return; }
-  setStatus('tokenStatus', '測試中...', null);
+  if (!token) { setStatus('tokenStatus', t('setup.token.empty'), false); return; }
+  setStatus('tokenStatus', t('setup.token.testing'), null);
   var res = await fetch('/api/test-token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token }) });
   var data = await res.json();
-  setStatus('tokenStatus', data.ok ? '\u2713 連線成功：@' + data.username : '\u2717 ' + data.error, data.ok);
+  setStatus('tokenStatus', data.ok ? '\u2713 ' + t('setup.token.success') + data.username : '\u2717 ' + data.error, data.ok);
 }
 
 async function detectVaults() {
   var list = document.getElementById('vaultList');
-  list.innerHTML = '<p style="color:#999;font-size:13px;padding:4px 0">偵測中...</p>';
+  list.innerHTML = '<p style="color:#999;font-size:13px;padding:4px 0">' + t('setup.vault.detecting') + '</p>';
   var res = await fetch('/api/vaults');
   var data = await res.json();
-  if (!data.vaults.length) { list.innerHTML = '<p style="color:#bbb;font-size:13px">找不到 Obsidian Vault，請手動輸入路徑</p>'; return; }
+  if (!data.vaults.length) { list.innerHTML = '<p style="color:#bbb;font-size:13px">' + t('setup.vault.empty') + '</p>'; return; }
   list.innerHTML = data.vaults.map(function(v) {
     return '<div class="vault-item" onclick="selectVault(this,\'' + v.replace(/'/g, "\\'") + '\')">' + v + '</div>';
   }).join('');
@@ -396,14 +497,14 @@ function setStatus(id, msg, ok) {
 }
 
 function howToGetId() {
-  alert('如何取得 Telegram 用戶 ID：\n\n1. 啟動 Bot 後，傳送任何訊息給 Bot\n2. Bot 的 console 會顯示：[auth] Unauthorized message from user ID: 123456789\n3. 複製數字填入此欄位\n\n或直接搜尋 @userinfobot');
+  alert(t('setup.ids.alert'));
 }
 
 function validateIds(raw) {
   if (!raw) return { ok: true, cleaned: '' };
   var parts = raw.split(',').map(function(s) { return s.trim(); }).filter(Boolean);
   var invalid = parts.filter(function(p) { return !/^\d+$/.test(p); });
-  if (invalid.length > 0) return { ok: false, error: '格式錯誤：' + invalid.join(', ') };
+  if (invalid.length > 0) return { ok: false, error: t('setup.ids.invalid') + invalid.join(', ') };
   return { ok: true, cleaned: parts.join(',') };
 }
 
@@ -411,39 +512,29 @@ async function saveConfig() {
   var token = document.getElementById('token').value.trim();
   var vault = document.getElementById('vault').value.trim();
   var rawIds = document.getElementById('allowedIds').value.trim();
-  if (!token) { alert('請填入 Telegram Bot Token'); return; }
-  if (!vault) { alert('請填入 Obsidian Vault 位置'); return; }
+  if (!token) { alert(t('setup.save.noToken')); return; }
+  if (!vault) { alert(t('setup.save.noVault')); return; }
   var v = validateIds(rawIds);
   if (!v.ok) { setStatus('idsStatus', v.error, false); return; }
-  if (!v.cleaned && !confirm('未填入使用者白名單，任何人都可以使用你的 Bot。確定要繼續嗎？')) return;
+  if (!v.cleaned && !confirm(t('setup.save.noIds'))) return;
   var btn = document.getElementById('saveBtn');
-  btn.disabled = true; btn.textContent = '儲存中...';
+  btn.disabled = true; btn.textContent = t('setup.saving');
   await fetch('/api/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ BOT_TOKEN: token, VAULT_PATH: vault, ALLOWED_USER_IDS: v.cleaned }) });
   btn.style.display = 'none';
   document.getElementById('successBox').style.display = 'block';
 }
 
 /* ── Config tab ─────────────────────────────────────────────────────── */
-var FEATURE_LABELS = {
-  translation: '簡轉繁翻譯',
-  linkEnrichment: '連結深度抓取',
-  imageAnalysis: '圖片 AI 辨識',
-  videoTranscription: '影片逐字稿',
-  comments: '評論擷取',
-  proactive: '主動推理推送',
-  monitor: '自我修復監控',
-  wall: '情報牆',
-  patrol: '自動巡邏',
-  consolidation: '記憶整合'
-};
+var FEATURE_KEYS = ['translation','linkEnrichment','imageAnalysis','videoTranscription','comments','proactive','monitor','wall','patrol','consolidation'];
+function getFeatureLabel(key) { return t('feature.' + key); }
 
 var PROVIDERS = [
-  { key: 'omlx', icon: '🖥️', label: 'oMLX', desc: '本機 Apple Silicon', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'omlx' },
-  { key: 'ollama', icon: '🦙', label: 'Ollama', desc: '本機模型伺服器', hasModels: true, hasBaseUrl: true, hasApiKey: false, detectProvider: 'ollama' },
-  { key: 'openai', icon: '🤖', label: 'OpenAI', desc: 'GPT-4.1 / 相容 API', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'openai' },
-  { key: 'gemini', icon: '✨', label: 'Gemini', desc: 'Google AI', hasModels: false, hasBaseUrl: false, hasApiKey: true },
-  { key: 'opencode', icon: '⌨️', label: 'OpenCode', desc: '免費 CLI', hasModels: true, hasBaseUrl: false, presetModels: ['opencode/big-pickle','opencode/gpt-5-nano','opencode/mimo-v2-omni-free','opencode/mimo-v2-pro-free','opencode/minimax-m2.5-free','opencode/nemotron-3-super-free','opencode/qwen3.6-plus-free'] },
-  { key: 'ddg', icon: '🦆', label: 'DDG Chat', desc: '瀏覽器備援', hasModels: false },
+  { key: 'omlx', icon: '🖥️', label: 'oMLX', descKey: 'provider.omlx', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'omlx' },
+  { key: 'ollama', icon: '🦙', label: 'Ollama', descKey: 'provider.ollama', hasModels: true, hasBaseUrl: true, hasApiKey: false, detectProvider: 'ollama' },
+  { key: 'openai', icon: '🤖', label: 'OpenAI', descKey: 'provider.openai', hasModels: true, hasBaseUrl: true, hasApiKey: true, detectProvider: 'openai' },
+  { key: 'gemini', icon: '✨', label: 'Gemini', descKey: 'provider.gemini', hasModels: false, hasBaseUrl: false, hasApiKey: true },
+  { key: 'opencode', icon: '⌨️', label: 'OpenCode', descKey: 'provider.opencode', hasModels: true, hasBaseUrl: false, presetModels: ['opencode/big-pickle','opencode/gpt-5-nano','opencode/mimo-v2-omni-free','opencode/mimo-v2-pro-free','opencode/minimax-m2.5-free','opencode/nemotron-3-super-free','opencode/qwen3.6-plus-free'] },
+  { key: 'ddg', icon: '🦆', label: 'DDG Chat', descKey: 'provider.ddg', hasModels: false },
 ];
 var _activeProvider = 'omlx';
 var _detectedModels = {};
@@ -473,10 +564,10 @@ async function loadUserConfig() {
 
 function renderFeatures() {
   var grid = document.getElementById('featureToggles');
-  grid.innerHTML = Object.keys(FEATURE_LABELS).map(function(key) {
+  grid.innerHTML = FEATURE_KEYS.map(function(key) {
     var on = _userConfig.features[key];
     return '<div class="toggle-row">' +
-      '<span class="toggle-label">' + FEATURE_LABELS[key] + '</span>' +
+      '<span class="toggle-label">' + getFeatureLabel(key) + '</span>' +
       '<label class="toggle"><input type="checkbox" data-feat="' + key + '"' + (on ? ' checked' : '') + '><span class="slider"></span></label>' +
       '</div>';
   }).join('');
@@ -519,7 +610,7 @@ function renderProviderList() {
       '<label class="toggle" onclick="event.stopPropagation()"><input type="checkbox" data-llm-enable="' + key + '"' + (isOn ? ' checked' : '') + ' onchange="toggleProvider(\'' + key + '\',this.checked)"><span class="slider"></span></label>' +
       '<span class="icon">' + p.icon + '</span>' +
       '<span class="name">' + p.label + '</span>' +
-      '<span class="desc">' + p.desc + '</span>' +
+      '<span class="desc">' + t(p.descKey) + '</span>' +
       '<span class="order-btns">' + upBtn + downBtn + '</span>' +
       '</div>';
   }).join('');
@@ -560,7 +651,7 @@ function renderProviderPanel() {
   // API Key (OpenAI, Gemini)
   if (pInfo.hasApiKey) {
     var key = p === 'gemini' ? (cfg.gemini.apiKey || '') : (pCfg.apiKey || '');
-    html += '<div class="llm-field"><label>API Key</label>' +
+    html += '<div class="llm-field"><label>' + t('llm.apiKey') + '</label>' +
       '<div class="input-row"><input type="password" id="provApiKey" value="' + esc(key) + '" placeholder="sk-... 或 AIza..." />' +
       '<button class="btn btn-ghost" onclick="togglePass(\'provApiKey\')">👁</button></div></div>';
   }
@@ -568,13 +659,13 @@ function renderProviderPanel() {
   // Base URL (oMLX, Ollama, OpenAI)
   if (pInfo.hasBaseUrl) {
     var defaultUrls = { omlx: 'http://127.0.0.1:8000', ollama: 'http://127.0.0.1:11434', openai: 'https://api.openai.com/v1' };
-    html += '<div class="llm-field"><label>Base URL</label>' +
+    html += '<div class="llm-field"><label>' + t('llm.baseUrl') + '</label>' +
       '<input type="text" id="provBaseUrl" value="' + esc(pCfg.baseUrl || defaultUrls[p] || '') + '" placeholder="' + (defaultUrls[p] || '') + '" /></div>';
   }
 
   // Gemini model (single model, no tiers)
   if (p === 'gemini') {
-    html += '<div class="llm-field"><label>模型</label>' +
+    html += '<div class="llm-field"><label>' + t('llm.model') + '</label>' +
       '<input type="text" id="geminiModel" value="' + esc(cfg.gemini.model || 'gemini-2.5-flash') + '" placeholder="gemini-2.5-flash" /></div>';
   }
 
@@ -591,13 +682,13 @@ function renderProviderPanel() {
 
   // OpenCode specific
   if (p === 'opencode') {
-    html += '<div class="llm-field"><label>CLI Timeout (ms)</label>' +
+    html += '<div class="llm-field"><label>' + t('llm.timeout') + '</label>' +
       '<input type="text" id="provTimeout" value="' + cfg.opencode.timeoutMs + '" /></div>';
   }
 
   // DDG specific
   if (p === 'ddg') {
-    html += '<div class="hint" style="margin-top:8px">DuckDuckGo Chat 為瀏覽器自動化備援，透過 Camoufox 操作 duck.ai。無需額外設定。</div>';
+    html += '<div class="hint" style="margin-top:8px">' + t('provider.ddg.hint') + '</div>';
   }
 
   panel.innerHTML = html;
@@ -605,7 +696,7 @@ function renderProviderPanel() {
 
 function renderModelFields(provider, models) {
   var tiers = ['flash', 'standard', 'deep'];
-  var tierLabels = { flash: 'Flash（快速）', standard: 'Standard（平衡）', deep: 'Deep（深度）' };
+  var tierLabels = { flash: t('llm.tier.flash'), standard: t('llm.tier.standard'), deep: t('llm.tier.deep') };
   var pInfo = PROVIDERS.find(function(x) { return x.key === provider; }) || {};
   var html = '';
   tiers.forEach(function(tier) {
@@ -616,17 +707,17 @@ function renderModelFields(provider, models) {
     html += '<div class="llm-field"><label>' + tierLabels[tier] + '</label>';
     if (options.length > 0) {
       html += '<div class="model-row"><select id="model-' + provider + '-' + tier + '" onchange="onModelSelect(\'' + provider + '\',\'' + tier + '\',this.value)">';
-      html += '<option value="">（自訂）</option>';
+      html += '<option value="">' + t('llm.custom') + '</option>';
       options.forEach(function(m) {
         html += '<option value="' + esc(m) + '"' + (m === val ? ' selected' : '') + '>' + m + '</option>';
       });
       html += '</select></div>';
       var isCustom = val && options.indexOf(val) === -1;
       if (isCustom) {
-        html += '<input type="text" id="model-custom-' + provider + '-' + tier + '" value="' + esc(val) + '" placeholder="自訂模型名稱" style="margin-top:4px" />';
+        html += '<input type="text" id="model-custom-' + provider + '-' + tier + '" value="' + esc(val) + '" placeholder="' + t('llm.customPlaceholder') + '" style="margin-top:4px" />';
       }
     } else {
-      html += '<input type="text" id="model-custom-' + provider + '-' + tier + '" value="' + esc(val) + '" placeholder="模型名稱" />';
+      html += '<input type="text" id="model-custom-' + provider + '-' + tier + '" value="' + esc(val) + '" placeholder="' + t('llm.modelPlaceholder') + '" />';
     }
     html += '</div>';
   });
@@ -635,7 +726,7 @@ function renderModelFields(provider, models) {
 
 function renderDetectBtn(provider) {
   return '<div class="llm-field">' +
-    '<button class="btn btn-ghost" onclick="detectModels(\'' + provider + '\')">🔍 偵測可用模型</button>' +
+    '<button class="btn btn-ghost" onclick="detectModels(\'' + provider + '\')">🔍 ' + t('llm.detect') + '</button>' +
     '<div class="model-status" id="modelStatus"></div></div>';
 }
 
@@ -646,7 +737,7 @@ function onModelSelect(provider, tier, val) {
 
 async function detectModels(provider) {
   var statusEl = document.getElementById('modelStatus');
-  if (statusEl) { statusEl.textContent = '偵測中...'; statusEl.className = 'model-status'; }
+  if (statusEl) { statusEl.textContent = t('llm.detecting'); statusEl.className = 'model-status'; }
   var baseUrl = '';
   var urlEl = document.getElementById('provBaseUrl');
   if (urlEl) baseUrl = urlEl.value.trim();
@@ -660,13 +751,13 @@ async function detectModels(provider) {
     var data = await res.json();
     if (data.ok && data.models.length > 0) {
       _detectedModels[provider] = data.models;
-      if (statusEl) { statusEl.textContent = '✓ 偵測到 ' + data.models.length + ' 個模型'; statusEl.className = 'model-status ok'; }
+      if (statusEl) { statusEl.textContent = '✓ ' + t('llm.detected', {n:data.models.length}); statusEl.className = 'model-status ok'; }
       renderProviderPanel();
     } else {
-      if (statusEl) { statusEl.textContent = '✗ ' + (data.error || '未偵測到模型'); statusEl.className = 'model-status err'; }
+      if (statusEl) { statusEl.textContent = '✗ ' + (data.error || t('llm.detectFail')); statusEl.className = 'model-status err'; }
     }
   } catch(e) {
-    if (statusEl) { statusEl.textContent = '✗ 連線失敗'; statusEl.className = 'model-status err'; }
+    if (statusEl) { statusEl.textContent = '✗ ' + t('llm.connectFail'); statusEl.className = 'model-status err'; }
   }
 }
 
@@ -720,26 +811,39 @@ async function saveUserConfig() {
   var patch = { features: features, extractors: { disabled: disabled }, llm: llmPatch };
 
   var el = document.getElementById('saveStatus');
-  el.textContent = '儲存中...';
+  el.textContent = t('config.saving');
   el.className = 'save-status';
   try {
     var res = await fetch('/api/user-config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) });
     _userConfig = await res.json();
-    el.textContent = '✅ 配置已儲存（部分變更需重啟 Bot 生效）';
+    el.textContent = '✅ ' + t('config.saved');
     el.className = 'save-status ok';
   } catch(e) {
-    el.textContent = '❌ 儲存失敗：' + e.message;
+    el.textContent = '❌ ' + t('config.saveFail') + e.message;
     el.className = 'save-status err';
   }
 }
 
 /* ── Init ───────────────────────────────────────────────────────────── */
+// Apply saved language on load
+(function() {
+  var meta = _langMeta[_lang];
+  if (meta) {
+    document.getElementById('langFlag').textContent = meta.flag;
+    document.getElementById('langLabel').textContent = meta.label;
+    document.querySelectorAll('.lang-option').forEach(function(el) {
+      el.classList.toggle('active', el.getAttribute('data-lang') === _lang);
+    });
+  }
+  applyI18n();
+})();
+
 fetch('/api/config').then(function(r) { return r.json(); }).then(function(data) {
   if (data.VAULT_PATH) document.getElementById('vault').value = data.VAULT_PATH;
-  if (data.BOT_TOKEN_set) setStatus('tokenStatus', '（已設定，輸入新 Token 可覆蓋）', null);
+  if (data.BOT_TOKEN_set) setStatus('tokenStatus', t('setup.token.set'), null);
   if (data.ALLOWED_USER_IDS) {
     document.getElementById('allowedIds').value = data.ALLOWED_USER_IDS;
-    setStatus('idsStatus', '已設定 ' + data.ALLOWED_USER_IDS.split(',').length + ' 個用戶', true);
+    setStatus('idsStatus', t('setup.ids.set', {n: data.ALLOWED_USER_IDS.split(',').length}), true);
   }
 });
 </script>

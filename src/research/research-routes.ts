@@ -16,7 +16,13 @@ import { renderSlidePreviewHtml } from './slide-preview.js';
 import type { NoteRecord, ChatMessage, CleanLevel } from './types.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const UI_HTML = readFileSync(join(__dirname, 'research-ui.html'), 'utf-8');
+const RAW_RESEARCH_HTML = readFileSync(join(__dirname, 'research-ui.html'), 'utf-8');
+let UI_HTML = RAW_RESEARCH_HTML;
+
+/** 注入 locale 資料到 research UI（由 admin server 呼叫） */
+export function injectResearchLocales(localesJson: string): void {
+  UI_HTML = RAW_RESEARCH_HTML.replace('/* __LOCALES_INJECT__ */', 'var _locales = ' + localesJson + ';');
+}
 
 function readBody(req: IncomingMessage): Promise<string> {
   return new Promise((resolve) => {
