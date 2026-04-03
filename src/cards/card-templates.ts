@@ -32,11 +32,14 @@ export function renderCardHtml(data: CardData): string {
 <html>
 <head>
 <meta charset="utf-8">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=block" rel="stylesheet">
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 800px; height: 420px;
-    font-family: system-ui, "Noto Sans TC", "PingFang TC", sans-serif;
+    font-family: "Noto Sans TC", "PingFang TC", system-ui, sans-serif;
     background: #0f172a;
     color: #e2e8f0;
     overflow: hidden;

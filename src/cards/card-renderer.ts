@@ -62,7 +62,7 @@ export async function generateInfoCard(
 
     try {
       await page.setViewportSize({ width: 800, height: 420 });
-      await page.setContent(html, { waitUntil: 'load' });
+      await page.setContent(html, { waitUntil: 'networkidle' });
       const screenshot = await page.screenshot({
         clip: { x: 0, y: 0, width: 800, height: 420 },
         type: 'png',
