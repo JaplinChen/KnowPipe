@@ -106,6 +106,7 @@ Ingest   Compile   Query    Output    Lint
 - **10 個核心指令 + 32 個完整指令** — InlineKeyboard 按鈕引導
 - **遠端管理** — `/admin` 狀態、診斷、日誌、重啟、遠端指令
 - **Admin Web UI** — `http://localhost:3001` 即時儀表板、功能設定、多語系介面
+- **Guardian Console** — `http://localhost:3199` 進程守護儀表板，監控本地 AI runtime 記憶體壓力、自動重啟、macOS LaunchAgent 開機自動運行
 - **多模型智慧路由** — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理
 - **功能開關** — `/config` 即時切換 11 項功能
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV
