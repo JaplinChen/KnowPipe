@@ -116,10 +116,10 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
   if (enriched.analysis) content.enrichedAnalysis = enriched.analysis;
   if (enriched.keyPoints?.length) content.enrichedKeyPoints = enriched.keyPoints;
   if (enriched.title) content.title = enriched.title;
+  if (enriched.category) content.category = enriched.category;
   if (enriched.githubAnalysis) content.githubAnalysis = enriched.githubAnalysis;
   // AI-generated chapters (only when no platform-native chapters exist)
   if (!content.chapters && enriched.chapters?.length) content.chapters = enriched.chapters;
-  // 不用 enricher 的 category — classifier 的關鍵字匹配更可靠
 
   // Benchmark: score enrichment quality (non-blocking)
   try {

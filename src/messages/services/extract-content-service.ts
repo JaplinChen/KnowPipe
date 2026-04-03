@@ -6,7 +6,7 @@ import { webExtractor } from '../../extractors/web-extractor.js';
 
 /** Error codes eligible for web-extractor fallback */
 const FALLBACK_ELIGIBLE: Set<ErrorCode> = new Set([
-  'TIMEOUT', 'FORBIDDEN', 'NETWORK', 'UNKNOWN',
+  'TIMEOUT', 'FORBIDDEN', 'NETWORK',
 ]);
 
 function shouldFallbackToWeb(err: unknown, platform: string): boolean {

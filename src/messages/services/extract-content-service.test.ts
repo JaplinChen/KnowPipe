@@ -1,5 +1,12 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ExtractedContent, ExtractorWithComments, ThreadComment } from '../../extractors/types.js';
+
+vi.mock('../../extractors/web-extractor.js', () => ({
+  webExtractor: {
+    extract: vi.fn().mockRejectedValue(new Error('web fallback disabled in test')),
+  },
+}));
+
 import { extractContentWithComments } from './extract-content-service.js';
 
 function makeContent(): ExtractedContent {
