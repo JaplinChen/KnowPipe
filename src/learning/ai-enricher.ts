@@ -193,3 +193,77 @@ export async function enrichContent(
     return NULL_RESULT;
   }
 }
+
+/* ── Generator: targeted field regeneration (Harness pattern) ────── */
+
+interface FixInstruction {
+  field: string;
+  instruction: string;
+}
+
+/**
+ * Regenerate specific fields based on Evaluator feedback.
+ * Only regenerates the fields flagged by the Evaluator, with targeted prompts
+ * that include the Evaluator's specific improvement instructions.
+ */
+export async function regenerateFields(
+  title: string,
+  text: string,
+  currentOutput: Partial<EnrichResult>,
+  fixInstructions: FixInstruction[],
+): Promise<Partial<EnrichResult>> {
+  const fields = fixInstructions.map(i => i.field);
+  const instructionText = fixInstructions
+    .map(i => `- ${i.field}：${i.instruction}`)
+    .join('\n');
+
+  const currentValues = fields.map(f => {
+    const val = currentOutput[f as keyof EnrichResult];
+    return `- ${f}：${Array.isArray(val) ? val.join(', ') : val ?? '（空）'}`;
+  }).join('\n');
+
+  const prompt = [
+    '你是內容修復器（Generator）。Evaluator 發現以下欄位品質不足，請根據指令重新生成。',
+    '',
+    `標題：${title}`,
+    `原始內容：${text.slice(0, 1200)}`,
+    '',
+    '當前輸出（需要改善）：',
+    currentValues,
+    '',
+    'Evaluator 的改善指令：',
+    instructionText,
+    '',
+    `以 JSON 格式回覆，只包含需要修正的欄位（${fields.join(', ')}）：`,
+    '注意：所有文字必須用繁體中文。摘要 ≤120字，關鍵字 3-5 個，分析 2-4 句有具體細節。',
+  ].join('\n');
+
+  try {
+    const raw = await runLocalLlmPrompt(prompt, { timeoutMs: 30_000, model: 'standard' });
+    if (!raw) return {};
+
+    const match = raw.match(/\{[\s\S]*\}/);
+    if (!match) return {};
+
+    const parsed = JSON.parse(match[0]) as Record<string, unknown>;
+
+    const result: Partial<EnrichResult> = {};
+    if (typeof parsed.summary === 'string') result.summary = s2tw(parsed.summary);
+    if (Array.isArray(parsed.keywords)) {
+      result.keywords = parsed.keywords
+        .filter((v): v is string => typeof v === 'string')
+        .slice(0, 5)
+        .map(s2tw);
+    }
+    if (typeof parsed.analysis === 'string') result.analysis = s2tw(parsed.analysis);
+    if (Array.isArray(parsed.keyPoints)) {
+      result.keyPoints = parsed.keyPoints
+        .filter((v): v is string => typeof v === 'string')
+        .slice(0, 5)
+        .map(s2tw);
+    }
+    return result;
+  } catch {
+    return {};
+  }
+}

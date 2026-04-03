@@ -16,6 +16,7 @@ import { buildToolDashboard, formatToolDashboard } from '../knowledge/tool-dashb
 import { runVaultAnalysis } from '../knowledge/vault-analyzer.js';
 import { generateHealthReport, formatHealthReportTelegram, saveHealthReportNote } from '../knowledge/health-report.js';
 import { runCompilationManual, type CompilationMode } from '../proactive/compilation-cycle.js';
+import { compileTopics } from '../knowledge/topic-compiler.js';
 import { replyEmptyKnowledge, replyWithNextSteps, NEXT_STEPS } from './reply-buttons.js';
 import { startTyping, stopTyping } from '../utils/typing-indicator.js';
 
@@ -122,15 +123,65 @@ export async function handleAnalyze(ctx: Context, config: AppConfig): Promise<vo
 /** /compile — manual knowledge compilation trigger */
 export async function handleCompile(ctx: Context, config: AppConfig): Promise<void> {
   const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
-  const mode: CompilationMode = text.includes('--full') || text.includes('weekly') ? 'weekly' : 'daily';
-  const status = await ctx.reply(`🔄 正在執行知識編譯（${mode === 'weekly' ? '完整版' : '輕量版'}）…`);
+  const arg = text.replace(/^\/compile\s*/i, '').trim();
+
+  // /compile topics [days] [category] — Karpathy-style topic compilation
+  if (arg.startsWith('topics') || arg.match(/^\d+$/) || arg === '') {
+    await handleTopicCompile(ctx, config, arg);
+    return;
+  }
+
+  // /compile full / /compile weekly — legacy full compilation
+  const mode: CompilationMode = arg.includes('full') || arg.includes('weekly') ? 'weekly' : 'daily';
+  const status = await ctx.reply(`🔄 正在執行系統編譯（${mode === 'weekly' ? '完整版' : '輕量版'}）…`);
 
   const typing = startTyping(ctx);
   try {
     const { report, summary } = await runCompilationManual(config, mode);
-    await ctx.reply(`✅ 知識編譯完成\n${summary}\n\n${formatHealthReportTelegram(report)}`.slice(0, 4000));
+    await ctx.reply(`✅ 系統編譯完成\n${summary}\n\n${formatHealthReportTelegram(report)}`.slice(0, 4000));
   } catch (err) {
     await ctx.reply(`編譯失敗：${(err as Error).message}`);
+  } finally {
+    stopTyping(typing);
+    await ctx.deleteMessage(status.message_id).catch(() => {});
+  }
+}
+
+/** /compile [days] [category] — Karpathy-style topic compilation */
+async function handleTopicCompile(ctx: Context, config: AppConfig, arg: string): Promise<void> {
+  // Parse: /compile topics 14 AI  or  /compile 14  or  /compile AI  or  /compile
+  const cleaned = arg.replace(/^topics\s*/i, '').trim();
+  const dayMatch = cleaned.match(/^(\d+)/);
+  const daysBack = dayMatch ? parseInt(dayMatch[1], 10) : 7;
+  const filterCategory = cleaned.replace(/^\d+\s*/, '').trim() || undefined;
+
+  const label = filterCategory
+    ? `最近 ${daysBack} 天 · 篩選「${filterCategory}」`
+    : `最近 ${daysBack} 天`;
+  const status = await ctx.reply(`📚 正在編譯主題知識（${label}）…`);
+  const typing = startTyping(ctx);
+
+  try {
+    const result = await compileTopics(config.vaultPath, { daysBack, filterCategory });
+
+    const lines = [`✅ 主題知識編譯完成`, ''];
+    lines.push(`📊 ${result.totalNotes} 篇筆記 → ${result.compiledTopics.length} 個主題`);
+
+    for (const t of result.compiledTopics) {
+      lines.push(`  • ${t.topic}（${t.noteCount} 篇）`);
+    }
+
+    if (result.skippedTopics.length > 0) {
+      lines.push('', `⏭ 跳過（不足 3 篇）：${result.skippedTopics.slice(0, 5).join('、')}`);
+    }
+
+    if (result.savedPath) {
+      lines.push('', `💾 已存入 Vault`);
+    }
+
+    await ctx.reply(lines.join('\n').slice(0, 4000));
+  } catch (err) {
+    await ctx.reply(`主題編譯失敗：${(err as Error).message}`);
   } finally {
     stopTyping(typing);
     await ctx.deleteMessage(status.message_id).catch(() => {});
