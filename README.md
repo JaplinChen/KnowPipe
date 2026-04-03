@@ -5,16 +5,16 @@
 Drop a link in Telegram — ObsBot extracts, classifies, enriches, and saves it as an Obsidian note. Then query your vault with AI, generate reports, and let knowledge compound over time. Not a bookmark tool — a full **ingest → compile → query → output** knowledge pipeline, fully automated.
 
 <details>
-<summary><strong>Quick Start (Docker)</strong></summary>
+<summary><strong>Quick Start</strong></summary>
 
 ```bash
 git clone https://github.com/JaplinChen/ObsBot.git && cd ObsBot
-cp .env.example .env
-# Edit .env → set BOT_TOKEN and HOST_VAULT_PATH
-docker compose up -d
+npm install && cp .env.example .env
+# Edit .env → set BOT_TOKEN and VAULT_PATH
+./start.sh
 ```
 
-Get your `BOT_TOKEN` from [@BotFather](https://t.me/BotFather) on Telegram. Set `HOST_VAULT_PATH` to your Obsidian vault directory. That's it — send any URL to your bot and it becomes a note.
+Get your `BOT_TOKEN` from [@BotFather](https://t.me/BotFather) on Telegram. Set `VAULT_PATH` to your Obsidian vault directory. That's it — send any URL to your bot and it becomes a note.
 
 **Supported platforms:** X / Threads / Reddit / YouTube / GitHub / TikTok / Bilibili / Weibo / Xiaohongshu / Douyin / Zhihu / iTHome + any webpage.
 
@@ -304,48 +304,6 @@ npm run guardian:install-agent  # 安裝成背景服務
 
 </details>
 
-<details>
-<summary><strong>Docker 安裝（推薦）</strong></summary>
-
-3 步即可啟動，無需安裝 Node.js 或其他依賴。
-
-#### 1. 取得原始碼
-
-```bash
-git clone https://github.com/JaplinChen/ObsBot.git && cd ObsBot
-```
-
-#### 2. 設定環境
-
-```bash
-cp .env.example .env
-```
-
-編輯 `.env`，填入必要設定：
-
-```env
-BOT_TOKEN=your_telegram_bot_token      # 必填：Telegram Bot Token
-HOST_VAULT_PATH=/path/to/your/vault    # 必填：主機上的 Obsidian Vault 路徑
-ALLOWED_USER_IDS=123456                # 選填：限制使用者
-```
-
-#### 3. 啟動
-
-```bash
-docker compose up -d
-```
-
-查看日誌：`docker compose logs -f`
-停止：`docker compose down`
-重新建置：`docker compose up -d --build`
-
-#### 注意事項
-
-- **oMLX 不可用**：oMLX 是 macOS 本機 LLM，容器內無法使用。AI 功能改用 OpenCode + DDG Chat（免費）
-- **Admin UI**：首次啟動可訪問 `http://localhost:3001` 進行設定
-- **資料持久化**：`./data/` 目錄會自動建立並保存分類規則、知識庫等狀態
-
-</details>
 
 <details>
 <summary><strong>常見問題</strong></summary>
