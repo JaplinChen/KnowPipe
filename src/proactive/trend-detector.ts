@@ -129,6 +129,89 @@ export function detectCategoryGaps(
   return gaps.sort((a, b) => b.daysSinceLastNote - a.daysSinceLastNote);
 }
 
+/* ── Long-term trend detection ────────────────────────────── */
+
+export interface TopicTrend {
+  keyword: string;
+  direction: 'rising' | 'stable' | 'declining';
+  /** Monthly counts [{ month: '2026-01', count: N }, ...] */
+  monthlyData: Array<{ month: string; count: number }>;
+  /** Linear regression slope (positive = rising) */
+  slope: number;
+  /** Month with highest count */
+  peakMonth: string;
+  /** Total mentions */
+  totalMentions: number;
+}
+
+/**
+ * Detect long-term keyword trends over N months.
+ * Groups keywords by month, computes linear slope to identify rising/declining topics.
+ */
+export function detectLongTermTrends(notes: NoteEntry[], months = 6): TopicTrend[] {
+  const now = new Date();
+  const cutoff = new Date(now);
+  cutoff.setMonth(cutoff.getMonth() - months);
+  const cutoffTs = cutoff.getTime();
+
+  // Bucket keywords by month
+  const kwMonthly = new Map<string, Map<string, number>>();
+
+  for (const note of notes) {
+    const ts = new Date(note.date).getTime();
+    if (isNaN(ts) || ts < cutoffTs) continue;
+    const month = note.date.slice(0, 7); // YYYY-MM
+
+    for (const kw of note.keywords) {
+      const k = kw.toLowerCase();
+      if (!kwMonthly.has(k)) kwMonthly.set(k, new Map());
+      const m = kwMonthly.get(k)!;
+      m.set(month, (m.get(month) ?? 0) + 1);
+    }
+  }
+
+  // Generate all months in range
+  const allMonths: string[] = [];
+  const cursor = new Date(cutoff.getFullYear(), cutoff.getMonth(), 1);
+  while (cursor <= now) {
+    allMonths.push(`${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  const trends: TopicTrend[] = [];
+
+  for (const [kw, monthMap] of kwMonthly) {
+    const total = [...monthMap.values()].reduce((s, v) => s + v, 0);
+    if (total < 3) continue; // Skip rare keywords
+
+    const monthlyData = allMonths.map(m => ({ month: m, count: monthMap.get(m) ?? 0 }));
+
+    // Linear regression slope
+    const n = monthlyData.length;
+    const xMean = (n - 1) / 2;
+    const yMean = total / n;
+    let num = 0, den = 0;
+    for (let i = 0; i < n; i++) {
+      num += (i - xMean) * (monthlyData[i].count - yMean);
+      den += (i - xMean) ** 2;
+    }
+    const slope = den !== 0 ? num / den : 0;
+
+    // Peak month
+    let peakMonth = allMonths[0];
+    let peakCount = 0;
+    for (const d of monthlyData) {
+      if (d.count > peakCount) { peakCount = d.count; peakMonth = d.month; }
+    }
+
+    const direction = slope > 0.3 ? 'rising' : slope < -0.3 ? 'declining' : 'stable';
+
+    trends.push({ keyword: kw, direction, monthlyData, slope: Math.round(slope * 100) / 100, peakMonth, totalMentions: total });
+  }
+
+  return trends.sort((a, b) => Math.abs(b.slope) - Math.abs(a.slope));
+}
+
 /** Main entry: scan vault and return trend + gap analysis */
 export async function analyzeVaultTrends(vaultPath: string): Promise<{
   notes: NoteEntry[];

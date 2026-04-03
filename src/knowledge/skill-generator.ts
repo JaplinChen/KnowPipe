@@ -4,8 +4,10 @@
  */
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import { createHash } from 'node:crypto';
 import type { VaultKnowledge, KnowledgeEntity } from './types.js';
 import { getInsightsByTopic } from './knowledge-aggregator.js';
+import type { UnifiedSkill } from '../skills/skill-types.js';
 
 /** A cluster of related knowledge around a single topic */
 export interface TopicCluster {
@@ -165,6 +167,40 @@ export function formatTopicsSummary(topics: TopicCluster[]): string {
 
   lines.push('', '在 Claude Code 執行 /vault analyze 可自動產生命令檔案。');
   return lines.join('\n');
+}
+
+/* ── Knowledge → UnifiedSkill compilation ─────────────────── */
+
+/** Compile a high-density topic cluster into a UnifiedSkill. */
+export function compileKnowledgeToSkill(topic: TopicCluster, knowledge: VaultKnowledge): UnifiedSkill {
+  const instructions = generateSkillContent(topic, knowledge);
+  const now = new Date().toISOString();
+
+  return {
+    id: `kb-${toCommandName(topic.name)}`,
+    title: topic.name,
+    description: `基於 ${topic.noteCount} 篇筆記的 ${topic.name} 知識技能`,
+    triggers: [`/${topic.suggestedCommand}`, `knowledge about ${topic.name}`],
+    instructions,
+    constraints: [],
+    examples: topic.topInsights.slice(0, 3),
+    category: 'knowledge',
+    sourceFormat: 'claude',
+    metadata: {
+      author: 'obsbot-compiler',
+      version: '1.0.0',
+      tags: [topic.entityType, 'auto-compiled'],
+      createdAt: now,
+      updatedAt: now,
+      contentHash: createHash('md5').update(instructions).digest('hex'),
+    },
+  };
+}
+
+/** Compile all high-density topics into UnifiedSkills. */
+export function compileAllHighDensitySkills(knowledge: VaultKnowledge): UnifiedSkill[] {
+  const topics = detectHighDensityTopics(knowledge);
+  return topics.slice(0, 10).map(t => compileKnowledgeToSkill(t, knowledge));
 }
 
 /** Convert entity name to a valid command name */

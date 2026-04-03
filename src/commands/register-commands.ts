@@ -1,12 +1,10 @@
-/**
- * Centralized command registration.
- * Keeps lightweight orchestration while command groups live in dedicated modules.
- */
+/** Centralized command registration — orchestration only, logic in dedicated modules. */
 import type { Context, Telegraf } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { handleTimeline } from './timeline-command.js';
 import { handleMonitor, handleSearch } from './monitor-command.js';
-import { handleKnowledge, handleGaps, handleSkills, handleAnalyze, handleDashboard } from './knowledge-command.js';
+import { handleKnowledge, handleGaps, handleSkills, handleAnalyze, handleDashboard, handleHealth, handleCompile } from './knowledge-command.js';
+import { handleSkillsCommand, registerSkillCallbacks } from './skill-command.js';
 import { handlePreferences, handleDistill } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
@@ -46,7 +44,6 @@ import { handleMemoryExport } from './memory-export-command.js';
 import { handleConfig, handleConfigFeatureToggle, handleConfigResetConfirm, handleConfigResetCancel } from './config-command.js';
 import { handleResearch, handleSlides, handleAnki } from '../research/research-commands.js';
 import { handleReclassifyPicker, handleReclassifyMove } from './reclassify-action.js';
-// Hub dispatchers
 import { handleSearchHub, handleSearchCallback } from './search-hub.js';
 import { handleTrackHub, handleTrackCallback } from './track-hub.js';
 import { createVaultHub, createVaultCallback } from './vault-hub.js';
@@ -101,7 +98,6 @@ export function registerCommands(
   const handleVaultCallback = createVaultCallback(stats);
   const handleAdminCb = createAdminCallback(statusHandler, clearHandler);
 
-  // === PRIMARY COMMANDS (shown in Telegram menu) ===
   registerAsyncCommand(bot, 'search', 'search-hub', config, handleSearchHub);
   registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
   registerAsyncCommand(bot, 'explore', 'explore', config, handleExplore);
@@ -112,8 +108,6 @@ export function registerCommands(
   registerAsyncCommand(bot, 'vault', 'vault-hub', config, handleVaultHub);
   registerAsyncCommand(bot, 'admin', 'admin-hub', config, handleAdminHub);
   registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
-
-  // === BACKWARD-COMPATIBLE ALIASES (not in menu) ===
   registerAsyncCommand(bot, 'find', 'find', config, handleFind);
   registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
   registerAsyncCommand(bot, 'vsearch', 'vsearch', config, handleVsearch);
@@ -130,13 +124,12 @@ export function registerCommands(
   registerAsyncCommand(bot, 'toolkit', 'toolkit', config, handleToolkit);
   registerAsyncCommand(bot, 'memory', 'memory-export', config, handleMemoryExport);
   registerAsyncCommand(bot, 'config', 'config', config, handleConfig);
-
-  // === RESEARCH MODULE ===
+  registerAsyncCommand(bot, 'compile', 'compile', config, handleCompile);
+  registerAsyncCommand(bot, 'skillmgr', 'skillmgr', config, handleSkillsCommand);
   registerAsyncCommand(bot, 'research', 'research', config, handleResearch);
   registerAsyncCommand(bot, 'slides', 'slides', config, handleSlides);
   registerAsyncCommand(bot, 'anki', 'anki', config, handleAnki);
-
-  // --- InlineKeyboard: /knowledge sub-actions ---
+  // --- InlineKeyboard sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
     const mode = ctx.match![1];
     await ctx.answerCbQuery().catch(() => {});
@@ -146,11 +139,12 @@ export function registerCommands(
       preferences: handlePreferences,
       dashboard: handleDashboard,
       analyze: handleAnalyze,
+      health: handleHealth,
     };
     const handler = handlers[mode];
     if (handler) await handler(ctx, config);
   });
-
+  registerSkillCallbacks(bot, config);
   // --- InlineKeyboard: navigation shortcuts ---
   registerAsyncAction(bot, /^nav:(.+)$/, 'nav-shortcut', async (ctx) => {
     const target = ctx.match![1];
@@ -284,18 +278,16 @@ export function registerCommands(
   });
 
   // --- ForceReply dispatch ---
-  const forceReplyMap: Record<string, [string, (c: Context, cfg: AppConfig) => Promise<void>]> = {
-    search: ['search', handleSearch], monitor: ['monitor', handleMonitor],
-    timeline: ['timeline', handleTimeline], explore: ['explore', handleExplore],
-    ask: ['ask', handleAsk], discover: ['discover', handleDiscover],
-    reprocess: ['reprocess', handleReprocess], reformat: ['reformat', handleReformat],
-    subscribe: ['subscribe', handleSubscribe], find: ['find', handleFind],
-    'vsearch-hub': ['vsearch', handleVsearch],
-  };
-  for (const [key, [tag, handler]] of Object.entries(forceReplyMap)) {
-    registerForceReplyHandler(key, (ctx) =>
-      runCommandTask(ctx, tag, () => handler(ctx, config), formatErrorMessage));
-  }
+  const frm: Array<[string, string, (c: Context, cfg: AppConfig) => Promise<void>]> = [
+    ['search', 'search', handleSearch], ['monitor', 'monitor', handleMonitor],
+    ['timeline', 'timeline', handleTimeline], ['explore', 'explore', handleExplore],
+    ['ask', 'ask', handleAsk], ['discover', 'discover', handleDiscover],
+    ['reprocess', 'reprocess', handleReprocess], ['reformat', 'reformat', handleReformat],
+    ['subscribe', 'subscribe', handleSubscribe], ['find', 'find', handleFind],
+    ['vsearch-hub', 'vsearch', handleVsearch],
+  ];
+  for (const [key, tag, handler] of frm)
+    registerForceReplyHandler(key, (ctx) => runCommandTask(ctx, tag, () => handler(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 

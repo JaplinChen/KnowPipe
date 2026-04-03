@@ -19,6 +19,10 @@ export interface ProactiveConfig {
   weeklyDigestDay: number;
   /** Last weekly digest push timestamp */
   lastWeeklyAt: string | null;
+  /** Hour of day (0-23) for daily knowledge compilation (default: 8 = 08:00) */
+  compilationHour: number;
+  /** Last compilation cycle timestamp */
+  lastCompilationAt: string | null;
 }
 
 export interface TrendAlert {
@@ -54,4 +58,6 @@ export const DEFAULT_PROACTIVE_CONFIG: ProactiveConfig = {
   lastTrendAt: null,
   weeklyDigestDay: 0,
   lastWeeklyAt: null,
+  compilationHour: 8,
+  lastCompilationAt: null,
 };
