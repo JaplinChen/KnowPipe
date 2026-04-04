@@ -108,7 +108,6 @@ Ingest   Compile   Query    Output    Lint
 - **10 個核心指令 + 32 個完整指令** — InlineKeyboard 按鈕引導
 - **遠端管理** — `/admin` 狀態、診斷、日誌、重啟、遠端指令
 - **Admin Web UI** — `http://localhost:3001` 即時儀表板、功能設定、多語系介面
-- **Guardian Console** — `http://localhost:3199` 進程守護儀表板，監控本地 AI runtime 記憶體壓力、自動重啟、macOS LaunchAgent 開機自動運行
 - **多模型智慧路由** — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理
 - **功能開關** — `/config` 即時切換 11 項功能
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV
@@ -332,58 +331,6 @@ Vault 筆記 → 內容壓縮 → 版面推斷 → PPTX 渲染
 </details>
 
 <details>
-<summary><strong>Guardian Console（本地 AI Runtime 守護器）</strong></summary>
-
-ObsBot 內建一個可獨立啟動的本地 AI runtime 守護器，專門處理像 oMLX 這類長時間運行服務的記憶體暴衝、重啟與通知問題。
-
-功能包含：
-
-- **本地 dashboard** — 顯示 RSS、swap、事件與最近重啟紀錄
-- **策略引擎** — 連續超標才重啟，避免瞬間尖峰誤判
-- **macOS 通知** — 超標、冷卻、重啟成功或失敗都會通知
-- **HTTP API** — 可擴充 menubar app、外部控制面板或 webhook
-- **`launchd` 安裝器** — 可直接掛成背景常駐服務
-
-### 啟動方式
-
-**方法一：手動啟動（前景執行）**
-
-```bash
-npm run guardian:start
-```
-
-啟動後終端會顯示 `Guardian console running at http://127.0.0.1:3199`。
-
-**方法二：安裝為 macOS 背景服務（推薦）**
-
-```bash
-npm run guardian:install-agent
-```
-
-安裝後 Guardian 會以 `ObsBot-Guardian` 名稱註冊為 macOS LaunchAgent，開機自動啟動、當機自動重啟。可在「系統設定 → 一般 → 登入項目」中查看。
-
-### 查看 Dashboard
-
-瀏覽器開啟 **http://127.0.0.1:3199** 即可看到即時儀表板，包含：
-
-- 各服務記憶體用量（RSS / Swap）與趨勢圖
-- 健康狀態標籤（Healthy / Warning / Restarting / Paused）
-- 最近事件紀錄（重啟、超標、冷卻等）
-- 操作按鈕 — 可直接在頁面上重啟、暫停或恢復監控
-
-### 其他指令
-
-```bash
-npm run guardian:check     # 手動檢查一次（不啟動常駐）
-npm run guardian:status    # 輸出當前狀態 JSON
-```
-
-設定檔位置：`data/guardian-config.json`
-
-</details>
-
-
-<details>
 <summary><strong>常見問題</strong></summary>
 
 **Bot 沒有回應？**
@@ -461,7 +408,6 @@ Ingest               Compile                 Query              Output
 - **Telegraf** — Telegram Bot API（10 指令 hub 架構 + InlineKeyboard + ForceReply）
 - **Camoufox** — 反偵測瀏覽器（Firefox 基底），瀏覽器池最多 4 實例，閒置立即釋放
 - **ProcessGuardian** — 三段式 409 自癒（指數退避 → 自動 logOut + 冷卻 → 退出）+ 殭屍進程自動清理
-- **Guardian Console** — 獨立 AI runtime 守護器，策略引擎監控 + macOS 通知 + HTTP API + launchd 安裝
 - **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理優先
 - **知識系統** — 實體萃取、知識圖譜、缺口分析、Skill 自動生成、用戶偏好萃取、知識蒸餾、記憶整合、MOC 生成、Karpathy 主題編譯
 - **研究助理** — 互動式研究對話、PPTX 簡報生成、Anki 記憶卡、壓縮快取、資源管理
@@ -536,11 +482,6 @@ src/
 │   ├── base.ts                 # 組裝器（frontmatter + body + stats）
 │   ├── shared.ts               # 共用工具（評論品質篩選, badge 過濾）
 │   └── *.ts                    # 各平台 formatter
-├── guardian/                   # AI Runtime 守護器
-│   ├── service.ts              # 守護服務主邏輯
-│   ├── policy-engine.ts        # 策略引擎（連續超標才重啟）
-│   ├── dashboard-html.ts       # Web 儀表板
-│   └── install-agent.ts        # launchd 安裝器
 ├── knowledge/                  # 知識系統
 │   ├── knowledge-store.ts      # 知識庫讀寫
 │   ├── knowledge-graph.ts      # 知識圖譜（缺口分析、實體關聯）

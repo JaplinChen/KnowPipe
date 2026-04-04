@@ -1,2 +1,0 @@
-#!/bin/zsh -l
-cd "/Users/japlin/Works/ObsBot" && exec node "/Users/japlin/Works/ObsBot/dist/guardian/index.js" start
