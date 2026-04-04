@@ -22,8 +22,13 @@ jobs:
       - name: 安裝 Electron 依賴
         run: cd electron && npm ci
 
-      - name: 打包 macOS（arm64 + x64）
-        run: npm run app:pack:all -- --mac
+      - name: 打包 macOS arm64
+        run: npm run app:pack:mac-arm64
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 打包 macOS x64
+        run: npm run app:pack:mac-x64
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

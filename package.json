@@ -12,7 +12,7 @@
     "dev:loop": "node scripts/loop.mjs --dev",
     "start:loop": "node scripts/loop.mjs",
     "restart": "tsx scripts/restart-bot.ts",
-    "build": "tsc && cp src/research/research-ui.html dist/research/research-ui.html && cp src/admin/ui.html dist/admin/ui.html && cp -r src/admin/locales dist/admin/locales",
+    "build": "tsc && node -e \"const fs=require('fs');fs.copyFileSync('src/research/research-ui.html','dist/research/research-ui.html');fs.copyFileSync('src/admin/ui.html','dist/admin/ui.html');fs.cpSync('src/admin/locales','dist/admin/locales',{recursive:true})\"",
     "start": "node dist/index.js",
     "lint": "eslint \"src/**/*.ts\"",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
@@ -27,6 +27,8 @@
     "app:pack:mac-arm64": "npm run build && cd electron && npm run pack:mac-arm64",
     "app:pack:mac-x64": "npm run build && cd electron && npm run pack:mac-x64",
     "app:pack:win": "npm run build && cd electron && npm run pack:win",
+    "app:pack:mac-arm64": "npm run build && cd electron && npm run pack:mac-arm64",
+    "app:pack:mac-x64": "npm run build && cd electron && npm run pack:mac-x64",
     "app:pack:all": "npm run build && cd electron && npm run pack:all"
   },
   "keywords": [],

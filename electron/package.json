@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "ObsBot Desktop App",
   "author": "ObsBot",
+  "repository": "https://github.com/JaplinChen/ObsBot",
   "main": "dist/main.js",
   "type": "commonjs",
   "scripts": {
