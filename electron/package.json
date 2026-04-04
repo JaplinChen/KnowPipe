@@ -1,0 +1,79 @@
+{
+  "name": "obsbot-app",
+  "version": "1.0.0",
+  "description": "ObsBot Desktop App",
+  "author": "ObsBot",
+  "main": "dist/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "gen-icons": "python3 scripts/gen-icons.py",
+    "dev": "npm run gen-icons && tsc && electron dist/main.js",
+    "build": "npm run gen-icons && tsc",
+    "pack:mac-arm64": "npm run build && electron-builder --mac --arm64",
+    "pack:mac-x64": "npm run build && electron-builder --mac --x64",
+    "pack:win": "npm run build && electron-builder --win --x64",
+    "pack:all": "npm run build && electron-builder --mac --win"
+  },
+  "build": {
+    "appId": "com.obsbot.app",
+    "productName": "ObsBot",
+    "directories": {
+      "output": "../release"
+    },
+    "files": [
+      "dist/**/*",
+      "assets/**/*",
+      "!node_modules"
+    ],
+    "extraResources": [
+      {
+        "from": "../",
+        "to": "app",
+        "filter": [
+          "dist/**",
+          "src/**",
+          "scripts/**",
+          "package.json",
+          "package-lock.json",
+          "node_modules/**",
+          "!node_modules/.cache",
+          "!node_modules/electron",
+          "!node_modules/electron-builder"
+        ]
+      }
+    ],
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["arm64"] },
+        { "target": "dmg", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.icns",
+      "artifactName": "ObsBot-${version}-${arch}.dmg",
+      "category": "public.app-category.productivity",
+      "darkModeSupport": true
+    },
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] }
+      ],
+      "icon": "assets/icon.ico",
+      "artifactName": "ObsBot-Setup-${version}-x64.exe"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ObsBot"
+    }
+  },
+  "dependencies": {
+    "electron-auto-launch": "^5.0.6"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "typescript": "^5.0.0"
+  }
+}

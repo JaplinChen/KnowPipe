@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ObsBot 設定</title>
+  <style>
+    /* ── 色彩變數 ────────────────────────────────────────────────────── */
+    :root {
+      --accent:        #7C6AFF;
+      --accent-hover:  #6b59ee;
+      --success:       #22c55e;
+      --error:         #ef4444;
+    }
+
+    [data-theme="light"] {
+      --bg:            #f5f4ff;
+      --surface:       #ffffff;
+      --border:        #e5e3f7;
+      --text:          #1a1a2e;
+      --text-sub:      #6b6b8a;
+      --text-muted:    #a0a0bc;
+      --input-bg:      #ffffff;
+      --input-border:  #dddcf0;
+      --tray-bg:       #eeedf8;
+      --btn-sec-bg:    #eeedf8;
+      --btn-sec-color: #6b6b8a;
+      --step-num-bg:   #e5e3f7;
+      --step-num-color:#a0a0bc;
+      --step-line:     #e5e3f7;
+    }
+
+    [data-theme="dark"] {
+      --bg:            #0f0f0f;
+      --surface:       #0f0f0f;
+      --border:        #2a2a2a;
+      --text:          #e8e8e8;
+      --text-sub:      #888;
+      --text-muted:    #555;
+      --input-bg:      #1a1a1a;
+      --input-border:  #2a2a2a;
+      --tray-bg:       #1a1a1a;
+      --btn-sec-bg:    #2a2a2a;
+      --btn-sec-color: #aaa;
+      --step-num-bg:   #2a2a2a;
+      --step-num-color:#555;
+      --step-line:     #2a2a2a;
+    }
+
+    /* ── 基底 ─────────────────────────────────────────────────────────── */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    /* ── 頂列（步驟 + 色系切換）─────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      padding: 24px 32px 0;
+      gap: 0;
+    }
+    .steps {
+      display: flex;
+      flex: 1;
+      gap: 0;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .step:not(:last-child)::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--step-line);
+      margin: 0 8px;
+    }
+    .step-num {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: var(--step-num-bg);
+      color: var(--step-num-color);
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .step.active .step-num  { background: var(--accent); color: #fff; }
+    .step.active            { color: var(--text); }
+    .step.done .step-num    { background: var(--success); color: #fff; }
+    .step.done .step-num span { display: none; }
+    .step.done .step-num::before { content: '✓'; }
+
+    /* 色系切換按鈕 */
+    .theme-toggle {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1px solid var(--border);
+      background: var(--btn-sec-bg);
+      color: var(--text-sub);
+      font-size: 15px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      margin-left: 16px;
+      margin-top: -4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .theme-toggle:hover { background: var(--tray-bg); color: var(--text); }
+
+    /* ── 內容區 ──────────────────────────────────────────────────────── */
+    .content {
+      flex: 1;
+      padding: 28px 32px 0;
+      overflow-y: auto;
+    }
+
+    .page { display: none; }
+    .page.active { display: block; }
+
+    h2 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-sub);
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .subtitle a { color: var(--accent); text-decoration: none; }
+
+    /* ── 表單 ─────────────────────────────────────────────────────────── */
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-sub);
+      margin-bottom: 6px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s, background 0.2s;
+    }
+    input:focus  { border-color: var(--accent); }
+    input.error  { border-color: var(--error); }
+    input.success{ border-color: var(--success); }
+
+    .field { margin-bottom: 18px; }
+
+    .hint { font-size: 12px; color: var(--text-muted); margin-top: 6px; line-height: 1.4; }
+    .hint.success { color: var(--success); }
+    .hint.error   { color: var(--error); }
+    .validating   { font-size: 12px; color: var(--accent); margin-top: 6px; }
+
+    /* ── Vault 選擇 ───────────────────────────────────────────────────── */
+    .vault-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; }
+    .vault-item {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+      font-size: 13px;
+    }
+    .vault-item:hover, .vault-item.selected {
+      border-color: var(--accent);
+      background: var(--tray-bg);
+    }
+    .vault-item .vault-name { font-weight: 600; margin-bottom: 2px; }
+    .vault-item .vault-path { font-size: 11px; color: var(--text-muted); }
+    .vault-manual { display: flex; gap: 8px; }
+    .vault-manual input { flex: 1; }
+    .btn-browse {
+      background: var(--btn-sec-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--btn-sec-color);
+      font-size: 13px;
+      padding: 0 14px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-browse:hover { color: var(--text); }
+
+    /* ── 完成頁 ───────────────────────────────────────────────────────── */
+    .done-icon {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--accent), var(--success));
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      margin: 0 auto 20px;
+    }
+    .done-msg { text-align: center; margin-bottom: 24px; }
+    .done-msg h2 { margin-bottom: 8px; }
+
+    /* ── 底部按鈕 ─────────────────────────────────────────────────────── */
+    .footer {
+      padding: 20px 32px 24px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn {
+      padding: 9px 20px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      border: none;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-secondary {
+      background: var(--btn-sec-bg);
+      color: var(--btn-sec-color);
+    }
+    .btn-secondary:hover { color: var(--text); }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      min-width: 90px;
+    }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { background: var(--btn-sec-bg); color: var(--text-muted); cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<!-- 頂列：步驟 + 色系切換 -->
+<div class="topbar">
+  <div class="steps">
+    <div class="step active" id="step-1">
+      <div class="step-num"><span>1</span></div>Bot Token
+    </div>
+    <div class="step" id="step-2">
+      <div class="step-num"><span>2</span></div>Vault 路徑
+    </div>
+    <div class="step" id="step-3">
+      <div class="step-num"><span>3</span></div>完成
+    </div>
+  </div>
+  <button class="theme-toggle" id="theme-btn" title="切換色系" onclick="toggleTheme()">🌙</button>
+</div>
+
+<!-- 內容 -->
+<div class="content">
+
+  <!-- 頁 1：Bot Token -->
+  <div class="page active" id="page-1">
+    <h2>連接 Telegram Bot</h2>
+    <p class="subtitle">
+      從 <a href="#" onclick="openTelegram()">@BotFather</a> 建立一個新的 Bot，然後貼上 Token。
+    </p>
+    <div class="field">
+      <label>Bot Token</label>
+      <input type="password" id="token-input" placeholder="123456789:ABC-DEF..." autocomplete="off" />
+      <div class="hint" id="token-hint">貼上後會自動驗證</div>
+    </div>
+  </div>
+
+  <!-- 頁 2：Vault 路徑 -->
+  <div class="page" id="page-2">
+    <h2>選擇 Obsidian Vault</h2>
+    <p class="subtitle">ObsBot 會將筆記存入這個 Vault。</p>
+    <div id="vault-list" class="vault-list">
+      <div style="color:var(--text-muted);font-size:13px;">正在搜尋…</div>
+    </div>
+    <div class="vault-manual">
+      <input type="text" id="vault-manual-input" placeholder="或手動輸入路徑" />
+      <button class="btn-browse" onclick="browseFolder()">瀏覽…</button>
+    </div>
+    <div class="hint" id="vault-hint" style="margin-top:8px;"></div>
+  </div>
+
+  <!-- 頁 3：完成 -->
+  <div class="page" id="page-3">
+    <div class="done-msg">
+      <div class="done-icon">🤖</div>
+      <h2>設定完成！</h2>
+      <p class="subtitle">ObsBot 即將在背景啟動。<br />點選選單列圖示可開啟管理介面。</p>
+    </div>
+  </div>
+
+</div>
+
+<!-- 底部按鈕 -->
+<div class="footer">
+  <button class="btn btn-secondary" id="btn-back" onclick="goBack()" style="display:none">上一步</button>
+  <button class="btn btn-primary" id="btn-next" onclick="goNext()" disabled>繼續</button>
+</div>
+
+<script>
+  const obsbot = window.obsbot;
+
+  // ── 色系 ─────────────────────────────────────────────────────────────
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  let isDark = prefersDark;
+
+  function applyTheme() {
+    document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
+    document.getElementById('theme-btn').textContent = isDark ? '☀️' : '🌙';
+  }
+
+  function toggleTheme() {
+    isDark = !isDark;
+    localStorage.setItem('obsbot-theme', isDark ? 'dark' : 'light');
+    applyTheme();
+  }
+
+  // 初始化：優先用上次選擇，其次跟隨系統
+  const saved = localStorage.getItem('obsbot-theme');
+  if (saved) isDark = saved === 'dark';
+  applyTheme();
+
+  // ── 步驟導航 ─────────────────────────────────────────────────────────
+  let currentPage = 1;
+  let tokenValidated = false;
+  let selectedVault = '';
+  let validatedToken = '';
+
+  function updateSteps() {
+    for (let i = 1; i <= 3; i++) {
+      const el = document.getElementById(`step-${i}`);
+      el.classList.remove('active', 'done');
+      if (i < currentPage) el.classList.add('done');
+      if (i === currentPage) el.classList.add('active');
+    }
+    document.getElementById('btn-back').style.display = currentPage > 1 ? '' : 'none';
+    document.querySelectorAll('.page').forEach((p, idx) =>
+      p.classList.toggle('active', idx + 1 === currentPage));
+    updateNextBtn();
+  }
+
+  function updateNextBtn() {
+    const btn = document.getElementById('btn-next');
+    btn.disabled = currentPage === 1 ? !tokenValidated
+                 : currentPage === 2 ? !getVaultPath()
+                 : false;
+    btn.textContent = currentPage === 3 ? '啟動 ObsBot' : '繼續';
+  }
+
+  function getVaultPath() {
+    return selectedVault || document.getElementById('vault-manual-input').value.trim();
+  }
+
+  async function goNext() {
+    if (currentPage === 3) { await saveAndFinish(); return; }
+    currentPage++;
+    if (currentPage === 2) loadVaults();
+    updateSteps();
+  }
+
+  function goBack() {
+    if (currentPage > 1) { currentPage--; updateSteps(); }
+  }
+
+  // ── Token 驗證 ────────────────────────────────────────────────────────
+  const tokenInput = document.getElementById('token-input');
+  const tokenHint  = document.getElementById('token-hint');
+  let tokenDebounce;
+
+  tokenInput.addEventListener('input', () => {
+    clearTimeout(tokenDebounce);
+    tokenValidated = false;
+    tokenInput.classList.remove('success', 'error');
+    tokenHint.className = 'hint';
+    updateNextBtn();
+
+    const val = tokenInput.value.trim();
+    if (!val) { tokenHint.textContent = '貼上後會自動驗證'; return; }
+    if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(val)) {
+      tokenHint.textContent = '格式不正確';
+      tokenHint.className = 'hint error';
+      return;
+    }
+    tokenHint.textContent = '驗證中…';
+    tokenHint.className = 'validating';
+    tokenDebounce = setTimeout(async () => {
+      const result = await obsbot.testToken(val);
+      if (result.ok) {
+        tokenValidated = true;
+        validatedToken = val;
+        tokenInput.classList.add('success');
+        tokenHint.textContent = `✓ 驗證成功：@${result.username}`;
+        tokenHint.className = 'hint success';
+      } else {
+        tokenInput.classList.add('error');
+        tokenHint.textContent = 'Token 無效，請確認後重試';
+        tokenHint.className = 'hint error';
+      }
+      updateNextBtn();
+    }, 600);
+  });
+
+  // ── Vault 搜尋 ────────────────────────────────────────────────────────
+  async function loadVaults() {
+    const list = document.getElementById('vault-list');
+    list.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">正在搜尋…</div>';
+    const vaults = await obsbot.findVaults();
+    if (!vaults.length) {
+      list.innerHTML = '<div style="color:var(--text-muted);font-size:13px;">未自動偵測到 Vault，請手動輸入路徑。</div>';
+      return;
+    }
+    list.innerHTML = '';
+    vaults.forEach(vaultPath => {
+      const parts = vaultPath.replace(/\\/g, '/').split('/');
+      const name = parts[parts.length - 1];
+      const div = document.createElement('div');
+      div.className = 'vault-item';
+      div.innerHTML = `<div class="vault-name">${name}</div><div class="vault-path">${vaultPath}</div>`;
+      div.onclick = () => {
+        document.querySelectorAll('.vault-item').forEach(el => el.classList.remove('selected'));
+        div.classList.add('selected');
+        selectedVault = vaultPath;
+        document.getElementById('vault-manual-input').value = '';
+        updateNextBtn();
+      };
+      list.appendChild(div);
+    });
+  }
+
+  async function browseFolder() {
+    const result = await obsbot.openFolderDialog();
+    if (result) {
+      document.getElementById('vault-manual-input').value = result;
+      selectedVault = '';
+      document.querySelectorAll('.vault-item').forEach(el => el.classList.remove('selected'));
+      updateNextBtn();
+    }
+  }
+
+  document.getElementById('vault-manual-input').addEventListener('input', () => {
+    selectedVault = '';
+    document.querySelectorAll('.vault-item').forEach(el => el.classList.remove('selected'));
+    updateNextBtn();
+  });
+
+  // ── 儲存 ──────────────────────────────────────────────────────────────
+  async function saveAndFinish() {
+    await obsbot.saveConfig({
+      BOT_TOKEN: validatedToken,
+      VAULT_PATH: getVaultPath(),
+      ENABLE_TRANSLATION: 'true',
+      SAVE_VIDEOS: 'false',
+    });
+    window.close();
+  }
+
+  function openTelegram() {
+    require('electron').shell.openExternal('https://t.me/BotFather');
+  }
+
+  updateSteps();
+</script>
+</body>
+</html>

@@ -42,3 +42,8 @@ models/
 Thumbs.db
 Desktop.ini
 .DS_Store
+
+# Electron 打包產出
+release/
+electron/dist/
+electron/node_modules/

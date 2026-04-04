@@ -21,7 +21,13 @@
     "test": "vitest run -c vitest.config.ts",
     "test:watch": "vitest -c vitest.config.ts",
     "setup": "node scripts/setup.mjs",
-    "postinstall": "bash scripts/postinstall.sh"
+    "postinstall": "bash scripts/postinstall.sh",
+    "app:install": "cd electron && npm install",
+    "app:dev": "npm run build && cd electron && npm run dev",
+    "app:pack:mac-arm64": "npm run build && cd electron && npm run pack:mac-arm64",
+    "app:pack:mac-x64": "npm run build && cd electron && npm run pack:mac-x64",
+    "app:pack:win": "npm run build && cd electron && npm run pack:win",
+    "app:pack:all": "npm run build && cd electron && npm run pack:all"
   },
   "keywords": [],
   "author": "",

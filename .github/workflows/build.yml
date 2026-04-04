@@ -1,0 +1,78 @@
+name: Build Installers
+
+on:
+  push:
+    tags:
+      - 'v*'        # 推送 v1.0.0 這類 tag 時觸發
+  workflow_dispatch: # 也可手動觸發
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝 ObsBot 依賴
+        run: npm ci
+
+      - name: 安裝 Electron 依賴
+        run: cd electron && npm ci
+
+      - name: 打包 macOS（arm64 + x64）
+        run: npm run app:pack:all -- --mac
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 上傳 macOS 安裝檔
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-installers
+          path: release/*.dmg
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 安裝 ObsBot 依賴
+        run: npm ci
+
+      - name: 安裝 Electron 依賴
+        run: cd electron && npm ci
+
+      - name: 打包 Windows（x64）
+        run: npm run app:pack:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 上傳 Windows 安裝檔
+        uses: actions/upload-artifact@v4
+        with:
+          name: win-installer
+          path: release/*.exe
+
+  release:
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: 下載所有安裝檔
+        uses: actions/download-artifact@v4
+        with:
+          path: release
+          merge-multiple: true
+
+      - name: 建立 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
