@@ -60,6 +60,9 @@ function resetIdleTimer(): void {
   _idleTimer = setTimeout(() => { void unloadIdleModels(); }, IDLE_UNLOAD_MS);
 }
 
+// 模組載入時立即啟動計時器——讓已載入的模型在閒置 15 分鐘後自動卸載
+resetIdleTimer();
+
 /** Read base URL from user config (falls back to env var → default). */
 function getOmlxBase(): string {
   return getUserConfig().llm.omlx.baseUrl;
