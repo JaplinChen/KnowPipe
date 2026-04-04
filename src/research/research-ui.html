@@ -166,6 +166,28 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .theme-sw-btn:hover{border-color:var(--pu3);transform:scale(1.08)}
 /* Dark mode tokens */
 [data-theme="dark"]{--bg0:#0f0f1a;--bg1:#1c1c2e;--bg2:#252538;--bg3:#2e2e48;--bdr:#383858;--bdr2:#4a4a6a;--txt1:#e2e4f0;--txt2:#9094b0;--txt3:#606880}
+/* ── P1: Step cards ── */
+.steps-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:10px;padding:30px}
+.step-card{display:flex;align-items:flex-start;gap:12px;background:var(--bg1);border:1px solid var(--bdr);border-radius:10px;padding:12px 16px;width:100%;max-width:380px;transition:all .25s}
+.step-card.active{border-color:var(--pu3);background:var(--pu2)}
+.step-card.done{border-color:var(--gn3);background:var(--gn2);opacity:.8}
+.step-num{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;background:var(--bg3);color:var(--txt3);border:1.5px solid var(--bdr2);margin-top:1px}
+.step-card.active .step-num{background:var(--pu);color:#fff;border-color:var(--pu)}
+.step-card.done .step-num{background:var(--gn);color:#fff;border-color:var(--gn);font-size:13px}
+.step-label{font-size:13px;font-weight:600;color:var(--txt2)}
+.step-card.active .step-label{color:var(--pu)}
+.step-card.done .step-label{color:var(--gn)}
+.step-detail{font-size:12px;color:var(--txt3);margin-top:2px}
+/* ── P2: Disabled tool buttons ── */
+.tool-btn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
+.tool-section-note{font-size:11px;color:var(--txt3);padding:3px 2px 8px;font-style:italic}
+/* ── P3: Selection badge in topic bar ── */
+.sel-badge{background:var(--pu2);color:var(--pu);border:1px solid var(--pu3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
+/* ── P5: Restore session banner ── */
+.restore-banner{position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:500;background:var(--bg1);border:1px solid var(--pu3);border-radius:10px;padding:9px 14px;display:flex;gap:9px;align-items:center;box-shadow:0 4px 16px rgba(0,0,0,.18);font-size:13px;color:var(--txt2);animation:fu .25s ease}
+.restore-banner .rb-topic{color:var(--txt1);font-weight:600;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.restore-banner .rb-btn{background:var(--pu);border:none;border-radius:6px;color:#fff;padding:4px 12px;font-size:12px;cursor:pointer;font-family:inherit;font-weight:600}
+.restore-banner .rb-x{background:none;border:none;color:var(--txt3);font-size:16px;cursor:pointer;padding:0 2px;line-height:1}
 </style>
 </head>
 <body>
@@ -195,17 +217,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
   </div>
   <div class="center">
     <div class="topic-bar">
-      <input id="topic" data-i18n-placeholder="research.topicPlaceholder" placeholder="輸入研究主題…" onkeydown="if(event.key==='Enter')analyze()" />
+      <input id="topic" data-i18n-placeholder="research.topicPlaceholder" placeholder="輸入研究主題…" oninput="renderEmpty()" onkeydown="if(event.key==='Enter')analyze()" />
+      <span id="selBadge" class="sel-badge" style="display:none"></span>
       <span id="status" style="font-size:11px;color:var(--txt3);white-space:nowrap"></span>
       <button id="analyzeBtn" onclick="analyze()" data-i18n="research.analyze">分析</button>
     </div>
-    <div class="messages" id="messages">
-      <div class="empty" style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:9px">
-        <div style="font-size:48px;opacity:.15">⚡</div>
-        <div style="font-size:18px;font-weight:600" data-i18n="research.heroTitle">本機 AI 研究助手</div>
-        <div style="font-size:13px;color:var(--txt2);max-width:340px;text-align:center;line-height:1.8" data-i18n="research.heroDesc">開啟左側 Vault，勾選筆記，輸入研究主題後開始分析</div>
-      </div>
-    </div>
+    <div class="messages" id="messages"></div>
     <div class="chat-input">
       <div class="chat-wrap">
         <textarea id="chatInput" rows="1" data-i18n-placeholder="research.chatPlaceholder" placeholder="詢問問題…（Enter 送出）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
@@ -278,6 +295,12 @@ async function loadNotes(q){
   const tagSet=new Set();
   notes.forEach(n=>(n.tags||[]).forEach(t=>tagSet.add(t)));
   S.allTags=[...tagSet].sort();
+  // 恢復 pending 選取（session restore 時使用）
+  if(window._pendingRestorePaths){
+    var paths=new Set(window._pendingRestorePaths);
+    notes.forEach(n=>{if(paths.has(n.path))S.selected.add(n.path);});
+    window._pendingRestorePaths=null;
+  }
   renderTags();renderTree();updateSelCount();
   $('status').textContent=t('research.notesCount',{n:notes.length});
 }
@@ -359,7 +382,39 @@ function toggleNote(p){if(S.selected.has(p))S.selected.delete(p);else S.selected
 
 function clearSelection(){S.selected.clear();renderTree();updateSelCount();}
 
-function updateSelCount(){$('selCount').textContent=S.selected.size;}
+function updateSelCount(){
+  var n=S.selected.size;
+  $('selCount').textContent=n;
+  var b=$('selBadge');
+  if(b){if(n>0){b.textContent='已選 '+n+' 篇';b.style.display='';}else b.style.display='none';}
+  renderEmpty();
+}
+
+function renderEmpty(){
+  if(S.history.length>0)return;
+  var hasNotes=S.selected.size>0;
+  var hasTopic=($('topic').value||'').trim().length>0;
+  function stepCard(num,label,detail,done,active){
+    var cls=done?'done':active?'active':'';
+    return'<div class="step-card '+cls+'">'
+      +'<div class="step-num">'+(done?'✓':num)+'</div>'
+      +'<div><div class="step-label">'+label+'</div><div class="step-detail">'+detail+'</div></div>'
+      +'</div>';
+  }
+  var s1done=hasNotes,s2done=hasTopic;
+  var s1active=!s1done,s2active=s1done&&!s2done,s3active=s1done&&s2done;
+  var s1detail=hasNotes?'已選 '+S.selected.size+' 篇筆記':'從左側 Vault 勾選要分析的筆記';
+  var s2detail=hasTopic?'「'+($('topic').value||'').trim()+'」':'輸入你想深入研究的主題';
+  var s3detail=s3active?'點擊右上角「分析」按鈕開始':'完成前兩步後即可分析';
+  $('messages').innerHTML='<div class="steps-wrap">'
+    +'<div style="font-size:36px;opacity:.12;margin-bottom:2px">⚡</div>'
+    +'<div style="font-size:17px;font-weight:700;color:var(--txt1);margin-bottom:2px">本機 AI 研究助手</div>'
+    +'<div style="font-size:12px;color:var(--txt3);margin-bottom:8px">按照步驟開始研究</div>'
+    +stepCard(1,'選擇筆記',s1detail,s1done,s1active)
+    +stepCard(2,'輸入研究主題',s2detail,s2done,s2active)
+    +stepCard(3,'開始分析',s3detail,false,s3active)
+    +'</div>';
+}
 
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
@@ -401,7 +456,7 @@ async function analyze(){
     const r=await fetch('/api/research/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
     const d=await r.json();S.overview=d.overview;
     S.history=[{role:'assistant',content:t('research.analyzeLoaded',{n:d.noteCount})+'\n\n'+(d.overview?.summary||t('research.analyzeDone'))}];
-    renderMessages();renderRight();
+    renderMessages();renderRight();saveSession();
   }catch(e){$('messages').innerHTML='<div class="msg assistant">'+t('research.analyzeFail')+esc(e.message)+'</div>';}
 }
 
@@ -416,11 +471,12 @@ async function sendMsg(){
     const r=await fetch('/api/research/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],history:S.history,message:txt})});
     const d=await r.json();
     S.history.push({role:'assistant',content:d.reply});
-    renderMessages();
+    renderMessages();saveSession();
   }catch(e){msgEl.querySelector('.msg-text').textContent=t('research.error')+e.message;}
 }
 
 function renderMessages(){
+  if(!S.history.length){renderEmpty();return;}
   $('messages').innerHTML=S.history.map(m=>{
     const isAi=m.role==='assistant';
     return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+(isAi?renderMd(m.content):esc(m.content))+'</div></div></div>';
@@ -458,12 +514,16 @@ function renderRight(){
       {icon:'🎙️',labelKey:'research.tool.podcast',promptKey:'research.prompt.podcast'},
       {icon:'📧',labelKey:'research.tool.execSummary',promptKey:'research.prompt.execSummary'},
     ];
+    var noAnalysis=!S.overview,noTopic=!S.topic;
+    var eDis=noTopic?' disabled':'',tDis=noAnalysis?' disabled':'';
     let h='<div class="overview-section"><h3>'+t('research.quickExport')+'</h3>';
-    h+='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>';
-    h+='<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button></div>';
+    if(noTopic)h+='<div class="tool-section-note">請先執行分析以啟用匯出</div>';
+    h+='<button class="tool-btn'+eDis+'" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>';
+    h+='<button class="tool-btn'+eDis+'" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button></div>';
     h+='<div class="overview-section"><h3>'+t('research.aiTools')+'</h3>';
-    h+=apiTools.map(a=>'<button class="tool-btn" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
-    h+=promptTools.map((p,i)=>'<button class="tool-btn" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
+    if(noAnalysis)h+='<div class="tool-section-note">請先執行分析以啟用 AI 工具</div>';
+    h+=apiTools.map(a=>'<button class="tool-btn'+tDis+'" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
+    h+=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
     h+='</div>';
     el.innerHTML=h;
     window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
@@ -511,6 +571,51 @@ async function exportPptx(){
   }catch(e){alert(t('research.exportFail')+e.message);}
 }
 
+/* ── Session persistence (P5) ── */
+function saveSession(){
+  if(!S.topic||!S.history.length)return;
+  try{localStorage.setItem('obsbot-research-session',JSON.stringify({
+    topic:S.topic,history:S.history,overview:S.overview,
+    selectedPaths:[...S.selected],savedAt:Date.now()
+  }));}catch(e){}
+}
+
+function restoreSession(){
+  var raw;try{raw=localStorage.getItem('obsbot-research-session');}catch(e){return;}
+  if(!raw)return;
+  var sess;try{sess=JSON.parse(raw);}catch(e){return;}
+  if(!sess.topic||!sess.history||!sess.history.length)return;
+  if(Date.now()-sess.savedAt>7200000)return; // 2小時過期
+  window._pendingSession=sess;
+  var banner=document.createElement('div');
+  banner.id='restoreBanner';banner.className='restore-banner';
+  banner.innerHTML='上次研究：<span class="rb-topic">'+esc(sess.topic)+'</span>'
+    +'<button class="rb-btn" onclick="doRestoreSession()">恢復</button>'
+    +'<button class="rb-x" onclick="dismissRestoreBanner()">✕</button>';
+  document.body.appendChild(banner);
+}
+
+function doRestoreSession(){
+  var sess=window._pendingSession;if(!sess)return;
+  S.topic=sess.topic;S.history=sess.history;S.overview=sess.overview||null;
+  $('topic').value=sess.topic;
+  window._pendingRestorePaths=sess.selectedPaths||[];
+  // 若 notes 已載入則立即恢復選取
+  if(S.notes.length){
+    var paths=new Set(window._pendingRestorePaths);
+    S.notes.forEach(n=>{if(paths.has(n.path))S.selected.add(n.path);});
+    window._pendingRestorePaths=null;
+    renderTree();
+  }
+  renderMessages();renderRight();
+  dismissRestoreBanner();
+}
+
+function dismissRestoreBanner(){
+  var b=document.getElementById('restoreBanner');if(b)b.remove();
+  window._pendingSession=null;
+}
+
 // Apply saved theme + language on load
 (function(){
   applyDarkMode();
@@ -524,6 +629,8 @@ let searchTimer;
 $('search').addEventListener('input',function(){clearTimeout(searchTimer);searchTimer=setTimeout(()=>loadNotes(this.value),300);});
 loadNotes();
 updateSelCount();
+renderEmpty();
+restoreSession();
 </script>
 </body>
 </html>
