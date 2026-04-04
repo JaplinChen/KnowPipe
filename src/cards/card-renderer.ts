@@ -8,6 +8,7 @@ import type { ExtractedContent } from '../extractors/types.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 import { type CardData, resolveAccentColor } from './card-types.js';
 import { renderCardHtml } from './card-templates.js';
+import { getLocalFontFaceCSS } from './font-cache.js';
 import { PLATFORM_LABELS } from '../formatters/shared.js';
 import { logger } from '../core/logger.js';
 
@@ -49,9 +50,11 @@ export async function generateInfoCard(
   vaultPath: string,
 ): Promise<string | null> {
   const data = toCardData(content);
-  const html = renderCardHtml(data);
   const slug = `${slugify(content.title)}-${content.date}`;
   const outPath = cardPath(vaultPath, content.platform, slug);
+
+  const fontFaceCSS = await getLocalFontFaceCSS();
+  const html = renderCardHtml(data, fontFaceCSS);
 
   let acquired: Awaited<ReturnType<typeof camoufoxPool.acquire>> | null = null;
   try {
@@ -62,16 +65,15 @@ export async function generateInfoCard(
 
     try {
       await page.setViewportSize({ width: 800, height: 420 });
-      await page.setContent(html, { waitUntil: 'networkidle' });
-      // 等待 Google Fonts 中文字型完全載入，避免截圖時出現亂碼方塊
+      // 使用本地字型，不需要等待外部網路請求
+      await page.setContent(html, { waitUntil: 'load' });
+      // 等待字型就緒（本地檔案應迅速載入）
       await page.waitForFunction(
-        () => document.fonts.check('28px "Noto Sans TC"'),
-        { timeout: 8000 },
+        () => document.fonts.ready.then(() => true),
+        { timeout: 3000 },
       ).catch(() => {
-        logger.warn('card', 'Noto Sans TC 字型載入逾時，嘗試備用方案');
+        logger.warn('card', '字型就緒逾時，直接截圖');
       });
-      // 額外等待確保字型渲染完成
-      await page.waitForTimeout(500);
       const screenshot = await page.screenshot({
         clip: { x: 0, y: 0, width: 800, height: 420 },
         type: 'png',

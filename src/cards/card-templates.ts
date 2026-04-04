@@ -19,7 +19,7 @@ function truncate(s: string, max: number): string {
 }
 
 /** Generate HTML string for the info card. */
-export function renderCardHtml(data: CardData): string {
+export function renderCardHtml(data: CardData, fontFaceCSS = ''): string {
   const title = escHtml(truncate(data.title, 60));
   const summary = escHtml(truncate(data.summary, 120));
   const category = escHtml(data.category);
@@ -32,10 +32,8 @@ export function renderCardHtml(data: CardData): string {
 <html>
 <head>
 <meta charset="utf-8">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;600;700&display=block" rel="stylesheet">
 <style>
+${fontFaceCSS}
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
     width: 800px; height: 420px;
