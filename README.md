@@ -77,7 +77,7 @@ Ingest   Compile   Query    Output    Lint
 
 #### 編譯（Compile）
 - **智慧分類** — 計分制分類器，108 條規則覆蓋 24 大類（含 13 個 AI 子領域），支援 exclude 防誤判 + 動態學習
-- **AI 豐富化** — 自動摘要、關鍵字萃取、圖片辨識、影片轉錄
+- **AI 豐富化** — 自動摘要、關鍵字萃取；**插圖辨識**（最多 5 張，`## 插圖說明` 區塊）；**內嵌影片逐字稿**（Web 文章內 YouTube iframe 自動轉錄）；**GitHub 連結深度抓取**（stars / language / topics）；**留言品質篩選**（廣告詞過濾、按讚數排序、`## 精選討論` 技術評論獨立區塊）
 - **知識圖譜** — 實體萃取、關係三元組（compares / builds_on / integrates 等）、缺口分析、Skill 自動生成
 - **主題編譯** — Karpathy 三層架構（raw → compiled → wiki），同主題 ≥3 篇筆記自動編譯為結構化綜述，含工具對比表格、交叉洞察、wikilink 引用
 - **記憶整合** — 自動發現跨筆記關聯，LLM 語義合成，每週生成整合報告
@@ -140,7 +140,7 @@ Ingest   Compile   Query    Output    Lint
 | 微博 | ⚠️ | Camoufox + API，訪客驗證可能阻擋 |
 | 小紅書 | ⚠️ | Camoufox，登入牆頻繁，常需更新 Cookie |
 | 抖音 / 今日頭條 | ⚠️ | Camoufox，反爬偵測嚴格 |
-| 知乎 | ⚠️ | Camoufox，需登入才能完整擷取 |
+| 知乎 | ⚠️ | Camoufox，需登入才能完整擷取；專欄文章支援評論抓取 |
 
 > ⚠️ 需登入的平台使用 [Camoufox](https://camoufox.com/)（反偵測瀏覽器），需手動維護登入 Cookie。平台封鎖策略頻繁變動，擷取可能間歇性失敗。
 > 通用網頁擷取另支援 [Browser Use CLI](https://docs.browser-use.com/open-source/browser-use-cli) 作為 Camoufox 之後的降級方案。
