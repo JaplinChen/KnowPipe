@@ -17,7 +17,6 @@ const PROBE_ENDPOINTS: Record<string, { url: string; method: 'HEAD' | 'GET' }> =
   threads:     { url: 'https://www.threads.net/', method: 'HEAD' },
   youtube:     { url: 'https://www.youtube.com/', method: 'HEAD' },
   github:      { url: 'https://github.com/', method: 'HEAD' },
-  reddit:      { url: 'https://www.reddit.com/r/programming.json?limit=1', method: 'GET' },
   bilibili:    { url: 'https://www.bilibili.com/', method: 'HEAD' },
   weibo:       { url: 'https://m.weibo.cn/api/config', method: 'GET' },
   xhs:         { url: 'https://www.xiaohongshu.com/', method: 'HEAD' },

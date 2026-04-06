@@ -1,6 +1,6 @@
 /** Supported platform identifiers ??add new platforms here */
 export type Platform =
-  | 'x' | 'threads' | 'youtube' | 'github' | 'reddit' | 'web'
+  | 'x' | 'threads' | 'youtube' | 'github' | 'web'
   | 'weibo' | 'xhs' | 'bilibili' | 'douyin' | 'tiktok' | 'ithome'
   | 'zhihu';
 

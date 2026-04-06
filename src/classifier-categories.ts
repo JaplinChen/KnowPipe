@@ -24,7 +24,7 @@ export const CATEGORIES: CategoryRule[] = [
     exclude: [
       'sword', 'antique', '古劍', '金屬', 'jewelry',
       'staffing', 'employer', 'recruitment', '人力',
-      'john mayer', 'johnmayer', 'rakuten', 'reddit.com', 'r/',
+      'john mayer', 'johnmayer', 'rakuten',
     ],
   },
 

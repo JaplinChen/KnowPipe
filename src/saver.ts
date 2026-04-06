@@ -28,8 +28,6 @@ function extractPostId(url: string, platform: Platform): string {
         return u.searchParams.get('v') ?? u.pathname.split('/').filter(Boolean).pop() ?? 'unknown';
       case 'github':
         return u.pathname.split('/').filter(Boolean).slice(0, 3).join('-').slice(0, 40);
-      case 'reddit':
-        return u.pathname.split('/').filter(Boolean)[3] ?? 'unknown';
       case 'tiktok':
         return u.pathname.match(/\/(?:video|photo)\/(\d+)/)?.[1] ?? createHash('md5').update(url).digest('hex').slice(0, 8);
       default:

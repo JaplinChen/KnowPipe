@@ -11,7 +11,7 @@ const KNOWN_LANGUAGES = new Set([
 ]);
 
 const KNOWN_PLATFORMS = new Set([
-  'github', 'twitter', 'x', 'youtube', 'reddit', 'hn', 'hacker news',
+  'github', 'twitter', 'x', 'youtube', 'hn', 'hacker news',
   'discord', 'telegram', 'notion', 'obsidian', 'cloudflare', 'vercel',
   'netlify', 'hugging face', 'huggingface', 'producthunt', 'dev.to',
   'npm', 'pypi', 'docker hub', 'dockerhub', 'google', 'apple',

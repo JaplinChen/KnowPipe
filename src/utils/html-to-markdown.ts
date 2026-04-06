@@ -84,6 +84,16 @@ function createTurndown(baseUrl?: string): TurndownService {
     replacement: () => '',
   });
 
+  // Remove inline data: / blob: URI images (prevents base64 blobs in notes)
+  td.addRule('removeDataUriImages', {
+    filter: (node: HTMLElement) => {
+      if (node.nodeName !== 'IMG') return false;
+      const src = node.getAttribute('src') || '';
+      return src.startsWith('data:') || src.startsWith('blob:');
+    },
+    replacement: () => '',
+  });
+
   // Remove empty anchor links (GitHub heading anchors like [](#section))
   td.addRule('removeEmptyAnchors', {
     filter: (node: HTMLElement) => {

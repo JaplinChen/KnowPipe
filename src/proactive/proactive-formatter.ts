@@ -17,7 +17,6 @@ export function formatRadarSection(summary: RadarCycleSummary | undefined): stri
   if (bt.github) parts.push(`GitHub ${bt.github} 篇`);
   if (bt.rss) parts.push(`RSS ${bt.rss} 篇`);
   if (bt.hn) parts.push(`HN ${bt.hn} 篇`);
-  if (bt.reddit) parts.push(`Reddit ${bt.reddit} 篇`);
   if (bt.devto) parts.push(`Dev.to ${bt.devto} 篇`);
   lines.push(`  共 ${summary.totalSaved} 篇：${parts.join('、')}`);
   lines.push('');

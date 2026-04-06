@@ -20,7 +20,6 @@ function typeIcon(type: RadarQueryType): string {
     case 'github': return '🐙';
     case 'rss': return '📡';
     case 'hn': return '🟠';
-    case 'reddit': return '🔴';
     case 'devto': return '📝';
     case 'custom': return '🔌';
     default: return '🔍';
@@ -171,16 +170,6 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     return;
   }
 
-  // /radar add reddit <subreddits>
-  if (arg.startsWith('add reddit')) {
-    const subs = arg.slice(10).trim().split(/\s+/).filter(Boolean);
-    const query = addQuery(radarConfig, subs.length > 0 ? subs : ['MachineLearning', 'LocalLLaMA'], 'manual', 'reddit');
-    await saveRadarConfig(radarConfig);
-    const desc = query.keywords.join(', ');
-    await ctx.reply(`✅ 已新增 Reddit 來源 [${query.id}]: ${desc}`);
-    return;
-  }
-
   // /radar add devto <tags>
   if (arg.startsWith('add devto')) {
     const tags = arg.slice(9).trim().split(/\s+/).filter(Boolean);
@@ -284,7 +273,6 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     '/radar on|off — 啟用/停用\n' +
     '/radar add <關鍵字> — 新增搜尋查詢（DDG）\n' +
     '/radar add hn [主題] — 新增 HN 來源\n' +
-    '/radar add reddit [subreddits] — 新增 Reddit 來源\n' +
     '/radar add devto [tags] — 新增 Dev.to 來源\n' +
     '/radar add github [語言] — 新增 GitHub Trending\n' +
     '/radar add rss <URL> — 新增 RSS 來源\n' +

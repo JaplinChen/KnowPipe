@@ -5,7 +5,6 @@ import { xExtractor } from './x-extractor.js';
 import { threadsExtractor } from './threads-extractor.js';
 import { youtubeExtractor } from './youtube-extractor.js';
 import { githubExtractor } from './github-extractor.js';
-import { redditExtractor } from './reddit-extractor.js';
 import { bilibiliExtractor } from './bilibili-extractor.js';
 import { weiboExtractor } from './weibo-extractor.js';
 import { xiaohongshuExtractor } from './xiaohongshu-extractor.js';
@@ -26,7 +25,6 @@ const PLATFORM_EXTRACTORS: Record<string, Extractor> = {
   threads: threadsExtractor,
   youtube: youtubeExtractor,
   github: githubExtractor,
-  reddit: redditExtractor,
   bilibili: bilibiliExtractor,
   weibo: weiboExtractor,
   xiaohongshu: xiaohongshuExtractor,

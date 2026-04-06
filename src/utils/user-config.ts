@@ -73,7 +73,7 @@ const IS_DOCKER = process.env.NODE_ENV === 'production';
 const LOCAL_HOST = IS_DOCKER ? 'host.docker.internal' : '127.0.0.1';
 
 const ALL_PLATFORMS = [
-  'x', 'threads', 'youtube', 'github', 'reddit', 'bilibili',
+  'x', 'threads', 'youtube', 'github', 'bilibili',
   'weibo', 'xiaohongshu', 'douyin', 'tiktok', 'ithome', 'zhihu',
   'direct-video', 'web',
 ];

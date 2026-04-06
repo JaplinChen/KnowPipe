@@ -1,6 +1,6 @@
 /**
  * Patrol service — multi-platform content discovery.
- * Sources: GitHub Trending (HTML), HN (Firebase API), Reddit (JSON), Dev.to (API).
+ * Sources: GitHub Trending (HTML), HN (Firebase API), Dev.to (API).
  * Scoring via oMLX for relevance filtering.
  */
 import type { Telegraf } from 'telegraf';
@@ -10,7 +10,6 @@ import type { PatrolConfig, PatrolResult } from './patrol-types.js';
 import { loadPatrolConfig, savePatrolConfig } from './patrol-store.js';
 import type { PatrolItem, PatrolSource } from './sources/source-types.js';
 import { hnSource } from './sources/hn-source.js';
-import { redditSource } from './sources/reddit-source.js';
 import { devtoSource } from './sources/devto-source.js';
 import { scoreAndFilter } from './relevance-scorer.js';
 import { filterUnsaved, formatPatrolNotification, buildPatrolButtons } from './patrol-notifier.js';
@@ -78,7 +77,6 @@ const githubTrendingSource: PatrolSource = {
 const ALL_SOURCES: Record<string, PatrolSource> = {
   'github-trending': githubTrendingSource,
   'hn': hnSource,
-  'reddit': redditSource,
   'devto': devtoSource,
 };
 
@@ -101,11 +99,9 @@ export async function runMultiPatrolCycle(
 
     const topicsForSource = sourceName === 'github-trending'
       ? pConfig.languages
-      : sourceName === 'reddit'
-        ? pConfig.subreddits
-        : sourceName === 'devto'
-          ? pConfig.devtoTags
-          : pConfig.topics;
+      : sourceName === 'devto'
+        ? pConfig.devtoTags
+        : pConfig.topics;
 
     try {
       const items = await source.fetch(topicsForSource);

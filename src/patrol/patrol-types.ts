@@ -13,8 +13,6 @@ export interface PatrolConfig {
   enabledSources: string[];
   /** User interest topics for relevance scoring */
   topics: string[];
-  /** Subreddits for Reddit source */
-  subreddits: string[];
   /** Tags for Dev.to source */
   devtoTags: string[];
   /** Relevance score threshold 0-10 (default: 6) */
@@ -35,7 +33,6 @@ export const DEFAULT_PATROL_CONFIG: PatrolConfig = {
   languages: ['typescript', 'python'],
   enabledSources: ['github-trending'],
   topics: ['ai-agent', 'obsidian', 'typescript', 'local-llm'],
-  subreddits: ['MachineLearning', 'LocalLLaMA', 'ObsidianMD', 'selfhosted'],
   devtoTags: ['ai', 'typescript', 'webdev', 'opensource'],
   relevanceThreshold: 6,
 };

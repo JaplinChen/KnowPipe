@@ -9,7 +9,6 @@ import { Markup } from 'telegraf';
 
 const SOURCE_LABELS: Record<string, string> = {
   'hn': '🔶 HN',
-  'reddit': '🟠 Reddit',
   'devto': '📝 Dev.to',
   'github-trending': '🐙 GitHub',
 };

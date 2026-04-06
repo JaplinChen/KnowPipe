@@ -27,7 +27,6 @@ export function sourceLabel(type: RadarQueryType, customName?: string): string {
     case 'github': return 'GitHub';
     case 'rss': return 'RSS';
     case 'hn': return 'HN';
-    case 'reddit': return 'Reddit';
     case 'devto': return 'Dev.to';
     case 'custom': return customName ? `🔌 ${customName}` : '自訂';
     default: return '搜尋';

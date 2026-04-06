@@ -1,7 +1,7 @@
 /** Content radar — type definitions */
 
 /** Source type for a radar query. */
-export type RadarQueryType = 'search' | 'github' | 'rss' | 'hn' | 'reddit' | 'devto' | 'custom';
+export type RadarQueryType = 'search' | 'github' | 'rss' | 'hn' | 'devto' | 'custom';
 
 export interface RadarConfig {
   version: number;

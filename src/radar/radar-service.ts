@@ -15,7 +15,6 @@ import { logger } from '../core/logger.js';
 import { githubTrendingSource } from './sources/github-trending.js';
 import { rssSource } from './sources/rss-source.js';
 import { radarHnSource } from './sources/hn-source.js';
-import { radarRedditSource } from './sources/reddit-source.js';
 import { radarDevtoSource } from './sources/devto-source.js';
 import type { RadarSourceResult } from './sources/source-types.js';
 import type { ToolEntry, ToolMatchResult } from './wall-types.js';
@@ -44,8 +43,6 @@ async function fetchCandidates(
       return rssSource.fetch(keywords, maxResults);
     case 'hn':
       return radarHnSource.fetch(keywords, maxResults);
-    case 'reddit':
-      return radarRedditSource.fetch(keywords, maxResults);
     case 'devto':
       return radarDevtoSource.fetch(keywords, maxResults);
     case 'custom':

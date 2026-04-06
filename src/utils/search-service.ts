@@ -2,7 +2,6 @@
  * Search service — DDG (POST + Camoufox), AI query rewriting + filtering.
  * Shared by /monitor and /google commands.
  */
-import type { ExtractedContent } from '../extractors/types.js';
 import { fetchWithTimeout } from './fetch-with-timeout.js';
 import { camoufoxPool } from './camoufox-pool.js';
 import { isOmlxAvailable, omlxChatCompletion } from './omlx-client.js';
@@ -22,21 +21,6 @@ const SKIP_DOMAINS = [
 
 function isSkipDomain(hostname: string): boolean {
   return SKIP_DOMAINS.some(d => hostname === d || hostname.endsWith(`.${d}`));
-}
-
-export async function searchReddit(keyword: string, limit = 5): Promise<ExtractedContent[]> {
-  const results = await searchDuckDuckGo(`site:reddit.com ${keyword}`, limit);
-  return results.map((r) => ({
-    platform: 'reddit' as const,
-    author: 'unknown',
-    authorHandle: 'u/unknown',
-    title: r.title,
-    text: r.snippet || `[Linked: ${r.url}]`,
-    images: [],
-    videos: [],
-    date: new Date().toISOString().split('T')[0],
-    url: r.url,
-  }));
 }
 
 /**
