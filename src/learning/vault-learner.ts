@@ -36,14 +36,14 @@ export interface LearnedPatterns {
   formatting: FormattingPatterns;
 }
 
-/** 合法分類的頂層前綴；不符合的 frontmatter category 視為關鍵字污染，跳過 */
+/** 合法分類的完整頂層名稱（AI 子類必須有斜線，避免 AI工具與技術 之類誤判）*/
 const VALID_CATEGORY_PREFIXES = [
-  'AI/', 'AI', '知識管理', '程式設計', '科技', '投資理財',
+  'AI/', '知識管理', '程式設計', '科技', '投資理財',
   '創業商業', '設計', '行銷', '中文媒體', '生產力', '新聞時事',
-  '生活', '其他', 'macOS 生態',
+  '生活', '其他', 'macOS 生態', '知識整合',
 ];
 
-function isValidCategory(cat: string): boolean {
+export function isValidCategory(cat: string): boolean {
   return VALID_CATEGORY_PREFIXES.some((prefix) => cat.startsWith(prefix));
 }
 
