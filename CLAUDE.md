@@ -13,6 +13,48 @@
 - 修改分類器關鍵字後，**必須跑** `/test classify` 回歸測試。注意 substring 陷阱（如 `ads` 匹配 `attachments`）。
 - 搬移 Vault 檔案前先 **dry-run**，列出所有變更讓用戶確認。
 
+## 路由索引
+
+> 新任務先對照此表找入口，不確定再往下查代碼。
+
+| 條件 | 優先選擇 |
+|------|----------|
+| URL 含 `reddit.com` | `reddit-extractor.ts` |
+| URL 含 `github.com` | `github-extractor.ts` |
+| URL 含 `youtube.com` / `youtu.be` | `youtube-extractor.ts` |
+| 標題含「論文」「研究」「arxiv」 | 分類優先 `AI/研究對話` |
+| 標題含「wiki」「知識庫」「知識圖」 | 分類優先 `karpathy` 子目錄 |
+| 修改 extractor → 需同時驗證 | `formatter.ts` + Vault 受影響筆記 |
+| 修改 classifier → 需同時跑 | `/test classify` 回歸 |
+| 新增 `/vault` 子指令 → 入口在 | `src/commands/vault-hub.ts` |
+| LLM 呼叫 → 統一走 | `src/utils/local-llm.ts` |
+| 大型報告寫入 Vault → 統一走 | `src/knowledge/report-saver.ts` |
+
+## 決策日誌
+
+> 重要架構選擇記錄，避免未來重複討論同個問題。
+
+| 日期 | 決策 | 原因 |
+|------|------|------|
+| 2026-03-30 | Harness = Evaluator + Generator 雙代理 | 品質提升，單代理自評存在 confirmation bias |
+| 2026-03-31 | Browser pool 改為 idle 立即清理（原 10 分鐘）| 記憶體佔用過高，4 個 Camoufox 實例常駐不合理 |
+| 2026-04-03 | oMLX 預設 port 11435（非 11434）| Homebrew service 預設值，避免與 Ollama 衝突 |
+| 2026-04-04 | Karpathy wiki 編譯整合進 `/vault compile` | 不另建指令，符合整合進現有 pipeline 原則 |
+| 2026-04-06 | classifier-tuner 只寫入 learned-patterns，不改 classifier-categories.ts | 靜態關鍵字由人工維護，動態學習走 learned-patterns |
+
+## 品質閾值
+
+> 低於閾值時的標準處置行為。
+
+| 指標 | 閾值 | 處置 |
+|------|------|------|
+| enricher 摘要長度 | < 30 字 | 標記 `pending-review`，不寫入 Vault |
+| 分類信心（learned rules）| < 0.75 | 降回靜態關鍵字分類器 |
+| wiki 主題筆記數 | < 2 篇 | 跳過，不產出 wiki 文章 |
+| classifier-tuner 改善幅度 | < 1% | 不自動套用建議 |
+| TypeScript 編譯 | 任何錯誤 | 停止，不 commit |
+| 單檔行數 | > 300 行 | 強制拆分後再 commit |
+
 <!-- AUTO-GENERATED-START — 由 scripts/sync-context.ts 自動產生，請勿手動編輯此區段 -->
 ## 專案即時狀態（自動同步）
 

@@ -1,6 +1,7 @@
 /**
  * /vault — unified Vault maintenance entry point.
- * Consolidates quality, dedup, reprocess, reformat, benchmark, retry, suggest.
+ * Consolidates quality, dedup, reprocess, reformat, benchmark, retry, suggest,
+ * compile (wiki), and tune (classifier autoresearch).
  * Old commands remain registered for backward compatibility.
  */
 import type { Context } from 'telegraf';
@@ -12,6 +13,10 @@ import { handleReprocess } from './reprocess-command.js';
 import { handleReformat } from './reformat-command.js';
 import { handleBenchmark } from './benchmark-command.js';
 import { handleSuggest } from './suggest-command.js';
+import { compileWiki } from '../knowledge/wiki-compiler.js';
+import { runClassifierTuning, formatTuneReport } from '../learning/classifier-tuner.js';
+import { splitMessage } from '../utils/telegram.js';
+import { startTyping, stopTyping } from '../utils/typing-indicator.js';
 import type { BotStats } from '../messages/types.js';
 
 type SubHandler = (ctx: Context, config: AppConfig) => Promise<void>;
@@ -39,6 +44,18 @@ export function createVaultHub(stats: BotStats) {
     const parts = text.replace(/^\/vault\s*/i, '').trim().split(/\s+/);
     const sub = parts[0]?.toLowerCase() ?? '';
     const rest = parts.slice(1).join(' ');
+
+    // compile — wiki compilation for a folder
+    if (sub === 'compile') {
+      await handleVaultCompile(ctx, config, rest);
+      return;
+    }
+
+    // tune — classifier autoresearch loop
+    if (sub === 'tune') {
+      await handleVaultTune(ctx, config, rest);
+      return;
+    }
 
     // retry needs special handling (uses stats closure)
     if (sub === 'retry') {
@@ -68,6 +85,8 @@ export function createVaultHub(stats: BotStats) {
         '📈 品質基準 — 評分趨勢分析',
         '🔁 重試失敗 — 重試失敗連結',
         '🔗 推薦連結 — 發現相關筆記',
+        '📚 Wiki 編譯 — /vault compile <資料夾>',
+        '🎯 調優分類器 — /vault tune [--apply]',
       ].join('\n'),
       Markup.inlineKeyboard([
         [
@@ -82,10 +101,70 @@ export function createVaultHub(stats: BotStats) {
           Markup.button.callback('📈 品質基準', 'vlt:benchmark'),
           Markup.button.callback('🔁 重試失敗', 'vlt:retry'),
         ],
-        [Markup.button.callback('🔗 推薦連結', 'vlt:suggest')],
+        [
+          Markup.button.callback('🔗 推薦連結', 'vlt:suggest'),
+          Markup.button.callback('🎯 調優分類器', 'vlt:tune'),
+        ],
       ]),
     );
   };
+}
+
+/** /vault compile <folder> — wiki compilation */
+async function handleVaultCompile(ctx: Context, config: AppConfig, args: string): Promise<void> {
+  const folder = args.trim() || 'karpathy';
+  const typing = startTyping(ctx);
+  await ctx.reply(`📚 正在編譯「${folder}」的 wiki 知識文章…`);
+
+  try {
+    const result = await compileWiki(config.vaultPath, folder);
+    stopTyping(typing);
+
+    if (result.totalNotes === 0) {
+      await ctx.reply(`找不到資料夾「${folder}」或資料夾內無筆記。\n用法：/vault compile karpathy`);
+      return;
+    }
+
+    const lines = [
+      `✅ Wiki 編譯完成`,
+      `資料夾：${folder}`,
+      `掃描筆記：${result.totalNotes} 篇`,
+      `產出主題：${result.articles.length} 個`,
+    ];
+    if (result.skippedNotes > 0) lines.push(`略過（筆記數不足）：${result.skippedNotes} 篇`);
+    if (result.savedPath) lines.push(`已儲存：${result.savedPath}`);
+    if (result.articles.length > 0) {
+      lines.push('', '主題清單：');
+      for (const art of result.articles) lines.push(`• ${art.theme}（${art.noteCount} 篇）`);
+    }
+
+    await ctx.reply(lines.join('\n'));
+  } catch (err) {
+    stopTyping(typing);
+    await ctx.reply(`Wiki 編譯失敗：${String(err)}`);
+  }
+}
+
+/** /vault tune [--apply] — classifier autoresearch tuning */
+async function handleVaultTune(ctx: Context, _config: AppConfig, args: string): Promise<void> {
+  const autoApply = args.includes('--apply');
+  const typing = startTyping(ctx);
+  await ctx.reply('🎯 正在執行分類器調優評估…');
+
+  try {
+    const result = await runClassifierTuning(autoApply);
+    stopTyping(typing);
+    const report = formatTuneReport(result);
+    for (const chunk of splitMessage(report)) {
+      await ctx.reply(chunk);
+    }
+    if (!autoApply && result.suggestions.length > 0 && result.improvement > 0) {
+      await ctx.reply('使用 /vault tune --apply 套用建議修改。');
+    }
+  } catch (err) {
+    stopTyping(typing);
+    await ctx.reply(`調優失敗：${String(err)}`);
+  }
 }
 
 /** Handle vlt:* callbacks from InlineKeyboard */
@@ -99,6 +178,11 @@ export function createVaultCallback(stats: BotStats) {
       const handler = createRetryHandler(stats);
       rewriteText(ctx, '/retry', '');
       await handler(ctx, config);
+      return;
+    }
+
+    if (mode === 'tune') {
+      await handleVaultTune(ctx, config, '');
       return;
     }
 
