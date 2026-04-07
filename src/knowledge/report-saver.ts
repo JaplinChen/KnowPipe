@@ -19,6 +19,8 @@ export interface ReportMeta {
   filePrefix: string;
   /** Optional subtitle shown as blockquote under H1 */
   subtitle?: string;
+  /** Optional tool type written to frontmatter (e.g. 'report', 'anki') */
+  tool?: string;
 }
 
 /**
@@ -40,6 +42,7 @@ export async function saveReportToVault(
     `date: ${report.date}`,
     `category: 知識整合`,
     `tags: [${report.tags.join(', ')}]`,
+    ...(report.tool ? [`tool: ${report.tool}`] : []),
     '---',
     '',
     `# ${report.title}`,

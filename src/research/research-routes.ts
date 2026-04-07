@@ -243,14 +243,43 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
     };
     const label = toolLabel[body.toolType ?? ''] ?? '研究結果';
     const slug = body.topic.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff-]/g, '').slice(0, 30);
-    const date = new Date().toISOString().slice(0, 10);
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const hhmm = now.toTimeString().slice(0, 5).replace(':', '');
     const path = await saveReportToVault(vp, {
       title: `${body.topic} — ${label}`,
       date,
       content: body.content,
       tags: ['research-generated', slug],
-      filePrefix: `research-${slug}`,
+      filePrefix: `research-${slug}-${hhmm}`,
       subtitle: `${label} · 研究主題：${body.topic}`,
+      tool: body.toolType ?? 'chat',
+    });
+    json(res, { path });
+    return true;
+  }
+
+  // 全部存入 Vault（整段對話合併）
+  if (url === '/api/research/save-all' && method === 'POST') {
+    const body = JSON.parse(await readBody(req)) as { topic: string; history: Array<{ role: string; content: string }> };
+    const vp = getVaultPath();
+    if (!vp) { json(res, { error: '未設定 VAULT_PATH' }, 500); return true; }
+    const slug = body.topic.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff-]/g, '').slice(0, 30);
+    const now = new Date();
+    const date = now.toISOString().slice(0, 10);
+    const hhmm = now.toTimeString().slice(0, 5).replace(':', '');
+    const sections = body.history
+      .filter((m) => m.role === 'assistant')
+      .map((m, i) => `## 回應 ${i + 1}\n\n${m.content}`)
+      .join('\n\n---\n\n');
+    const path = await saveReportToVault(vp, {
+      title: `${body.topic} — 完整研究對話`,
+      date,
+      content: sections,
+      tags: ['research-generated', 'research-full', slug],
+      filePrefix: `research-${slug}-full-${hhmm}`,
+      subtitle: `完整對話紀錄 · 研究主題：${body.topic}`,
+      tool: 'full',
     });
     json(res, { path });
     return true;

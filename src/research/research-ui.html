@@ -109,6 +109,14 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .msg-action-btn:hover{background:var(--bg3);color:var(--txt2);border-color:var(--bdr2)}
 .msg-action-btn.saved{background:#1b4332;color:#fff;border-color:#1b4332}
 .msg-action-sep{color:var(--bdr2);margin:0 2px;font-size:12px;user-select:none}
+.msg-tool-wrap{position:relative;display:inline-block}
+.msg-tool-menu{display:none;position:absolute;bottom:calc(100% + 4px);left:0;background:var(--bg1);border:1px solid var(--bdr2);border-radius:8px;padding:4px;min-width:130px;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.15)}
+.msg-tool-menu.open{display:block}
+.msg-tool-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--txt2);white-space:nowrap;transition:background .12s}
+.msg-tool-item:hover{background:var(--bg3);color:var(--txt1)}
+/* Toast 提示 */
+#vaultToast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:#1b4332;color:#fff;padding:9px 18px;border-radius:8px;font-size:12.5px;opacity:0;pointer-events:none;transition:all .25s;z-index:2000;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#vaultToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 /* 筆記預覽 modal */
 .note-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;justify-content:center;align-items:center}
 .note-modal-overlay.open{display:flex}
@@ -232,6 +240,9 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
       <div class="chat-wrap">
         <textarea id="chatInput" rows="1" data-i18n-placeholder="research.chatPlaceholder" placeholder="詢問問題…（Enter 送出）" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMsg()}"></textarea>
         <button onclick="sendMsg()">▶</button>
+      </div>
+      <div style="text-align:right;margin-top:6px">
+        <button id="saveAllBtn" onclick="saveAllToVault(this)" style="background:transparent;border:1px solid var(--bdr);color:var(--txt3);padding:3px 10px;border-radius:5px;cursor:pointer;font-size:11.5px;font-family:inherit;transition:all .15s" onmouseover="this.style.color='var(--txt2)';this.style.borderColor='var(--bdr2)'" onmouseout="this.style.color='var(--txt3)';this.style.borderColor='var(--bdr)'">💾 全部存入 Vault</button>
       </div>
     </div>
   </div>
@@ -481,16 +492,30 @@ async function sendMsg(){
 }
 
 function msgActionBar(i){
+  var mid='toolmenu-'+i;
   return '<div class="msg-actions">'
     +'<button class="msg-action-btn" onclick="copyMsg('+i+',this)" title="複製內容">📋 複製</button>'
     +'<button class="msg-action-btn" onclick="saveMsgToVault('+i+',this)">💾 存入 Vault</button>'
     +'<span class="msg-action-sep">|</span>'
-    +'<button class="msg-action-btn" onclick="runTool(\'report\')" title="生成研究報告">📄 報告</button>'
-    +'<button class="msg-action-btn" onclick="runTool(\'compare\')" title="比較觀點表格">📊 比較表</button>'
-    +'<button class="msg-action-btn" onclick="runTool(\'anki\')" title="生成 Anki 卡片">🃏 Anki</button>'
-    +'<button class="msg-action-btn" onclick="runTool(\'outline\')" title="生成教學大綱">✏️ 大綱</button>'
+    +'<div class="msg-tool-wrap"><button class="msg-action-btn" onclick="toggleToolMenu(\''+mid+'\',event)">🛠 工具 ▾</button>'
+    +'<div class="msg-tool-menu" id="'+mid+'">'
+    +'<div class="msg-tool-item" onclick="runTool(\'report\');closeToolMenus()">📄 生成研究報告</div>'
+    +'<div class="msg-tool-item" onclick="runTool(\'compare\');closeToolMenus()">📊 比較觀點表格</div>'
+    +'<div class="msg-tool-item" onclick="runTool(\'anki\');closeToolMenus()">🃏 Anki 卡片</div>'
+    +'<div class="msg-tool-item" onclick="runTool(\'outline\');closeToolMenus()">✏️ 教學大綱</div>'
+    +'</div></div>'
     +'</div>';
 }
+
+function toggleToolMenu(id,e){
+  e.stopPropagation();
+  var menu=document.getElementById(id);
+  var wasOpen=menu.classList.contains('open');
+  closeToolMenus();
+  if(!wasOpen)menu.classList.add('open');
+}
+function closeToolMenus(){document.querySelectorAll('.msg-tool-menu.open').forEach(m=>m.classList.remove('open'));}
+document.addEventListener('click',closeToolMenus);
 
 function renderMessages(){
   if(!S.history.length){renderEmpty();return;}
@@ -566,6 +591,8 @@ async function runTool(tool){
     const d=await r.json();
     S.history.push({role:'assistant',content:d.result});renderMessages();
     $('rightContent').innerHTML='<div class="overview-item">'+renderMd(d.result)+'</div>';
+    // 捲動到最新訊息
+    var msgs=$('messages');var last=msgs.lastElementChild;if(last)last.scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){$('rightContent').innerHTML='<div class="empty">'+t('research.generateFail')+esc(e.message)+'</div>';}
 }
 
@@ -578,14 +605,32 @@ async function copyMsg(idx,btn){
   }catch(e){alert('複製失敗：'+e.message);}
 }
 
-async function saveMsgToVault(idx,btn){
-  var msg=S.history[idx];
-  if(!msg||msg.role!=='assistant'){return;}
+async function saveAllToVault(btn){
+  if(!S.topic||!S.history.filter(m=>m.role==='assistant').length){alert('尚無可儲存的對話');return;}
   btn.textContent='儲存中…';btn.disabled=true;
   try{
-    var r=await fetch('/api/research/save-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,content:msg.content,toolType:'chat'})});
+    var r=await fetch('/api/research/save-all',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,history:S.history})});
     var d=await r.json();
-    if(d.path){btn.textContent='✅ 已存入';btn.classList.add('saved');}
+    if(d.path){btn.textContent='✅ 已存入';btn.style.background='#1b4332';btn.style.color='#fff';showVaultToast(d.path);}
+    else{btn.textContent='❌ 失敗';btn.disabled=false;}
+  }catch(e){btn.textContent='❌ '+e.message;btn.disabled=false;}
+}
+
+function showVaultToast(path){
+  var t=document.getElementById('vaultToast');
+  var name=path.split('/').pop()||path;
+  t.textContent='✅ 已存入：'+name;t.classList.add('show');
+  setTimeout(()=>{t.classList.remove('show');},3500);
+}
+
+async function saveMsgToVault(idx,btn,toolType){
+  var msg=S.history[idx];
+  if(!msg||msg.role!=='assistant'||btn.classList.contains('saved')){return;}
+  btn.textContent='儲存中…';btn.disabled=true;
+  try{
+    var r=await fetch('/api/research/save-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,content:msg.content,toolType:toolType||'chat'})});
+    var d=await r.json();
+    if(d.path){btn.textContent='✅ 已存入';btn.classList.add('saved');showVaultToast(d.path);}
     else{btn.textContent='❌ 失敗';btn.disabled=false;}
   }catch(e){btn.textContent='❌ '+e.message;btn.disabled=false;}
 }
@@ -670,5 +715,6 @@ updateSelCount();
 renderEmpty();
 restoreSession();
 </script>
+<div id="vaultToast"></div>
 </body>
 </html>
