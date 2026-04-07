@@ -130,6 +130,43 @@ export function detectKnowledgeGaps(knowledge: VaultKnowledge): KnowledgeGap[] {
   return gaps.sort((a, b) => b.mentions - a.mentions);
 }
 
+/** Format top-N entity connections for Telegram display */
+export function formatGraph(knowledge: VaultKnowledge, topN = 20, filterTopic?: string): string {
+  const graph = buildEntityGraph(knowledge);
+  const topEntities = getTopEntities(knowledge, topN * 3);
+  const globalEntities = knowledge.globalEntities ?? {};
+
+  let header = '🕸️ 知識圖譜';
+  let candidates = topEntities;
+
+  if (filterTopic) {
+    const q = filterTopic.toLowerCase();
+    candidates = topEntities.filter(e => e.name.toLowerCase().includes(q));
+    if (candidates.length === 0) return `找不到與「${filterTopic}」相關的實體。`;
+    header = `🕸️ 知識圖譜：「${filterTopic}」`;
+  }
+
+  const lines = [header, ''];
+  let count = 0;
+
+  for (const e of candidates) {
+    if (count >= topN) break;
+    const key = e.name.toLowerCase().trim();
+    const connected = graph.adjacency.get(key);
+    if (!connected || connected.size === 0) continue;
+    const connList = [...connected]
+      .slice(0, 5)
+      .map(c => globalEntities[c]?.name ?? c)
+      .join('、');
+    lines.push(`**${e.name}**（${e.mentions} 篇）↔ ${connList}`);
+    count++;
+  }
+
+  if (count === 0) lines.push('知識庫尚無圖譜數據，請先執行 /vault analyze。');
+  lines.push('', `共 ${Object.keys(globalEntities).length} 個實體，顯示 top ${count}`);
+  return lines.join('\n');
+}
+
 /** Format knowledge gaps for Telegram message */
 export function formatGapsSummary(gaps: KnowledgeGap[]): string {
   const typeLabel: Record<string, string> = {

@@ -18,6 +18,10 @@ import { runClassifierTuning, formatTuneReport } from '../learning/classifier-tu
 import { splitMessage } from '../utils/telegram.js';
 import { startTyping, stopTyping } from '../utils/typing-indicator.js';
 import type { BotStats } from '../messages/types.js';
+import {
+  handleVaultGraph, handleVaultDreaming, handleVaultMemoir,
+  handleVaultAnalyzeRules, handleVaultBookmarkGap,
+} from './vault-hub-ext.js';
 
 type SubHandler = (ctx: Context, config: AppConfig) => Promise<void>;
 
@@ -57,6 +61,36 @@ export function createVaultHub(stats: BotStats) {
       return;
     }
 
+    // graph — entity co-occurrence graph
+    if (sub === 'graph') {
+      await handleVaultGraph(ctx, config, rest);
+      return;
+    }
+
+    // dreaming — daily knowledge consolidation
+    if (sub === 'dreaming') {
+      await handleVaultDreaming(ctx, config, rest);
+      return;
+    }
+
+    // memoir — development history narrative
+    if (sub === 'memoir') {
+      await handleVaultMemoir(ctx, config, rest);
+      return;
+    }
+
+    // analyze rules — CLAUDE.md suggest-only diff
+    if (sub === 'analyze' && rest.startsWith('rules')) {
+      await handleVaultAnalyzeRules(ctx, config, rest);
+      return;
+    }
+
+    // bookmark-gap — X bookmarks vs Vault coverage
+    if (sub === 'bookmark-gap') {
+      await handleVaultBookmarkGap(ctx, config, rest);
+      return;
+    }
+
     // retry needs special handling (uses stats closure)
     if (sub === 'retry') {
       const { createRetryHandler } = await import('./retry-command.js');
@@ -87,6 +121,11 @@ export function createVaultHub(stats: BotStats) {
         '🔗 推薦連結 — 發現相關筆記',
         '📚 Wiki 編譯 — /vault compile <資料夾>',
         '🎯 調優分類器 — /vault tune [--apply]',
+        '🕸️ 知識圖譜 — /vault graph [--topic <關鍵詞>]',
+        '🌙 知識固化 — /vault dreaming [--days N] [--apply]',
+        '📖 開發史 — /vault memoir [--since YYYY-MM-DD]',
+        '🔍 規則建議 — /vault analyze rules',
+        '🔖 書籤缺口 — /vault bookmark-gap',
       ].join('\n'),
       Markup.inlineKeyboard([
         [
