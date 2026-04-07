@@ -51,15 +51,25 @@ function extractSummaryFromBody(body: string): string {
   return text.slice(0, 150).replace(/\n/g, ' ');
 }
 
-/** 替換 frontmatter 中的 keywords 行 */
+/** 替換或插入 frontmatter 中的 keywords 行 */
 function replaceKeywords(raw: string, keywords: string[]): string {
-  return raw.replace(/^keywords:\s*\[.*\]/m, `keywords: [${keywords.join(', ')}]`);
+  const newLine = `keywords: [${keywords.join(', ')}]`;
+  if (/^keywords:/m.test(raw)) {
+    return raw.replace(/^keywords:\s*\[.*\]/m, newLine);
+  }
+  // 欄位不存在 → 插入到 frontmatter 結尾前
+  return raw.replace(/(\r?\n---(?:\r?\n|$))/, `\n${newLine}$1`);
 }
 
-/** 替換 frontmatter 中的 summary 行 */
+/** 替換或插入 frontmatter 中的 summary 行 */
 function replaceSummary(raw: string, summary: string): string {
   const escaped = summary.replace(/"/g, '\\"').replace(/\n/g, ' ');
-  return raw.replace(/^summary:\s*".*"/m, `summary: "${escaped}"`);
+  const newLine = `summary: "${escaped}"`;
+  if (/^summary:/m.test(raw)) {
+    return raw.replace(/^summary:\s*".*"/m, newLine);
+  }
+  // 欄位不存在 → 插入到 frontmatter 結尾前
+  return raw.replace(/(\r?\n---(?:\r?\n|$))/, `\n${newLine}$1`);
 }
 
 /**
@@ -136,6 +146,16 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
 
       // Quality audit: evaluate and auto-fix frontmatter fields
       const fm = parseFrontmatter(newContent);
+
+      // 壓縮封存檔（含 compress_source）不做品質審計
+      if (fm.get('compress_source')) {
+        if (modified && !dryRun) {
+          await writeFile(filePath, newContent, 'utf-8');
+          autoFixed++;
+        }
+        continue;
+      }
+
       const unfixableIssues: string[] = [];
       const title = fm.get('title') ?? '';
       const bodyText = parsed.body;
