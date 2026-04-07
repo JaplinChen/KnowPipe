@@ -104,9 +104,11 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .msg-text hr{border:none;border-top:1px solid var(--bdr);margin:16px 0}
 .msg-text .wikilink{color:var(--pu);background:var(--pu2);padding:1px 6px;border-radius:4px;font-size:0.92em;cursor:pointer;text-decoration:none;display:inline}
 .msg-text .wikilink:hover{background:var(--pu3);text-decoration:underline}
-.msg-save-btn{background:transparent;color:var(--txt3);border:1px solid var(--bdr);padding:3px 10px;border-radius:5px;cursor:pointer;font-size:12px;transition:all .15s}
-.msg-save-btn:hover{background:var(--bg3);color:var(--txt2)}
-.msg-save-btn.saved{background:#1b4332;color:#fff;border-color:#1b4332}
+.msg-actions{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;align-items:center}
+.msg-action-btn{background:transparent;color:var(--txt3);border:1px solid var(--bdr);padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11.5px;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;font-family:inherit}
+.msg-action-btn:hover{background:var(--bg3);color:var(--txt2);border-color:var(--bdr2)}
+.msg-action-btn.saved{background:#1b4332;color:#fff;border-color:#1b4332}
+.msg-action-sep{color:var(--bdr2);margin:0 2px;font-size:12px;user-select:none}
 /* 筆記預覽 modal */
 .note-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;justify-content:center;align-items:center}
 .note-modal-overlay.open{display:flex}
@@ -478,12 +480,23 @@ async function sendMsg(){
   }catch(e){msgEl.querySelector('.msg-text').textContent=t('research.error')+e.message;}
 }
 
+function msgActionBar(i){
+  return '<div class="msg-actions">'
+    +'<button class="msg-action-btn" onclick="copyMsg('+i+',this)" title="複製內容">📋 複製</button>'
+    +'<button class="msg-action-btn" onclick="saveMsgToVault('+i+',this)">💾 存入 Vault</button>'
+    +'<span class="msg-action-sep">|</span>'
+    +'<button class="msg-action-btn" onclick="runTool(\'report\')" title="生成研究報告">📄 報告</button>'
+    +'<button class="msg-action-btn" onclick="runTool(\'compare\')" title="比較觀點表格">📊 比較表</button>'
+    +'<button class="msg-action-btn" onclick="runTool(\'anki\')" title="生成 Anki 卡片">🃏 Anki</button>'
+    +'<button class="msg-action-btn" onclick="runTool(\'outline\')" title="生成教學大綱">✏️ 大綱</button>'
+    +'</div>';
+}
+
 function renderMessages(){
   if(!S.history.length){renderEmpty();return;}
   $('messages').innerHTML=S.history.map((m,i)=>{
     const isAi=m.role==='assistant';
-    const saveBar=isAi?'<div style="margin-top:8px;text-align:right"><button class="msg-save-btn" onclick="saveMsgToVault('+i+',this)">💾 存入 Vault</button></div>':'';
-    return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+(isAi?renderMd(m.content):esc(m.content))+'</div>'+saveBar+'</div></div>';
+    return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+(isAi?renderMd(m.content):esc(m.content))+'</div>'+(isAi?msgActionBar(i):'')+'</div></div>';
   }).join('');
   $('messages').scrollTop=$('messages').scrollHeight;
 }
@@ -554,6 +567,15 @@ async function runTool(tool){
     S.history.push({role:'assistant',content:d.result});renderMessages();
     $('rightContent').innerHTML='<div class="overview-item">'+renderMd(d.result)+'</div>';
   }catch(e){$('rightContent').innerHTML='<div class="empty">'+t('research.generateFail')+esc(e.message)+'</div>';}
+}
+
+async function copyMsg(idx,btn){
+  var msg=S.history[idx];if(!msg)return;
+  try{
+    await navigator.clipboard.writeText(msg.content);
+    var orig=btn.innerHTML;btn.innerHTML='✅ 已複製';
+    setTimeout(()=>{btn.innerHTML=orig;},1500);
+  }catch(e){alert('複製失敗：'+e.message);}
 }
 
 async function saveMsgToVault(idx,btn){
