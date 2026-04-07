@@ -53,7 +53,8 @@ export async function saveReportToVault(
     lines.push('');
   }
 
-  lines.push(report.content);
+  lines.push(report.content.replace(/\n+$/, ''));
+  lines.push('');
   lines.push('');
   lines.push('---');
   lines.push(`*自動產生 by ObsBot — ${new Date().toISOString().slice(0, 19)}*`);
