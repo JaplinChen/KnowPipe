@@ -14,6 +14,7 @@ import { buildSlideSpec, parseSlideSpecPayload } from './slide-spec.js';
 import { buildPptx } from './slide-pptx.js';
 import { renderSlidePreviewHtml } from './slide-preview.js';
 import type { NoteRecord, ChatMessage, CleanLevel } from './types.js';
+import { saveReportToVault } from '../knowledge/report-saver.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const RAW_RESEARCH_HTML = readFileSync(join(__dirname, 'research-ui.html'), 'utf-8');
@@ -228,6 +229,30 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
     cachedNotes = [];
     const notes = await getNotes();
     json(res, { count: notes.length });
+    return true;
+  }
+
+  // 存入 Vault
+  if (url === '/api/research/save-report' && method === 'POST') {
+    const body = JSON.parse(await readBody(req)) as { topic: string; content: string; toolType?: string };
+    const vp = getVaultPath();
+    if (!vp) { json(res, { error: '未設定 VAULT_PATH' }, 500); return true; }
+    const toolLabel: Record<string, string> = {
+      report: '研究報告', compare: '比較表', anki: 'Anki 卡片',
+      outline: '教學大綱', overview: '分析概覽',
+    };
+    const label = toolLabel[body.toolType ?? ''] ?? '研究結果';
+    const slug = body.topic.toLowerCase().replace(/\s+/g, '-').replace(/[^\w\u4e00-\u9fff-]/g, '').slice(0, 30);
+    const date = new Date().toISOString().slice(0, 10);
+    const path = await saveReportToVault(vp, {
+      title: `${body.topic} — ${label}`,
+      date,
+      content: body.content,
+      tags: ['research-generated', slug],
+      filePrefix: `research-${slug}`,
+      subtitle: `${label} · 研究主題：${body.topic}`,
+    });
+    json(res, { path });
     return true;
   }
 

@@ -497,6 +497,7 @@ function renderRight(){
     let h='<div class="overview-section"><h3>'+t('research.summary')+'</h3><div class="overview-item">'+renderMd(S.overview.summary)+'</div></div>';
     h+='<div class="overview-section"><h3>'+t('research.keyQuestions')+'</h3>'+(S.overview.keyQuestions||[]).map(q=>'<div class="overview-item" onclick="askQuestion(\''+esc(q.replace(/'/g,"\\'"))+'\')">' +esc(q)+'</div>').join('')+'</div>';
     h+='<div class="overview-section"><h3>'+t('research.keyConcepts')+'</h3>'+(S.overview.keyConcepts||[]).map(c=>'<div class="overview-item">'+esc(c)+'</div>').join('')+'</div>';
+    h+='<div style="margin-top:12px;text-align:right"><button class="tool-btn" style="background:#2d6a4f;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer" onclick="saveOverviewToVault(this)">💾 存入 Vault</button></div>';
     el.innerHTML=h;
   }else if(S.tab==='tools'){
     const apiTools=[
@@ -548,8 +549,35 @@ async function runTool(tool){
     const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected]})});
     const d=await r.json();
     S.history.push({role:'assistant',content:d.result});renderMessages();
-    $('rightContent').innerHTML='<div class="overview-item">'+renderMd(d.result)+'</div>';
+    $('rightContent').innerHTML='<div class="overview-item">'+renderMd(d.result)+'</div>'
+      +'<div style="margin-top:12px;text-align:right"><button class="tool-btn" style="background:#2d6a4f;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer" onclick="saveToVault(\''+tool+'\',this)">💾 存入 Vault</button></div>';
   }catch(e){$('rightContent').innerHTML='<div class="empty">'+t('research.generateFail')+esc(e.message)+'</div>';}
+}
+
+async function saveOverviewToVault(btn){
+  if(!S.overview){alert('尚無分析概覽');return;}
+  var content='## 摘要\n\n'+S.overview.summary
+    +'\n\n## 關鍵問題\n\n'+(S.overview.keyQuestions||[]).map(q=>'- '+q).join('\n')
+    +'\n\n## 核心概念\n\n'+(S.overview.keyConcepts||[]).map(c=>'- '+c).join('\n');
+  var orig=btn.textContent;btn.textContent='儲存中…';btn.disabled=true;
+  try{
+    var r=await fetch('/api/research/save-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,content,toolType:'overview'})});
+    var d=await r.json();
+    if(d.path){btn.textContent='✅ 已存入';btn.style.background='#1b4332';}
+    else{btn.textContent='❌ 失敗';btn.disabled=false;}
+  }catch(e){btn.textContent='❌ '+e.message;btn.disabled=false;}
+}
+
+async function saveToVault(toolType,btn){
+  var content=S.history.filter(m=>m.role==='assistant').map(m=>m.content).pop()||'';
+  if(!content){alert('沒有可儲存的內容');return;}
+  var orig=btn.textContent;btn.textContent='儲存中…';btn.disabled=true;
+  try{
+    var r=await fetch('/api/research/save-report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,content,toolType})});
+    var d=await r.json();
+    if(d.path){btn.textContent='✅ 已存入';btn.style.background='#1b4332';}
+    else{btn.textContent='❌ 失敗';btn.disabled=false;}
+  }catch(e){btn.textContent='❌ '+e.message;btn.disabled=false;}
 }
 
 async function exportPreview(){
