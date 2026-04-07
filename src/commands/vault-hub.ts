@@ -25,6 +25,54 @@ import {
 
 type SubHandler = (ctx: Context, config: AppConfig) => Promise<void>;
 
+// ── Menu builders ─────────────────────────────────────────────────────────────
+
+const MAIN_MENU_TEXT = '🔧 *Vault 維護*\n\n選擇功能分類：';
+
+function mainMenu() {
+  return Markup.inlineKeyboard([
+    [
+      Markup.button.callback('🩺 品質維護', 'vlt:cat:quality'),
+      Markup.button.callback('⚙️ 處理操作', 'vlt:cat:ops'),
+    ],
+    [
+      Markup.button.callback('🧠 知識分析', 'vlt:cat:knowledge'),
+    ],
+  ]);
+}
+
+const CAT_DEFS = {
+  quality: {
+    text: '🩺 *品質維護*\n\n掃描、除重、修排版、品質基準：',
+    keyboard: () => Markup.inlineKeyboard([
+      [Markup.button.callback('📊 品質報告', 'vlt:quality'), Markup.button.callback('🔍 重複掃描', 'vlt:dedup')],
+      [Markup.button.callback('📐 修復排版', 'vlt:reformat'), Markup.button.callback('📈 品質基準', 'vlt:benchmark')],
+      [Markup.button.callback('‹ 返回', 'vlt:back')],
+    ]),
+  },
+  ops: {
+    text: '⚙️ *處理操作*\n\n重新處理、重試、推薦連結、Wiki 編譯：',
+    keyboard: () => Markup.inlineKeyboard([
+      [Markup.button.callback('🔄 重新處理', 'vlt:reprocess'), Markup.button.callback('🔁 重試失敗', 'vlt:retry')],
+      [Markup.button.callback('🔗 推薦連結', 'vlt:suggest'), Markup.button.callback('📚 Wiki 編譯', 'vlt:compile')],
+      [Markup.button.callback('‹ 返回', 'vlt:back')],
+    ]),
+  },
+  knowledge: {
+    text: '🧠 *知識分析*\n\n分類調優、圖譜、固化、開發史：',
+    keyboard: () => Markup.inlineKeyboard([
+      [Markup.button.callback('🎯 調優分類器', 'vlt:tune'), Markup.button.callback('🕸️ 知識圖譜', 'vlt:graph')],
+      [Markup.button.callback('🌙 知識固化', 'vlt:dreaming'), Markup.button.callback('📖 開發史', 'vlt:memoir')],
+      [Markup.button.callback('🔍 規則建議', 'vlt:analyze'), Markup.button.callback('🔖 書籤缺口', 'vlt:bookmark-gap')],
+      [Markup.button.callback('‹ 返回', 'vlt:back')],
+    ]),
+  },
+} as const;
+
+type CatKey = keyof typeof CAT_DEFS;
+
+// ── Command modes ─────────────────────────────────────────────────────────────
+
 const MODES: Record<string, { handler: SubHandler; prefix: string }> = {
   quality: { handler: handleQuality, prefix: '/quality' },
   dedup: { handler: handleDedup, prefix: '/dedup' },
@@ -107,45 +155,8 @@ export function createVaultHub(stats: BotStats) {
       return;
     }
 
-    // No args → show menu
-    await ctx.reply(
-      [
-        '🔧 Vault 維護',
-        '',
-        '📊 品質報告 — 掃描筆記品質問題',
-        '🔍 重複掃描 — 找出重複筆記',
-        '🔄 重新處理 — AI 豐富筆記內容',
-        '📐 修復排版 — 修正格式問題',
-        '📈 品質基準 — 評分趨勢分析',
-        '🔁 重試失敗 — 重試失敗連結',
-        '🔗 推薦連結 — 發現相關筆記',
-        '📚 Wiki 編譯 — /vault compile <資料夾>',
-        '🎯 調優分類器 — /vault tune [--apply]',
-        '🕸️ 知識圖譜 — /vault graph [--topic <關鍵詞>]',
-        '🌙 知識固化 — /vault dreaming [--days N] [--apply]',
-        '📖 開發史 — /vault memoir [--since YYYY-MM-DD]',
-        '🔍 規則建議 — /vault analyze rules',
-        '🔖 書籤缺口 — /vault bookmark-gap',
-      ].join('\n'),
-      Markup.inlineKeyboard([
-        [
-          Markup.button.callback('📊 品質報告', 'vlt:quality'),
-          Markup.button.callback('🔍 重複掃描', 'vlt:dedup'),
-        ],
-        [
-          Markup.button.callback('🔄 重新處理', 'vlt:reprocess'),
-          Markup.button.callback('📐 修復排版', 'vlt:reformat'),
-        ],
-        [
-          Markup.button.callback('📈 品質基準', 'vlt:benchmark'),
-          Markup.button.callback('🔁 重試失敗', 'vlt:retry'),
-        ],
-        [
-          Markup.button.callback('🔗 推薦連結', 'vlt:suggest'),
-          Markup.button.callback('🎯 調優分類器', 'vlt:tune'),
-        ],
-      ]),
-    );
+    // No args → show main category menu
+    await ctx.reply(MAIN_MENU_TEXT, mainMenu());
   };
 }
 
@@ -212,6 +223,27 @@ export function createVaultCallback(stats: BotStats) {
     const mode = ctx.match[1];
     await ctx.answerCbQuery().catch(() => {});
 
+    // Navigation: category sub-menu
+    if (mode.startsWith('cat:')) {
+      const cat = mode.slice(4) as CatKey;
+      const def = CAT_DEFS[cat];
+      if (def) {
+        await (ctx as unknown as { editMessageText(t: string, e: object): Promise<unknown> })
+          .editMessageText(def.text, { parse_mode: 'Markdown', ...def.keyboard() })
+          .catch(() => {});
+      }
+      return;
+    }
+
+    // Navigation: back to main menu
+    if (mode === 'back') {
+      await (ctx as unknown as { editMessageText(t: string, e: object): Promise<unknown> })
+        .editMessageText(MAIN_MENU_TEXT, { parse_mode: 'Markdown', ...mainMenu() })
+        .catch(() => {});
+      return;
+    }
+
+    // Actions
     if (mode === 'retry') {
       const { createRetryHandler } = await import('./retry-command.js');
       const handler = createRetryHandler(stats);
@@ -222,6 +254,36 @@ export function createVaultCallback(stats: BotStats) {
 
     if (mode === 'tune') {
       await handleVaultTune(ctx, config, '');
+      return;
+    }
+
+    if (mode === 'compile') {
+      await handleVaultCompile(ctx, config, '');
+      return;
+    }
+
+    if (mode === 'graph') {
+      await handleVaultGraph(ctx, config, '');
+      return;
+    }
+
+    if (mode === 'dreaming') {
+      await handleVaultDreaming(ctx, config, '');
+      return;
+    }
+
+    if (mode === 'memoir') {
+      await handleVaultMemoir(ctx, config, '');
+      return;
+    }
+
+    if (mode === 'analyze') {
+      await handleVaultAnalyzeRules(ctx, config, 'rules');
+      return;
+    }
+
+    if (mode === 'bookmark-gap') {
+      await handleVaultBookmarkGap(ctx, config, '');
       return;
     }
 
