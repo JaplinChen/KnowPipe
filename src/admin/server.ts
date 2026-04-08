@@ -311,6 +311,14 @@ export function startAdminServer(): void {
     });
   });
 
+  server.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EADDRINUSE') {
+      console.warn(`[admin] 端口 ${PORT} 已被佔用，管理介面略過（Bot 其他功能正常運行）`);
+    } else {
+      console.error('[admin] 伺服器錯誤：', err.message);
+    }
+  });
+
   server.listen(PORT, BIND_HOST, () => {
     const url = `http://localhost:${PORT}/`;
     console.log(`[admin] 管理介面已啟動：${url}`);
