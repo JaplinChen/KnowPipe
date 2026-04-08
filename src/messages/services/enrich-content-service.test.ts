@@ -7,6 +7,8 @@ vi.mock('../../classifier.js', () => ({
 
 vi.mock('../../enrichment/post-processor.js', () => ({
   postProcess: vi.fn(),
+  fetchLinkedContent: vi.fn().mockResolvedValue(undefined),
+  runPostTranslation: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('../../learning/ai-enricher.js', () => ({
@@ -22,14 +24,14 @@ vi.mock('../../utils/content-cleaner.js', () => ({
 }));
 
 import { classifyContent } from '../../classifier.js';
-import { postProcess } from '../../enrichment/post-processor.js';
+import { runPostTranslation } from '../../enrichment/post-processor.js';
 import { enrichContent } from '../../learning/ai-enricher.js';
 import { getTopKeywordsForCategory } from '../../learning/dynamic-classifier.js';
 import { enrichExtractedContent } from './enrich-content-service.js';
 import { AI_TRANSCRIPT_PREFIX } from '../user-messages.js';
 
 const mockClassifyContent = vi.mocked(classifyContent);
-const mockPostProcess = vi.mocked(postProcess);
+const mockRunPostTranslation = vi.mocked(runPostTranslation);
 const mockEnrichContent = vi.mocked(enrichContent);
 const mockGetTopKeywordsForCategory = vi.mocked(getTopKeywordsForCategory);
 
@@ -52,7 +54,7 @@ describe('enrich-content-service', () => {
     vi.clearAllMocks();
     mockClassifyContent.mockReturnValue('技術');
     mockGetTopKeywordsForCategory.mockReturnValue(['ai', 'agent']);
-    mockPostProcess.mockResolvedValue(undefined as never);
+    mockRunPostTranslation.mockResolvedValue(undefined as never);
     mockEnrichContent.mockResolvedValue({} as never);
   });
 
@@ -69,7 +71,7 @@ describe('enrich-content-service', () => {
 
     expect(mockClassifyContent).toHaveBeenCalledWith('T', 'Body');
     expect(content.category).toBe('技術');
-    expect(mockPostProcess).toHaveBeenCalledTimes(1);
+    expect(mockRunPostTranslation).toHaveBeenCalledTimes(1);
   });
 
   it('uses transcript prefix and applies enrich result', async () => {
@@ -116,7 +118,7 @@ describe('enrich-content-service', () => {
 
   it('swallows post-process errors', async () => {
     const content = makeContent();
-    mockPostProcess.mockRejectedValue(new Error('pp fail'));
+    mockRunPostTranslation.mockRejectedValue(new Error('pp fail'));
 
     await expect(enrichExtractedContent(content, {
       botToken: 'x',
