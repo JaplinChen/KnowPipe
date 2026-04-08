@@ -12,7 +12,7 @@ import { loadKnowledge } from '../knowledge/knowledge-store.js';
 import { aggregateKnowledge, getTopEntities, getInsightsByTopic } from '../knowledge/knowledge-aggregator.js';
 import type { VaultKnowledge } from '../knowledge/types.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
-import { findEntity, findNotesByTopic, formatEntitySection, findDirectRelations } from './knowledge-query-helpers.js';
+import { findEntity, findNotesByTopic, formatEntitySection, findDirectRelations, synthesizeBrief } from './knowledge-query-helpers.js';
 import { runLocalLlmPrompt } from '../utils/local-llm.js';
 import { replyEmptyKnowledge } from './reply-buttons.js';
 import { TtlCache } from '../utils/ttl-cache.js';
@@ -160,7 +160,15 @@ async function runBrief(ctx: Context, topic: string): Promise<void> {
 
   const lines = [`🧠 ${topic} 知識簡報`, '', `來源：${matchedNotes.length} 篇相關筆記`];
 
-  if (insights.length > 0) {
+  // Context Engineering 模板路由：3 篇以上筆記時呼叫 LLM 合成
+  if (matchedNotes.length >= 3) {
+    const synthesis = await synthesizeBrief(topic, matchedNotes, insights);
+    if (synthesis) {
+      lines.push('', synthesis);
+    }
+  }
+
+  if (insights.length > 0 && matchedNotes.length < 3) {
     lines.push('', '核心洞察：');
     for (const ins of insights.slice(0, 6)) {
       lines.push(`• ${ins.content}`);

@@ -134,6 +134,7 @@ export async function enrichContent(
     : [];
 
   const prompt = [
+    'CAVEMAN RULE: Output ONLY the JSON object. No text before {. No text after }. No "Sure", no "Here is", no explanation.',
     'You are a strict JSON generator for content enrichment.',
     `Return ONLY valid JSON with keys: ${jsonKeys}.`,
     'keywords: array of up to 5 concise keywords.',
@@ -223,6 +224,7 @@ export async function regenerateFields(
   }).join('\n');
 
   const prompt = [
+    'CAVEMAN RULE: Output ONLY the JSON object. No text before {. No text after }.',
     '你是內容修復器（Generator）。Evaluator 發現以下欄位品質不足，請根據指令重新生成。',
     '',
     `標題：${title}`,

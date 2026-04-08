@@ -122,7 +122,39 @@ export async function handleDoctor(ctx: Context, config: AppConfig): Promise<voi
     countFiles(attachPath, ''),
   ]);
 
-  // 5. Format final report (edit the same message)
+  // 5. Process & port snapshot
+  const processLines: string[] = [];
+  try {
+    // ObsBot node 進程
+    const { stdout: psOut } = await execFileAsync(
+      'ps', ['aux'], { timeout: 3_000 },
+    );
+    const botProcs = psOut.split('\n').filter(
+      l => /tsx.*index|node.*dist\/index/.test(l) && !l.includes('grep'),
+    );
+    for (const p of botProcs.slice(0, 3)) {
+      const cols = p.split(/\s+/);
+      const pid = cols[1];
+      const mem = cols[5] ? `${Math.round(Number(cols[5]) / 1024)}MB` : '?';
+      const cmd = cols.slice(10).join(' ').slice(0, 50);
+      processLines.push(`• PID ${pid} (${mem}) ${cmd}`);
+    }
+
+    // 監聽 port
+    const { stdout: lsofOut } = await execFileAsync(
+      'lsof', ['-Pan', '-iTCP:LISTEN', '-n'], { timeout: 3_000 },
+    ).catch(() => ({ stdout: '' }));
+    const portLines = lsofOut.split('\n')
+      .filter(l => l.includes('node') || l.includes('omlx') || l.includes('tsx'))
+      .slice(0, 5)
+      .map(l => {
+        const cols = l.split(/\s+/);
+        return `• ${cols[0]} PID:${cols[1]} → ${cols[8] ?? '?'}`;
+      });
+    if (portLines.length > 0) processLines.push('', ...portLines);
+  } catch { /* 略過，不影響主報告 */ }
+
+  // 6. Format final report (edit the same message)
   const elapsed = ((Date.now() - t0) / 1000).toFixed(1);
   const lines = [
     '🩺 系統診斷報告',
@@ -138,6 +170,9 @@ export async function handleDoctor(ctx: Context, config: AppConfig): Promise<voi
     '',
     '━━ Vault ━━',
     `📁 ${noteCount} 筆記 | ${attachCount} 附件`,
+    '',
+    '━━ 進程與連接埠 ━━',
+    ...(processLines.length > 0 ? processLines : ['（無 ObsBot 進程偵測到）']),
     '',
     `⏱ 診斷耗時 ${elapsed}s`,
   ];
