@@ -108,6 +108,8 @@ interface OmlxOptions {
   timeoutMs?: number;
   temperature?: number;
   maxTokens?: number;
+  /** Optional system prompt injected before the user message. */
+  systemPrompt?: string;
 }
 
 /**
@@ -123,9 +125,12 @@ export async function omlxChatCompletion(
   const timeoutMs = options.timeoutMs ?? getOmlxTimeout(tier);
 
   const isQwenModel = modelId.toLowerCase().includes('qwen');
+  const messages: Array<{ role: string; content: string }> = [];
+  if (options.systemPrompt) messages.push({ role: 'system', content: options.systemPrompt });
+  messages.push({ role: 'user', content: prompt });
   const body = JSON.stringify({
     model: modelId,
-    messages: [{ role: 'user', content: prompt }],
+    messages,
     temperature: options.temperature ?? 0.3,
     max_tokens: options.maxTokens ?? 4096,
     // Disable reasoning/thinking for Qwen models — 10x+ faster

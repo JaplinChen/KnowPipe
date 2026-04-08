@@ -10,6 +10,7 @@ import { getUserConfig } from './user-config.js';
 import {
   isProviderAvailable, openaiChatCompletion, geminiChatCompletion,
 } from './openai-client.js';
+import { loadSoul } from './soul-loader.js';
 
 /** Read CLI timeout from user config. */
 function getCliTimeout(): number {
@@ -32,6 +33,10 @@ interface RunOptions {
   task?: TaskType;
   /** Max tokens for oMLX inference. Default: 4096. */
   maxTokens?: number;
+  /** Optional system prompt. Merged with SOUL.md when soul=true. */
+  systemPrompt?: string;
+  /** Inject SOUL.md personality. Default: false (opt-in). */
+  soul?: boolean;
 }
 
 /* ── CLI provider (OpenCode + multi-model routing) ───────────────────── */
@@ -94,14 +99,25 @@ export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}
     : (options.model ?? 'standard');
   const ocModel = getLlmModels()[tier];
   const llmCfg = getUserConfig().llm;
-  const messages = [{ role: 'user' as const, content: prompt }];
+
+  // Build effective system prompt: SOUL.md (opt-in) + caller systemPrompt
+  const soulText = options.soul ? await loadSoul() : '';
+  const effectiveSystem = [soulText, options.systemPrompt].filter(Boolean).join('\n\n');
+
+  const messages = [
+    ...(effectiveSystem ? [{ role: 'system' as const, content: effectiveSystem }] : []),
+    { role: 'user' as const, content: prompt },
+  ];
   const compOpts = { timeoutMs, maxTokens: options.maxTokens };
 
   // Provider attempt functions
   const providers: Record<string, () => Promise<string | null>> = {
     omlx: async () => {
       if (!await isOmlxAvailable()) return null;
-      return omlxChatCompletion(prompt, { model: tier, timeoutMs, maxTokens: options.maxTokens });
+      return omlxChatCompletion(prompt, {
+        model: tier, timeoutMs, maxTokens: options.maxTokens,
+        systemPrompt: effectiveSystem || undefined,
+      });
     },
     ollama: async () => {
       if (!await isProviderAvailable('ollama')) return null;
@@ -117,8 +133,14 @@ export async function runLocalLlmPrompt(prompt: string, options: RunOptions = {}
       if (!llmCfg.gemini.apiKey) return null;
       return geminiChatCompletion(llmCfg.gemini.model || 'gemini-2.5-flash', messages, compOpts);
     },
-    opencode: async () => runViaCli(prompt, timeoutMs, ocModel),
-    ddg: async () => runViaDdgChat(prompt, timeoutMs),
+    opencode: async () => {
+      const fullPrompt = effectiveSystem ? `${effectiveSystem}\n\n${prompt}` : prompt;
+      return runViaCli(fullPrompt, timeoutMs, ocModel);
+    },
+    ddg: async () => {
+      const fullPrompt = effectiveSystem ? `${effectiveSystem}\n\n${prompt}` : prompt;
+      return runViaDdgChat(fullPrompt, timeoutMs);
+    },
   };
 
   // Walk the user-defined order, skip disabled providers
