@@ -1,10 +1,10 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFileSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { getUserConfig, updateUserConfig } from '../utils/user-config.js';
 import { getMetricsSummary } from '../core/metrics.js';
 import { getBreakerStatus } from '../monitoring/circuit-breaker.js';
@@ -103,8 +103,17 @@ function readBody(req: IncomingMessage): Promise<string> {
   });
 }
 
+const ADMIN_TAB_FLAG = join(tmpdir(), 'obsbot-admin-tab');
+const TAB_REUSE_TTL_MS = 5 * 60 * 1000; // 5 分鐘內重啟不開新頁
+
 function openBrowser(url: string): void {
   try { new URL(url); } catch { return; }
+  // 若 5 分鐘內已開過，假設舊頁仍開著，不重複開新頁
+  if (existsSync(ADMIN_TAB_FLAG)) {
+    const age = Date.now() - statSync(ADMIN_TAB_FLAG).mtimeMs;
+    if (age < TAB_REUSE_TTL_MS) return;
+  }
+  writeFileSync(ADMIN_TAB_FLAG, String(Date.now()));
   spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
 }
 
@@ -322,7 +331,7 @@ export function startAdminServer(): void {
   server.listen(PORT, BIND_HOST, () => {
     const url = `http://localhost:${PORT}/`;
     console.log(`[admin] 管理介面已啟動：${url}`);
-    if (BIND_HOST === '127.0.0.1') openBrowser(url);
+    if (BIND_HOST === '127.0.0.1') openBrowser(`${url}research`);
   });
 }
 

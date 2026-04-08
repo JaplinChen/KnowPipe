@@ -112,7 +112,7 @@
 
   "research.title": "Vault Research",
   "research.subtitle": "Local AI × Obsidian",
-  "research.back": "← Admin",
+  "research.back": "Admin",
   "research.search": "Search notes...",
   "research.scanning": "Scanning Vault...",
   "research.selected": "{n} selected",

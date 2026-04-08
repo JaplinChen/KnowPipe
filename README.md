@@ -108,7 +108,7 @@ Ingest   Compile   Query    Output    Lint
 #### 系統
 - **10 個核心指令 + 32 個完整指令** — InlineKeyboard 按鈕引導
 - **遠端管理** — `/admin` 狀態、診斷、日誌、重啟、遠端指令
-- **Admin Web UI** — `http://localhost:3001` 即時儀表板、功能設定、多語系介面
+- **Admin Web UI** — `http://localhost:3001` 啟動時自動開啟研究介面；點「管理」按鈕進入設定（初始設定、功能配置、監控面板）
 - **多模型智慧路由** — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理
 - **功能開關** — `/config` 即時切換 11 項功能
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV
@@ -296,7 +296,7 @@ ObsBot 不只是收錄工具——內建完整的研究工作流，讓 Vault 中
 
 ### Web 研究介面
 
-開啟 `http://localhost:3001/research` 進入三欄式互動研究介面：
+Bot 啟動後瀏覽器自動開啟 `http://localhost:3001/research`，進入三欄式互動研究介面。點左側欄「**管理**」按鈕可開啟設定面板（初始設定、功能配置、監控面板）：
 
 - **左欄**：筆記瀏覽器，支援資料夾樹狀展開、標籤篩選、多選勾選
 - **中欄**：輸入研究主題 → AI 分析 → 互動式對話（支援對話歷史、`[[wikilink]]` 引用）
