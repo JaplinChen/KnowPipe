@@ -26,6 +26,7 @@ import { classifyFailureReason, type BotStats } from './types.js';
 import { parseIntent, replySuggestion } from './intent-parser.js';
 import { handleWeeklyDigest } from '../commands/digest-command.js';
 import { handleCompareByArg } from '../commands/knowledge-query-command.js';
+import { isAdUrl, rehabilitateDomain } from '../utils/ad-url-filter.js';
 
 function isSeriesExtractor(e: unknown): e is ExtractorWithSeries {
   return typeof (e as ExtractorWithSeries).isSeries === 'function';
@@ -108,6 +109,17 @@ export function registerUrlProcessingHandler(
 
     /** Process a single URL (extracted for batch parallelism) */
     const processSingleUrl = async (url: string) => {
+      // 廣告 URL 過濾（靜態規則 + 動態黑名單）
+      const adCheck = await isAdUrl(url);
+      if (adCheck.isAd) {
+        logger.info('msg', '廣告 URL 已略過', { url: url.slice(0, 80), reason: adCheck.reason });
+        await ctx.reply(`🚫 廣告連結，已略過（${adCheck.reason}）`);
+        return;
+      }
+
+      // 用戶主動送出 → 可能是合法內容，降低該域名廣告信心分數
+      rehabilitateDomain(url).catch(() => {});
+
       const extractor = findExtractor(url);
       if (!extractor) {
         logger.warn('msg', 'unsupported url', { url });

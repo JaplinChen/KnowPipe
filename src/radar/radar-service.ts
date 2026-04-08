@@ -25,6 +25,7 @@ import { VIDEO_PLATFORMS, enqueueVideo } from './video-queue.js';
 import { createCustomSource } from './sources/custom-source.js';
 import type { CustomSourceConfig } from './sources/custom-source.js';
 import { buildCycleSummary, sourceLabel } from './radar-cycle-utils.js';
+import { isAdUrl } from '../utils/ad-url-filter.js';
 
 /** Max consecutive failures before auto-pausing a query. */
 const MAX_CONSECUTIVE_FAILURES = 3;
@@ -84,6 +85,14 @@ async function runQuery(
 
     for (const sr of candidates) {
       try {
+        // Ad URL filter — 廣告跳轉直接略過，並觸發學習
+        const adCheck = await isAdUrl(sr.url);
+        if (adCheck.isAd) {
+          logger.info('radar', '略過廣告 URL', { url: sr.url.slice(0, 80), reason: adCheck.reason });
+          result.skipped++;
+          continue;
+        }
+
         // Dedup check
         const existing = await isDuplicateUrl(sr.url, config.vaultPath);
         if (existing) { result.skipped++; continue; }
