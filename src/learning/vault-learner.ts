@@ -4,6 +4,7 @@ import { logger } from '../core/logger.js';
 import { safeWriteJSON } from '../core/safe-write.js';
 import { parseFrontmatter, parseArrayField, getAllMdFiles } from '../vault/frontmatter-utils.js';
 import { getFeedbackWeight, loadFeedbackStore } from './feedback-tracker.js';
+import { trimExamples } from './classifier-examples.js';
 
 export interface NoteStats {
   category: string;
@@ -203,6 +204,13 @@ export async function runVaultLearner(vaultPath: string, outputPath: string): Pr
   };
 
   await safeWriteJSON(outputPath, patterns);
+
+  // 整理 few-shot examples：去重 + 修剪超過上限的舊記錄
+  const removed = await trimExamples().catch(() => 0);
+  if (removed > 0) {
+    logger.info('learn', '整理 few-shot examples', { removed });
+  }
+
   logger.info('learn', '掃描完成', { notes: notes.length, rules: classificationRules.length });
   return patterns;
 }

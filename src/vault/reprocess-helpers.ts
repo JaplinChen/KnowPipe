@@ -86,7 +86,12 @@ export async function fallbackReclassify(
   const title = extractField(raw, 'title') ?? '';
   const url = extractField(raw, 'url') ?? '';
   const oldCategory = extractField(raw, 'category') ?? '其他';
-  const newCategory = classifyContent(title, '');
+
+  // 取得正文（frontmatter 結束後的內容）供分類使用
+  const bodyMatch = raw.match(/^---[\s\S]*?---\n([\s\S]*)$/);
+  const body = bodyMatch ? bodyMatch[1].slice(0, 800) : '';
+
+  const newCategory = await classifyContent(title, body);
 
   const oldTop = oldCategory.split('/')[0];
   const newTop = newCategory.split('/')[0];

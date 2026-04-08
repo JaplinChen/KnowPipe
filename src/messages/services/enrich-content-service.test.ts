@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ExtractedContent } from '../../extractors/types.js';
 
 vi.mock('../../classifier.js', () => ({
-  classifyContent: vi.fn(),
+  classifyContent: vi.fn().mockResolvedValue('其他'),
 }));
 
 vi.mock('../../enrichment/post-processor.js', () => ({
@@ -52,7 +52,7 @@ function makeContent(): ExtractedContent {
 describe('enrich-content-service', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockClassifyContent.mockReturnValue('技術');
+    mockClassifyContent.mockResolvedValue('技術');
     mockGetTopKeywordsForCategory.mockReturnValue(['ai', 'agent']);
     mockRunPostTranslation.mockResolvedValue(undefined as never);
     mockEnrichContent.mockResolvedValue({} as never);

@@ -49,18 +49,20 @@ const MIN_CASES = 5;
 
 /* ── Evaluation ──────────────────────────────────────────── */
 
-function evaluateCases(
+async function evaluateCases(
   feedbacks: Array<{ title: string; to: string; keywords: string[] }>,
-): TuneCase[] {
-  return feedbacks.map(fb => {
-    const current = classifyContent(fb.title, fb.keywords.join(' '));
-    return {
+): Promise<TuneCase[]> {
+  const cases: TuneCase[] = [];
+  for (const fb of feedbacks) {
+    const current = await classifyContent(fb.title, fb.keywords.join(' '));
+    cases.push({
       title: fb.title,
       correctCategory: fb.to,
       currentResult: current,
       pass: current === fb.to,
-    };
-  });
+    });
+  }
+  return cases;
 }
 
 /* ── LLM suggestion prompt ───────────────────────────────── */
@@ -242,7 +244,7 @@ export async function runClassifierTuning(autoApply = false): Promise<TuneResult
   }
 
   // Step 1: Evaluate baseline
-  const cases = evaluateCases(feedbacks);
+  const cases = await evaluateCases(feedbacks);
   const baselinePass = cases.filter(c => c.pass).length;
   const baselineRate = baselinePass / cases.length;
 

@@ -31,7 +31,7 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
   const classifyText = content.platform === 'github'
     ? buildGithubClassifyText(content)
     : content.text;
-  content.category = classifyContent(content.title, classifyText);
+  content.category = await classifyContent(content.title, classifyText);
   logger.info('msg', 'category', { category: content.category });
 
   const hints = getTopKeywordsForCategory(content.category);

@@ -187,7 +187,7 @@ export async function handleTimeline(ctx: Context, config: AppConfig): Promise<v
     const result: TimelineResult = { saved: 0, skipped: 0, failed: 0 };
     for (const post of posts) {
       try {
-        post.category = classifyContent(post.title, post.text);
+        post.category = await classifyContent(post.title, post.text);
         const saveResult = await saveToVault(post, config.vaultPath);
         if (saveResult.duplicate) result.skipped++;
         else result.saved++;

@@ -83,7 +83,7 @@ async function processNext(bot: Telegraf, config: AppConfig): Promise<void> {
     if (!extractor) throw new Error('找不到對應的 extractor');
 
     const content = await extractor.extract(item.url);
-    content.category = classifyContent(content.title, content.text);
+    content.category = await classifyContent(content.title, content.text);
 
     const saveResult = await saveToVault(content, config.vaultPath);
 

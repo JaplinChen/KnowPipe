@@ -71,7 +71,7 @@ export async function processSeriesBatch(
       const content: ExtractedContent = await extractor.extract(article.url);
 
       // Classify only (skip LLM enrichment for speed)
-      content.category = classifyContent(content.title, content.text);
+      content.category = await classifyContent(content.title, content.text);
       content.subFolder = seriesFolder;
 
       const result = await saveExtractedContent(content, config.vaultPath, { saveVideos: config.saveVideos });

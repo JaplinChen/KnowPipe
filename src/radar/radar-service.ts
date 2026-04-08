@@ -114,7 +114,7 @@ async function runQuery(
         const content = await extractor.extract(sr.url);
 
         // Classify
-        content.category = classifyContent(content.title, content.text);
+        content.category = await classifyContent(content.title, content.text);
 
         // Save to vault
         const saveResult = await saveToVault(content, config.vaultPath);

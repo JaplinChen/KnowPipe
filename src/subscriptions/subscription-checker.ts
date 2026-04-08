@@ -30,7 +30,7 @@ async function checkSubscription(
       if (existing) continue;
 
       // Classify and save
-      post.category = classifyContent(post.title, post.text);
+      post.category = await classifyContent(post.title, post.text);
       try {
         const result = await saveToVault(post, config.vaultPath);
         if (!result.duplicate) newCount++;

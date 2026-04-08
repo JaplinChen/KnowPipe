@@ -8,6 +8,7 @@
 import { join } from 'node:path';
 import { logger } from '../core/logger.js';
 import { safeWriteJSON, safeReadJSON } from '../core/safe-write.js';
+import { addExample } from './classifier-examples.js';
 
 export interface ClassificationFeedback {
   /** Original classified category */
@@ -77,6 +78,15 @@ export async function recordFeedback(feedback: ClassificationFeedback): Promise<
   }
 
   await saveFeedbackStore(store);
+
+  // 同步更新 few-shot examples（供 LLM 分類器使用）
+  await addExample({
+    title: feedback.title,
+    snippet: feedback.keywords.join(' '),
+    category: feedback.to,
+    addedAt: feedback.timestamp,
+  }).catch(() => {});
+
   logger.info('feedback', '記錄分類校正', {
     from: feedback.from,
     to: feedback.to,
