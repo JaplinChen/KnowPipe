@@ -45,9 +45,13 @@ export async function analyzeNotes(
   topic: string,
   notes: NoteRecord[],
 ): Promise<AnalysisOverview | null> {
-  const noteNames = notes.map((n) => `「${n.name}」`).join('、') || '無';
+  // 取前 6 篇筆記的摘要，每篇最多 300 字
+  const noteSnippets = notes.slice(0, 6).map((n) => {
+    const content = (n.body || n.preview || '').slice(0, 300);
+    return `【${n.name}】${content}`;
+  }).join('\n---\n') || '無';
 
-  const prompt = `針對「${topic}」，基於筆記：${noteNames}，只回傳純 JSON（不含其他文字）：\n`
+  const prompt = `針對「${topic}」，基於以下筆記內容：\n${noteSnippets}\n\n只回傳純 JSON（不含其他文字）：\n`
     + '{"summary":"摘要100字以內","keyQuestions":["Q1","Q2","Q3","Q4","Q5"],'
     + '"keyConcepts":["概念1","概念2","概念3","概念4","概念5"]}';
 

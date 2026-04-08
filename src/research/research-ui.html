@@ -508,7 +508,10 @@ async function analyze(){
   try{
     const r=await fetch('/api/research/analyze',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
     const d=await r.json();S.overview=d.overview;
-    S.history=[{role:'assistant',content:t('research.analyzeLoaded',{n:d.noteCount})+'\n\n'+(d.overview?.summary||t('research.analyzeDone'))}];
+    const overviewText=d.overview?.summary
+      ?t('research.analyzeLoaded',{n:d.noteCount})+'\n\n'+d.overview.summary
+      :t('research.analyzeLoaded',{n:d.noteCount})+'\n\n⚠️ AI 分析未能解析（LLM 可能未回應或格式錯誤），請稍後重試。';
+    S.history=[{role:'assistant',content:overviewText}];
     renderMessages();renderRight();saveSession();
   }catch(e){$('messages').innerHTML='<div class="msg assistant">'+t('research.analyzeFail')+esc(e.message)+'</div>';}
 }
