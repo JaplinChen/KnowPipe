@@ -1,7 +1,8 @@
 /**
- * Post-processing pipeline: runs after extract + AI enrich, before save.
- * Enriches linked URLs and translates non-zh-TW content in parallel.
- * Each step has its own timeout (links: 30s, translation: 45s) to avoid mutual interference.
+ * Post-processing pipeline: runs after extract, before AI enrichment + save.
+ * Split into two phases:
+ *   Phase 1 (fetchLinkedContent): must complete before AI enrichment so linked text can be injected.
+ *   Phase 2 (runPostTranslation): runs in parallel with AI enrichment.
  */
 
 import type { ExtractedContent } from '../extractors/types.js';
@@ -51,42 +52,47 @@ function collectUrls(content: ExtractedContent, opts: PostProcessOptions): UrlEn
   }).slice(0, opts.maxLinkedUrls);
 }
 
-export async function postProcess(
+/**
+ * Phase 1: Fetch linked URL content (with fullText).
+ * Must complete BEFORE AI enrichment so linked text can be injected into the prompt.
+ */
+export async function fetchLinkedContent(
   content: ExtractedContent,
-  opts: PostProcessOptions,
+  opts: Pick<PostProcessOptions, 'enrichPostLinks' | 'enrichCommentLinks' | 'maxLinkedUrls'>,
 ): Promise<void> {
-  const urlEntries = collectUrls(content, opts);
-  const shouldTranslate = opts.translate;
+  const urlEntries = collectUrls(content, { ...opts, translate: false });
+  if (urlEntries.length === 0) return;
 
-  if (urlEntries.length === 0 && !shouldTranslate) return;
-
-  const withTimeout = <T>(p: Promise<T>, ms: number, label: string): Promise<T | null> =>
-    Promise.race([
-      p,
-      new Promise<null>((resolve) => {
-        setTimeout(() => {
-          logger.warn('post-process', `${label} 超時 (${ms}ms)，略過`);
-          resolve(null);
-        }, ms);
-      }),
-    ]);
-
-  const [linkedResult, translationResult, bodyTranslationResult] = await Promise.allSettled([
-    urlEntries.length > 0
-      ? withTimeout(enrichLinkedUrls(urlEntries), 30_000, '連結補充')
-      : Promise.resolve(null),
-    shouldTranslate
-      ? translateIfNeeded(content.title, content.text)
-      : Promise.resolve(null),
-    shouldTranslate && content.body
-      ? translateBodyIfNeeded(content.body)
-      : Promise.resolve(null),
+  const result = await Promise.race([
+    enrichLinkedUrls(urlEntries),
+    new Promise<null>((resolve) => {
+      setTimeout(() => {
+        logger.warn('post-process', '連結補充超時 (30s)，略過');
+        resolve(null);
+      }, 30_000);
+    }),
   ]);
 
-  if (linkedResult.status === 'fulfilled' && linkedResult.value && Array.isArray(linkedResult.value) && linkedResult.value.length > 0) {
-    content.linkedContent = linkedResult.value;
-    logger.info('post-process', '補充連結完成', { count: linkedResult.value.length });
+  if (result && Array.isArray(result) && result.length > 0) {
+    content.linkedContent = result;
+    logger.info('post-process', '補充連結完成', { count: result.length });
   }
+}
+
+/**
+ * Phase 2: Translate title/text/body to Traditional Chinese.
+ * Runs in parallel with AI enrichment (no dependency on linked content).
+ */
+export async function runPostTranslation(
+  content: ExtractedContent,
+  opts: Pick<PostProcessOptions, 'translate'>,
+): Promise<void> {
+  if (!opts.translate) return;
+
+  const [translationResult, bodyTranslationResult] = await Promise.allSettled([
+    translateIfNeeded(content.title, content.text),
+    content.body ? translateBodyIfNeeded(content.body) : Promise.resolve(null),
+  ]);
 
   if (translationResult.status === 'fulfilled' && translationResult.value) {
     content.translation = translationResult.value;
@@ -97,4 +103,15 @@ export async function postProcess(
     content.body = bodyTranslationResult.value;
     logger.info('post-process', 'Body 翻譯完成');
   }
+}
+
+/** Combined convenience wrapper (Phase 1 + Phase 2 in parallel). */
+export async function postProcess(
+  content: ExtractedContent,
+  opts: PostProcessOptions,
+): Promise<void> {
+  await Promise.allSettled([
+    fetchLinkedContent(content, opts),
+    runPostTranslation(content, opts),
+  ]);
 }

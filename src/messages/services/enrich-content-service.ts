@@ -1,6 +1,6 @@
 import { classifyContent } from '../../classifier.js';
 import { logger } from '../../core/logger.js';
-import { postProcess } from '../../enrichment/post-processor.js';
+import { fetchLinkedContent, runPostTranslation } from '../../enrichment/post-processor.js';
 import type { ExtractedContent } from '../../extractors/types.js';
 import { enrichContent } from '../../learning/ai-enricher.js';
 import { getTopKeywordsForCategory } from '../../learning/dynamic-classifier.js';
@@ -122,19 +122,37 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
     }
   }
 
-  // AI 豐富化 與 postProcess（連結補充 + 翻譯）並行——兩者互不依賴
   const originalTitle = content.title;
-  const hasLinkedContent = (content.linkedContent?.length ?? 0) > 0;
   const hasTimedTranscript = timedTranscriptText.length > 0 && !content.chapters;
+  const postProcessOpts = {
+    enrichPostLinks: true,
+    enrichCommentLinks: true,
+    maxLinkedUrls: config.maxLinkedUrls,
+  };
+
+  // Phase 1: 先抓取連結內容（必須在 AI 豐富化前完成，才能注入連結全文）
+  await fetchLinkedContent(content, postProcessOpts).catch((err: Error) => {
+    logger.warn('post-process', '連結補充失敗', { message: err.message });
+  });
+
+  // 將連結頁面全文注入 AI 輸入，讓 AI 可以分析連結內容
+  let enrichTextWithLinks = enrichText;
+  const linkedWithText = (content.linkedContent ?? []).filter(l => l.fullText);
+  if (linkedWithText.length > 0) {
+    const injected = linkedWithText
+      .map(l => `[連結文章內容: ${l.title}]\n${l.fullText!.slice(0, 2000)}`)
+      .join('\n\n');
+    enrichTextWithLinks = `${enrichText}\n\n${injected}`;
+    logger.info('enricher', '注入連結全文', { links: linkedWithText.length });
+  }
+
+  const hasLinkedContent = (content.linkedContent?.length ?? 0) > 0;
+
+  // Phase 2: AI 豐富化 與 翻譯並行（翻譯不依賴連結內容）
   const [enriched] = await Promise.all([
-    enrichContent(cleanedTitle, enrichText, hints, content.platform, hasLinkedContent, hasTimedTranscript ? timedTranscriptText : undefined),
-    postProcess(content, {
-      enrichPostLinks: true,
-      enrichCommentLinks: true,
-      translate: config.enableTranslation,
-      maxLinkedUrls: config.maxLinkedUrls,
-    }).catch((err: Error) => {
-      logger.warn('post-process', 'post process failed', { message: err.message });
+    enrichContent(cleanedTitle, enrichTextWithLinks, hints, content.platform, hasLinkedContent, hasTimedTranscript ? timedTranscriptText : undefined),
+    runPostTranslation(content, { translate: config.enableTranslation }).catch((err: Error) => {
+      logger.warn('post-process', '翻譯失敗', { message: err.message });
     }),
   ]);
 

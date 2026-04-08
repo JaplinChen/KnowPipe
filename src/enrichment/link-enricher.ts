@@ -65,6 +65,26 @@ function detectPlatform(url: string): string {
   }
 }
 
+/**
+ * Extract meaningful body text from HTML.
+ * Removes script/style/nav blocks, strips tags, collapses whitespace.
+ */
+function extractBodyText(html: string): string {
+  // Try to isolate main content area first
+  const articleMatch = html.match(/<(?:article|main)[^>]*>([\s\S]*?)<\/(?:article|main)>/i);
+  const source = articleMatch ? articleMatch[1] : html;
+
+  return decodeHtml(
+    source
+      .replace(/<script[\s\S]*?<\/script>/gi, '')
+      .replace(/<style[\s\S]*?<\/style>/gi, '')
+      .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+      .replace(/<header[\s\S]*?<\/header>/gi, '')
+      .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+      .replace(/<[^>]+>/g, ' '),
+  ).replace(/\s+/g, ' ').trim();
+}
+
 async function enrichWebPage(url: string): Promise<Omit<LinkedContentMeta, 'url' | 'source' | 'mentionedBy'>> {
   const res = await fetchWithTimeout(url, 15_000, {
     headers: {
@@ -83,10 +103,14 @@ async function enrichWebPage(url: string): Promise<Omit<LinkedContentMeta, 'url'
   const desc = extractMeta(html, 'og:description') || extractMeta(html, 'description') || '';
   const cleanDesc = desc.replace(/\s+/g, ' ').trim();
 
+  const bodyText = extractBodyText(html);
+  const fullText = bodyText.length > 100 ? bodyText.slice(0, 3000) : undefined;
+
   return {
     title: title.slice(0, 200),
     description: cleanDesc ? cleanDesc.slice(0, 300) : undefined,
     platform: detectPlatform(url),
+    fullText,
   };
 }
 
@@ -119,7 +143,14 @@ async function enrichGithubPage(url: string): Promise<Omit<LinkedContentMeta, 'u
   const topicSuffix = topics.length > 0 ? ` | Topics: ${topics.join(', ')}` : '';
   const description = desc ? `${desc.replace(/\s+/g, ' ').trim().slice(0, 250)}${topicSuffix}` : topicSuffix.slice(3) || undefined;
 
-  return { title: title.slice(0, 200), description: description || undefined, platform: 'github', stars, language };
+  // Extract README content from GitHub page (article.markdown-body)
+  const readmeMatch = html.match(/<article[^>]*class="[^"]*markdown-body[^"]*"[^>]*>([\s\S]*?)<\/article>/i);
+  const readmeText = readmeMatch
+    ? decodeHtml(readmeMatch[1].replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim()
+    : undefined;
+  const fullText = readmeText && readmeText.length > 100 ? readmeText.slice(0, 3000) : undefined;
+
+  return { title: title.slice(0, 200), description: description || undefined, platform: 'github', stars, language, fullText };
 }
 
 async function enrichSingleUrl(entry: UrlEntry): Promise<LinkedContentMeta> {
