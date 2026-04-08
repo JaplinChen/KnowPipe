@@ -1,0 +1,4 @@
+fastapi==0.135.3
+uvicorn==0.44.0
+xhs==0.2.13
+playwright==1.58.0
