@@ -226,9 +226,9 @@ export function registerCommands(
     if (paths.length === 0) { await ctx.reply('沒有待修復的筆記。'); return; }
     await ctx.reply(`🔄 正在重新處理 ${paths.length} 篇筆記…`);
     const pathArgs = paths.join(' ');
-    const msg = ctx.message as unknown as Record<string, unknown> | undefined;
-    if (!msg) { (ctx as unknown as Record<string, unknown>).message = { text: `/reprocess ${pathArgs}` }; }
-    else { msg.text = `/reprocess ${pathArgs}`; }
+    const existingMsg = ctx.message as unknown as Record<string, unknown> | undefined;
+    if (existingMsg) { existingMsg.text = `/reprocess ${pathArgs}`; }
+    else { (ctx.update as unknown as Record<string, unknown>).message = { text: `/reprocess ${pathArgs}` }; }
     await handleReprocess(ctx, config);
   });
 

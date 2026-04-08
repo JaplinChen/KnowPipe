@@ -115,13 +115,11 @@ export async function handleDoctorUpgradeRun(
   ctx: Context, config: AppConfig, recentOnly?: boolean,
 ): Promise<void> {
   const sinceSuffix = recentOnly ? ' --since 7d' : '';
-  const msg = ctx.message as unknown as Record<string, unknown> | undefined;
-  if (!msg) {
-    (ctx as unknown as Record<string, unknown>).message = {
-      text: `/reprocess --all${sinceSuffix}`,
-    };
+  const existingMsg = ctx.message as unknown as Record<string, unknown> | undefined;
+  if (existingMsg) {
+    existingMsg.text = `/reprocess --all${sinceSuffix}`;
   } else {
-    msg.text = `/reprocess --all${sinceSuffix}`;
+    (ctx.update as unknown as Record<string, unknown>).message = { text: `/reprocess --all${sinceSuffix}` };
   }
   await handleReprocess(ctx, config);
 }

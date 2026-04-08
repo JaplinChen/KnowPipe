@@ -83,10 +83,10 @@ const MODES: Record<string, { handler: SubHandler; prefix: string }> = {
 };
 
 function rewriteText(ctx: Context, newCommand: string, args: string): void {
-  const msg = ctx.message as unknown as Record<string, unknown> | undefined;
   const text = args ? `${newCommand} ${args}` : newCommand;
-  if (msg) { msg.text = text; }
-  else { (ctx as unknown as Record<string, unknown>).message = { text }; }
+  const existingMsg = ctx.message as unknown as Record<string, unknown> | undefined;
+  if (existingMsg) { existingMsg.text = text; }
+  else { (ctx.update as unknown as Record<string, unknown>).message = { text }; }
 }
 
 /** Build vault hub with retry handler injected at registration time */
