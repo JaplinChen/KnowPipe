@@ -70,6 +70,11 @@ async function run() {
       consecutiveCrashes = 0;
       console.log(`[loop] ${timestamp()} Bot 正常退出，${RESTART_DELAY_MS / 1000}s 後重啟…`);
       await sleep(RESTART_DELAY_MS);
+    } else if (code === 2) {
+      // Permanent 409 conflict — another instance is running, stop loop to avoid spam
+      console.log(`[loop] ${timestamp()} ⛔ Bot 409 持續衝突 (code=2)，停止重啟。請手動確認是否有其他 Bot 實例在執行。`);
+      running = false;
+      break;
     } else {
       // Crash
       consecutiveCrashes++;

@@ -157,6 +157,10 @@ export class ProcessGuardian {
     }
   }
 
+  private async stopBot(): Promise<void> {
+    try { await this.bot.stop(); } catch { /* ignore */ }
+  }
+
   private attempt(): void {
     // Pre-launch: clear stale polling/webhook session on Telegram's side
     this.clearTelegramSession().then(() => {
@@ -164,6 +168,9 @@ export class ProcessGuardian {
       { dropPendingUpdates: true },
       () => { logger.info('guardian', '✅ bot launched', { pid: process.pid }); },
     ).catch(async (err: unknown) => {
+        // Stop current bot session before any retry to avoid multiple concurrent polling sessions
+        await this.stopBot();
+
         if (!this.is409(err)) {
           logger.error('guardian', 'fatal error', err);
           this.clearPid();
@@ -194,10 +201,10 @@ export class ProcessGuardian {
           return;
         }
 
-        // Stage 3: all recovery exhausted
-        logger.error('guardian', 'all recovery strategies exhausted; exiting');
+        // Stage 3: all recovery exhausted — exit code 2 signals loop to stop restarting
+        logger.error('guardian', '409 持續衝突，所有恢復策略已耗盡。請確認是否有其他 Bot 實例在執行。');
         this.clearPid();
-        process.exit(1);
+        process.exit(2);
       });
     });
   }
