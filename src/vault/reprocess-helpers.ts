@@ -109,6 +109,8 @@ export async function fallbackReclassify(
   const updated = replaceField(raw, 'category', newCategory);
   await writeFile(filePath, updated, 'utf-8');
   await rename(filePath, newFilePath);
+  // 清理舊目錄（搬移後若為空則刪除，防止空目錄堆積）
+  await cleanEmptyDirs(dirname(filePath));
 
   return { url, status: 'fallback', oldPath: filePath, newPath: newFilePath, oldCategory, newCategory };
 }

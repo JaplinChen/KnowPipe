@@ -10,6 +10,8 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join, dirname, basename } from 'node:path';
 import { logger } from '../core/logger.js';
 import { recordFeedback } from '../learning/feedback-tracker.js';
+import { CATEGORIES } from '../classifier-categories.js';
+import { cleanEmptyDirs } from '../vault/reprocess-helpers.js';
 
 /** Token store: short token → { mdPath, oldCategory, title, keywords } */
 const pendingReclassify = new Map<string, {
@@ -21,14 +23,33 @@ const pendingReclassify = new Map<string, {
 
 let tokenCounter = 0;
 
-/** Top-level category groups for quick selection */
-const TOP_CATEGORIES = [
-  'AI/研究對話', 'AI/圖像生成', 'AI/影片製作', 'AI/自動化',
-  'AI/設計', 'AI/寫作', 'AI/語音', 'AI/RAG',
-  'Obsidian', 'Programming', 'Tech', 'Design',
-  'Finance', 'Business', 'Marketing', 'Media',
-  'Productivity', 'News', 'Lifestyle', '其他',
-];
+/**
+ * 合法分類白名單 — 從 classifier-categories 動態衍生，確保與分類器同步。
+ * 使用 Set 供 O(1) 查詢驗證。
+ */
+const VALID_CATEGORIES = new Set(CATEGORIES.map(c => c.name));
+
+/**
+ * 頂層分類選單 — 從 VALID_CATEGORIES 動態建立，避免與分類器脫節。
+ * 取每個分類的頂層（第一段），再加上一層子分類（若有），去重排序。
+ */
+const TOP_CATEGORIES: string[] = (() => {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const cat of CATEGORIES) {
+    const parts = cat.name.split('/');
+    // 加入頂層
+    if (!seen.has(parts[0])) { seen.add(parts[0]); result.push(parts[0]); }
+    // 加入二層（若有）
+    if (parts.length >= 2) {
+      const twoLevel = `${parts[0]}/${parts[1]}`;
+      if (!seen.has(twoLevel)) { seen.add(twoLevel); result.push(twoLevel); }
+    }
+  }
+
+  return result;
+})();
 
 /** Create a reclassify token and return inline keyboard markup */
 export function createReclassifyButton(
@@ -84,6 +105,14 @@ export async function handleReclassifyMove(ctx: Context): Promise<void> {
     await ctx.answerCbQuery('按鈕已過期');
     return;
   }
+
+  // 白名單驗證：防止非法分類污染目錄結構
+  if (!VALID_CATEGORIES.has(newCategory)) {
+    logger.warn('recat', '分類不在白名單，拒絕', { newCategory });
+    await ctx.answerCbQuery('⚠️ 分類無效');
+    return;
+  }
+
   await ctx.answerCbQuery(`移動至 ${newCategory}…`);
   pendingReclassify.delete(token);
 
@@ -99,9 +128,13 @@ export async function handleReclassifyMove(ctx: Context): Promise<void> {
     const newDir = join(vaultObsBotDir, ...newCategoryParts);
     const newPath = join(newDir, fileName);
 
+    const oldDir = dirname(pending.mdPath);
     await mkdir(newDir, { recursive: true });
     await writeFile(pending.mdPath, updated, 'utf-8');
     await rename(pending.mdPath, newPath);
+
+    // 清理舊目錄（搬移後若為空則刪除）
+    await cleanEmptyDirs(oldDir);
 
     // Record feedback for learning
     await recordFeedback({

@@ -6,6 +6,7 @@ import { readFile, writeFile, rename, mkdir } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { recordFeedback } from './feedback-tracker.js';
 import { getAllMdFiles } from '../vault/frontmatter-utils.js';
+import { cleanEmptyDirs } from '../vault/reprocess-helpers.js';
 
 export interface ReclassifyResult {
   total: number;
@@ -81,6 +82,8 @@ export async function executeReclassify(config: AppConfig): Promise<ReclassifyRe
       await mkdir(newDir, { recursive: true });
       await writeFile(filePath, updatedRaw, 'utf-8');
       await rename(filePath, newFilePath);
+      // 清理舊目錄（搬移後若為空則刪除，防止空目錄堆積）
+      await cleanEmptyDirs(dirname(filePath));
     } catch {
       continue;
     }

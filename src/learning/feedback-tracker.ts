@@ -9,6 +9,10 @@ import { join } from 'node:path';
 import { logger } from '../core/logger.js';
 import { safeWriteJSON, safeReadJSON } from '../core/safe-write.js';
 import { addExample } from './classifier-examples.js';
+import { CATEGORIES } from '../classifier-categories.js';
+
+/** 合法分類白名單 — 拒絕污染的 feedback 進入學習迴圈 */
+const VALID_CATEGORIES = new Set(CATEGORIES.map(c => c.name));
 
 export interface ClassificationFeedback {
   /** Original classified category */
@@ -53,6 +57,12 @@ async function saveFeedbackStore(store: FeedbackStore): Promise<void> {
 
 /** Record a user correction and update aggregated weights */
 export async function recordFeedback(feedback: ClassificationFeedback): Promise<void> {
+  // 白名單防護：拒絕非法分類污染學習資料
+  if (!VALID_CATEGORIES.has(feedback.to)) {
+    logger.warn('feedback', '目標分類不在白名單，拒絕記錄', { to: feedback.to, title: feedback.title });
+    return;
+  }
+
   const store = await loadFeedbackStore();
 
   // Add feedback (trim old entries if over limit)

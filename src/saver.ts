@@ -7,6 +7,10 @@ import { fetchWithTimeout } from './utils/fetch-with-timeout.js';
 import { canonicalizeUrl } from './utils/url-canonicalizer.js';
 import { getAllMdFiles } from './vault/frontmatter-utils.js';
 import { logger } from './core/logger.js';
+import { CATEGORIES } from './classifier-categories.js';
+
+/** 合法分類白名單 — 防止 LLM 或用戶輸入汙染目錄結構 */
+const VALID_CATEGORIES = new Set(CATEGORIES.map(c => c.name));
 
 // In-memory URL index: normalizedUrl → filePath (built on first use)
 let urlIndex: Map<string, string> | null = null;
@@ -197,7 +201,15 @@ export async function saveToVault(
     const imgSlug = attachmentSlug(titleForFilename);
 
     // Ensure directories exist
-    const rawCategory = content.category ?? '其他';
+    // 白名單驗證：非法分類直接降回 '其他'，避免汙染目錄結構
+    const rawCategory = (content.category && VALID_CATEGORIES.has(content.category))
+      ? content.category
+      : (() => {
+          if (content.category) {
+            logger.warn('saver', '分類不在白名單，降回其他', { invalid: content.category });
+          }
+          return '其他';
+        })();
     const categoryParts = rawCategory
       .split('/')
       .slice(0, 3)
