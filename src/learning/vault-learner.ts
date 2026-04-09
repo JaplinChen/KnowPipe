@@ -5,6 +5,7 @@ import { safeWriteJSON } from '../core/safe-write.js';
 import { parseFrontmatter, parseArrayField, getAllMdFiles } from '../vault/frontmatter-utils.js';
 import { getFeedbackWeight, loadFeedbackStore } from './feedback-tracker.js';
 import { trimExamples } from './classifier-examples.js';
+import { CATEGORIES } from '../classifier-categories.js';
 
 export interface NoteStats {
   category: string;
@@ -37,15 +38,15 @@ export interface LearnedPatterns {
   formatting: FormattingPatterns;
 }
 
-/** 合法分類的完整頂層名稱（AI 子類必須有斜線，避免 AI工具與技術 之類誤判）*/
-const VALID_CATEGORY_PREFIXES = [
-  'AI/', '知識管理', '程式設計', '科技', '投資理財',
-  '創業商業', '設計', '行銷', '中文媒體', '生產力', '新聞時事',
-  '生活', '其他', 'macOS 生態', '知識整合',
-];
+/**
+ * 合法分類白名單 — 從 CATEGORIES 動態建立，與分類器保持精確同步。
+ * 改用 Set 精確比對（原本是前綴比對），杜絕 `AI工具與技術整合` 等非法字串混入學習規則。
+ * `知識整合` 和 `其他` 雖在白名單中，但 scanVaultNotes 會主動排除它們（不學習無意義規則）。
+ */
+const VALID_CATEGORIES_SET = new Set(CATEGORIES.map(c => c.name));
 
 export function isValidCategory(cat: string): boolean {
-  return VALID_CATEGORY_PREFIXES.some((prefix) => cat.startsWith(prefix));
+  return VALID_CATEGORIES_SET.has(cat);
 }
 
 const STOP_WORDS = new Set([

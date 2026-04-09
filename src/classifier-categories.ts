@@ -153,30 +153,28 @@ export const CATEGORIES: CategoryRule[] = [
   { name: 'AI/UI設計', keywords: ['ui design', 'ux design', '介面設計', 'prototype', 'wireframe'] },
   { name: 'AI/設計工具', keywords: ['設計工具', 'design tool', '平面設計'] },
   { name: 'AI/Logo生成', keywords: ['logo生成', 'logo 生成', 'logo design', 'logo設計'] },
-  {
-    name: 'AI/研究對話',
-    keywords: [
-      '完全教程', '教程', '小白', '新手',
-      '入門指南', '入门指南', '入門教學', '入门教学',
-      '从0开始', '从零开始', '零基礎', '零基础',
-      'getting started', '手把手', '3分钟', '0代码',
-      '大模型', '模型评测', '模型評測',
-      'minimax', 'qwen', 'llama', 'mistral', 'gemma', 'phi-',
-      'benchmark', 'leaderboard',
-      '免费 claude', '免費 claude',
-      'claude 3', 'claude 4', 'o1', 'o3',
-    ],
-  },
-
   // ══════════════════════════════════════════════════════
   // AI 通用兜底（所有 AI 相關但無法匹配到功能分類的內容）
   // ══════════════════════════════════════════════════════
   {
     name: 'AI/研究對話',
     keywords: [
+      // 通用 AI 詞彙
       'ai', 'gpt', 'llm', 'copilot', 'diffusion',
       '人工智慧', '大語言模型', '大语言模型',
       '機器學習', 'machine learning', 'deep learning',
+      // 教程 / 入門
+      '完全教程', '教程', '小白', '新手',
+      '入門指南', '入门指南', '入門教學', '入门教学',
+      '从0开始', '从零开始', '零基礎', '零基础',
+      'getting started', '手把手', '3分钟', '0代码',
+      // 模型評測
+      '大模型', '模型评测', '模型評測',
+      'minimax', 'qwen', 'llama', 'mistral', 'gemma', 'phi-',
+      'benchmark', 'leaderboard',
+      // Claude 通用（非具體工具）
+      '免费 claude', '免費 claude',
+      'claude 3', 'claude 4', 'o1', 'o3',
     ],
   },
 
@@ -260,4 +258,39 @@ export const CATEGORIES: CategoryRule[] = [
       'docker', '開源', 'open source', 'sdk', 'npm', 'bot',
     ],
   },
+
+  // ══════════════════════════════════════════════════════
+  // 知識管理子分類（Obsidian PKM 生態）
+  // ══════════════════════════════════════════════════════
+  {
+    name: '知識管理/筆記方法論',
+    keywords: [
+      'zettelkasten', 'evergreen notes', 'progressive summarization',
+      'hq&a', 'feynman', '費曼', '筆記方法', '學習方法', '記憶術',
+      'spaced repetition', '間隔重複', 'anki', 'note-taking method',
+      'moc', 'map of content', '主題地圖',
+    ],
+  },
+  {
+    name: '知識管理/Obsidian 設定',
+    keywords: [
+      'obsidian 設定', 'obsidian config', 'obsidian theme', 'obsidian vault',
+      'obsidian 主題', 'obsidian 配置', 'obsidian css', 'obsidian snippets',
+    ],
+  },
+  {
+    name: '知識管理/Obsidian 插件',
+    keywords: [
+      'obsidian plugin', 'obsidian 插件', 'obsidian 外掛', 'dataview',
+      'templater', 'excalidraw', 'kanban', 'community plugin',
+    ],
+  },
+
+  // ══════════════════════════════════════════════════════
+  // 系統保留分類（不供關鍵字比對，只供白名單驗證）
+  // ══════════════════════════════════════════════════════
+  // 知識整合：Bot 自動生成的 synthesis/research 報告，不參與分類競爭
+  { name: '知識整合', keywords: [] },
+  // 其他：所有分類的最終 fallback，關鍵字為空確保不主動競爭
+  { name: '其他', keywords: [] },
 ];
