@@ -99,7 +99,7 @@ export async function saveReportToVault(
   vaultPath: string,
   report: ReportMeta,
 ): Promise<string> {
-  const outDir = join(vaultPath, 'ObsBot', '知識整合');
+  const outDir = join(vaultPath, '知識整合');
   const outPath = join(outDir, `${report.filePrefix}-${report.date}.md`);
 
   const escaped = (s: string) => s.replace(/"/g, '\\"');

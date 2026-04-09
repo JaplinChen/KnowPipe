@@ -220,11 +220,16 @@ export async function saveToVault(
     const fullFolderPath = content.subFolder
       ? `${folderPath}/${content.subFolder.replace(/[<>:"/\\|?*]/g, '').trim()}`
       : folderPath;
+    // 知識整合 獨立於 ObsBot 之外（Vault 根目錄），其餘原始資料放 ObsBot/
+    const isKnowledgeSynthesis = categoryParts[0] === '知識整合';
     const baseObsBot = resolve(join(vaultPath, 'ObsBot'));
-    const resolvedNotes = resolve(join(vaultPath, 'ObsBot', fullFolderPath));
-    const notesDir = (resolvedNotes === baseObsBot || resolvedNotes.startsWith(baseObsBot + sep))
-      ? resolvedNotes
-      : baseObsBot;
+    const baseKnowledge = resolve(join(vaultPath, '知識整合'));
+    const resolvedNotes = isKnowledgeSynthesis
+      ? resolve(join(vaultPath, fullFolderPath))
+      : resolve(join(vaultPath, 'ObsBot', fullFolderPath));
+    const notesDir = isKnowledgeSynthesis
+      ? (resolvedNotes === baseKnowledge || resolvedNotes.startsWith(baseKnowledge + sep) ? resolvedNotes : baseKnowledge)
+      : (resolvedNotes === baseObsBot || resolvedNotes.startsWith(baseObsBot + sep) ? resolvedNotes : baseObsBot);
     const imagesDir = join(vaultPath, 'attachments', 'obsbot', content.platform);
     await mkdir(notesDir, { recursive: true });
     await mkdir(imagesDir, { recursive: true });

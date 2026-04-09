@@ -45,7 +45,7 @@ export async function saveConsolidationNote(
   report: ConsolidationReport,
 ): Promise<string> {
   const date = report.periodEnd;
-  const outDir = join(vaultPath, 'ObsBot', '知識整合');
+  const outDir = join(vaultPath, '知識整合');
   const outPath = join(outDir, `consolidation-${date}.md`);
 
   const noteLink = (title: string) =>
