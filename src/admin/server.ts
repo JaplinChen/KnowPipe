@@ -45,14 +45,39 @@ function isAllowed(req: IncomingMessage): boolean {
   return remote === '127.0.0.1' || remote === '::1' || remote.startsWith('::ffff:127.');
 }
 
-/** Basic Auth 保護 /research 路由，帳密由 RESEARCH_USER / RESEARCH_PASS 控制。
- *  未設定環境變數時放行（本機開發不強制）。
- *  回傳 true 表示通過，false 表示已寫入 401 回應。
+/** Session cookie 驗證（讓 JS fetch 不需帶 Basic Auth header）。
+ *  /research 頁面 Basic Auth 成功後會 Set-Cookie，後續 API 帶 cookie 即可。
  */
-function checkResearchAuth(req: IncomingMessage, res: ServerResponse): boolean {
+const SESSION_COOKIE = '_obs_r';
+const validSessions = new Set<string>();
+
+function parseCookies(req: IncomingMessage): Record<string, string> {
+  const raw = req.headers['cookie'] ?? '';
+  return Object.fromEntries(
+    raw.split(';').map(s => s.trim().split('=', 2) as [string, string]).filter(([k]) => k),
+  );
+}
+
+function setSessionCookie(res: ServerResponse): string {
+  const token = [Math.random(), Math.random()].map(n => n.toString(36).slice(2)).join('');
+  validSessions.add(token);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax`);
+  return token;
+}
+
+/** Basic Auth 或 session cookie 保護 /research 相關路由。
+ *  未設定 RESEARCH_USER/PASS 時放行（本機開發不強制）。
+ *  回傳 true 表示通過，false 表示已寫入 401 回應。
+ *  isPageRequest=true 時，Basic Auth 成功後額外 Set-Cookie。
+ */
+function checkResearchAuth(req: IncomingMessage, res: ServerResponse, isPageRequest = false): boolean {
   const user = process.env.RESEARCH_USER;
   const pass = process.env.RESEARCH_PASS;
   if (!user || !pass) return true; // 未設定則不保護
+
+  // 優先接受 session cookie（JS fetch 帶入，省去 Basic Auth 每次驗證）
+  const cookies = parseCookies(req);
+  if (cookies[SESSION_COOKIE] && validSessions.has(cookies[SESSION_COOKIE])) return true;
 
   const auth = req.headers['authorization'] ?? '';
   const [scheme, encoded] = auth.split(' ');
@@ -65,7 +90,10 @@ function checkResearchAuth(req: IncomingMessage, res: ServerResponse): boolean {
     // 長度不同時 timingSafeEqual 會拋錯，補齊避免
     const uMatch = uBuf.length === uExp.length && timingSafeEqual(uBuf, uExp);
     const pMatch = pBuf.length === pExp.length && timingSafeEqual(pBuf, pExp);
-    if (uMatch && pMatch) return true;
+    if (uMatch && pMatch) {
+      if (isPageRequest) setSessionCookie(res); // 頁面請求時發放 session cookie
+      return true;
+    }
   }
 
   res.setHeader('WWW-Authenticate', 'Basic realm="ObsBot Research"');
@@ -89,7 +117,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
 
   if (url === '/research' || url.startsWith('/api/research/') || url.startsWith('/api/vault/')) {
     // Basic Auth 已驗證身份，不再做 isAllowed 二次限制（tunnel 外部存取需要）
-    if (!checkResearchAuth(req, res)) return;
+    // /research 頁面成功驗證後 Set-Cookie，讓 JS fetch 後續帶 cookie 即可
+    if (!checkResearchAuth(req, res, url === '/research')) return;
     if (await handleResearchRequest(req, res)) return;
   }
 
