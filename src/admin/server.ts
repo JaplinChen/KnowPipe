@@ -88,10 +88,8 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (url === '/research' || url.startsWith('/api/research/')) {
+    // Basic Auth 已驗證身份，不再做 isAllowed 二次限制（tunnel 外部存取需要）
     if (!checkResearchAuth(req, res)) return;
-    if (url.startsWith('/api/') && !isAllowed(req)) {
-      res.statusCode = 403; res.end(JSON.stringify({ error: 'Unauthorized' })); return;
-    }
     if (await handleResearchRequest(req, res)) return;
   }
 
