@@ -3,7 +3,7 @@
  * 處理 /research 和 /api/research/* 的所有請求。
  */
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { scanVaultNotes, searchNotes, loadNoteBody } from './vault-reader.js';
@@ -47,6 +47,20 @@ function html(res: ServerResponse, content: string): void {
 /** 取得 vault 路徑 */
 function getVaultPath(): string {
   return process.env['VAULT_PATH'] || '';
+}
+
+/* ── 研究 sessions 持久化 ──────────────────────────────────────── */
+const SESSIONS_FILE = join(process.cwd(), 'data', 'research-sessions.json');
+
+function readSessions(): unknown[] {
+  try {
+    if (!existsSync(SESSIONS_FILE)) return [];
+    return JSON.parse(readFileSync(SESSIONS_FILE, 'utf-8')) as unknown[];
+  } catch { return []; }
+}
+
+function writeSessions(sessions: unknown[]): void {
+  try { writeFileSync(SESSIONS_FILE, JSON.stringify(sessions), 'utf-8'); } catch { /* ignore */ }
 }
 
 /** 暫存已掃描的筆記（避免每次請求都重掃） */
@@ -256,6 +270,18 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
       tool: body.toolType ?? 'chat',
     });
     json(res, { path });
+    return true;
+  }
+
+  // Sessions 持久化（跨 domain 同步）
+  if (url === '/api/research/sessions' && method === 'GET') {
+    json(res, readSessions());
+    return true;
+  }
+  if (url === '/api/research/sessions' && method === 'POST') {
+    const sessions = JSON.parse(await readBody(req)) as unknown[];
+    writeSessions(sessions);
+    json(res, { ok: true });
     return true;
   }
 

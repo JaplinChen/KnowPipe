@@ -694,15 +694,18 @@ async function exportPptx(){
   }catch(e){alert(t('research.exportFail')+e.message);}
 }
 
-/* ── Multi-session persistence ── */
-var SESSIONS_KEY='obsbot-research-sessions';
+/* ── Multi-session persistence（後端 API，跨 domain 共享） ── */
 var MAX_SESSIONS=30;
+var _sessions=[];
 
-function getSessions(){
-  try{var r=localStorage.getItem(SESSIONS_KEY);return r?JSON.parse(r):[];}catch(e){return[];}
+async function initSessions(){
+  try{var r=await fetch('/api/research/sessions');_sessions=await r.json();}catch(e){_sessions=[];}
+  updateHistoryBadge();
 }
+function getSessions(){return _sessions;}
 function _saveSessions(arr){
-  try{localStorage.setItem(SESSIONS_KEY,JSON.stringify(arr));}catch(e){}
+  _sessions=arr;
+  fetch('/api/research/sessions',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(arr)}).catch(function(){});
 }
 function saveSession(){
   if(!S.topic||!S.history.length)return;
@@ -807,7 +810,7 @@ $('search').addEventListener('input',function(){clearTimeout(searchTimer);search
 loadNotes();
 updateSelCount();
 renderEmpty();
-updateHistoryBadge();
+initSessions();
 </script>
 <div id="vaultToast"></div>
 <!-- Admin modal -->
