@@ -16,6 +16,8 @@ npm install && cp .env.example .env
 
 Get your `BOT_TOKEN` from [@BotFather](https://t.me/BotFather) on Telegram. Set `VAULT_PATH` to your Obsidian vault directory. That's it — send any URL to your bot and it becomes a note.
 
+To access the Research UI remotely (from phone or outside your home network), run `./start.sh --tunnel` to enable Cloudflare Quick Tunnel. No fixed IP or port forwarding needed.
+
 **Supported platforms:** X / Threads / Reddit / YouTube / GitHub / TikTok / Bilibili / Weibo / Xiaohongshu / Douyin / Zhihu / iTHome + any webpage.
 
 See [中文文件](#obsbot-1) below for full documentation.
@@ -77,7 +79,7 @@ Ingest   Compile   Query    Output    Lint
 - **追蹤系統** — `/track` 時間軸抓取、作者訂閱、多平台巡邏
 
 #### 編譯（Compile）
-- **智慧分類** — 計分制分類器，108 條規則覆蓋 24 大類（含 13 個 AI 子領域），支援 exclude 防誤判 + 動態學習
+- **智慧分類** — 計分制分類器，108 條規則覆蓋 24 大類（含 13 個 AI 子領域），支援 exclude 防誤判 + 動態學習；**新文章一律送 inbox**，LLM 語意分析結果以 tag 形式標記（不強制移入分類目錄），由使用者自行決定歸檔
 - **AI 豐富化** — 自動摘要、關鍵字萃取；**插圖辨識**（最多 5 張，`## 插圖說明` 區塊）；**內嵌影片逐字稿**（Web 文章內 YouTube iframe 自動轉錄）；**連結全文分析**（所有外部連結抓取正文，GitHub 額外解析 stars / language / topics，AI 統合主文與連結內容）；**留言品質篩選**（廣告詞過濾、按讚數排序、`## 精選討論` 技術評論獨立區塊）
 - **知識圖譜** — 實體萃取、關係三元組（compares / builds_on / integrates 等）、缺口分析、Skill 自動生成
 - **主題編譯** — Karpathy 三層架構（raw → compiled → wiki），同主題 ≥3 篇筆記自動編譯為結構化綜述，含工具對比表格、交叉洞察、wikilink 引用
@@ -109,6 +111,8 @@ Ingest   Compile   Query    Output    Lint
 - **10 個核心指令 + 32 個完整指令** — InlineKeyboard 按鈕引導
 - **遠端管理** — `/admin` 狀態、診斷、日誌、重啟、遠端指令
 - **Admin Web UI** — `http://localhost:3001` 啟動時自動開啟研究介面；點「管理」按鈕進入設定（初始設定、功能配置、監控面板）
+- **Cloudflare Quick Tunnel** — `start.sh` 可選啟動，自動取得公開 HTTPS URL（無需固定 IP），手機或外網直接存取研究介面
+- **Basic Auth 認證保護** — 遠端存取研究介面時要求帳號密碼，登入後發放 session cookie，API 請求自動通過認證，換 domain 後 session 仍有效
 - **多模型智慧路由** — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理
 - **功能開關** — `/config` 即時切換 11 項功能
 - **跨裝置同步** — 搭配 [Remotely Save](https://github.com/remotely-save/remotely-save) + [InfiniCLOUD](https://infini-cloud.net/) 免費 WebDAV
@@ -189,6 +193,14 @@ npx camoufox-js fetch
 ### 3. 啟動
 
 執行 `./start.sh`（或 `npm run dev`），保持終端機開啟即可。
+
+若要從手機或外網存取研究介面，加上 `--tunnel` 參數啟動：
+
+```bash
+./start.sh --tunnel
+```
+
+啟動後終端機會顯示 Cloudflare Quick Tunnel 公開 HTTPS URL（例如 `https://xxxx.trycloudflare.com/research`），首次存取需輸入 Basic Auth 帳號密碼（於 `.env` 設定 `RESEARCH_USER` / `RESEARCH_PASS`）。
 
 </details>
 
@@ -296,11 +308,25 @@ ObsBot 不只是收錄工具——內建完整的研究工作流，讓 Vault 中
 
 ### Web 研究介面
 
-Bot 啟動後瀏覽器自動開啟 `http://localhost:3001/research`，進入三欄式互動研究介面。點左側欄「**管理**」按鈕可開啟設定面板（初始設定、功能配置、監控面板）：
+Bot 啟動後瀏覽器自動開啟 `http://localhost:3001/research`，也可透過 Cloudflare Quick Tunnel 從手機或外網直接存取（需 Basic Auth 登入）。研究介面為三欄式（手機版自動切換底部 tab bar）：
 
-- **左欄**：筆記瀏覽器，支援資料夾樹狀展開、標籤篩選、多選勾選
-- **中欄**：輸入研究主題 → AI 分析 → 互動式對話（支援對話歷史、`[[wikilink]]` 引用）
-- **右欄**：工具面板 — 投影片預覽/下載、AI 工具快捷入口（結果統一輸出至中欄）
+- **左欄 / Vault tab**：筆記瀏覽器，支援資料夾樹狀展開、標籤篩選、多選勾選
+- **中欄 / Chat tab**：輸入研究主題 → AI 分析 → 互動式對話（對話歷史存在後端，換 domain 或重開瀏覽器後不消失；支援 `[[wikilink]]` 引用）
+- **右欄 / Tools tab**：工具面板 — 投影片預覽/下載、AI 工具快捷入口（結果統一輸出至中欄）
+
+#### 筆記管理
+
+研究介面直接管理 Vault 筆記，無需開啟 Obsidian：
+
+| 操作 | 說明 |
+|------|------|
+| **查看** | 點筆記名稱展開全文 Markdown 預覽 |
+| **移動分類** | 單筆或多選後點 ⋯ → 移動，選擇目標資料夾 |
+| **刪除** | 單筆或多選後點 ⋯ → 刪除，確認後移除 |
+| **改名** | 點 ⋯ → 改名，直接輸入新標題 |
+| **批次操作** | 多選（勾選框）後統一移動或刪除，⋯ 選單自動升級為批次模式 |
+
+點左側欄「**管理**」按鈕可開啟設定面板（初始設定、功能配置、監控面板）。
 
 **每條 AI 回應下方的 Action Bar：**
 
@@ -426,7 +452,7 @@ Ingest               Compile                 Query              Output
 - **ProcessGuardian** — 三段式 409 自癒（指數退避 → 自動 logOut + 冷卻 → 退出）+ 殭屍進程自動清理
 - **OpenCode CLI** + 多模型路由 — 依複雜度自動選 flash / standard / deep 免費模型；可選 oMLX 本地推理優先
 - **知識系統** — 實體萃取、知識圖譜、缺口分析、Skill 自動生成、用戶偏好萃取、知識蒸餾、記憶整合、MOC 生成、Karpathy 主題編譯
-- **研究助理** — 互動式研究對話、PPTX 簡報生成、Anki 記憶卡、壓縮快取、資源管理
+- **研究助理** — 互動式研究對話（歷史存後端）、PPTX 簡報生成、Anki 記憶卡、壓縮快取；支援 Cloudflare Quick Tunnel + Basic Auth 遠端存取、手機版 tab bar、筆記查看/移動/改名/刪除/批次操作
 - **資訊卡片** — 每則筆記自動生成 PNG 視覺摘要卡（標題 / 分類 / 關鍵字 / 分類色系）
 - **分類系統** — 24 個分類模組、108 條規則（含 13 個 AI 子領域）+ 動態學習
 - 所有長任務採 fire-and-forget：先回覆「處理中」→ 背景執行 → 完成通知
