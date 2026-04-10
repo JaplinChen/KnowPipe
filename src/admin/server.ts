@@ -87,7 +87,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     return;
   }
 
-  if (url === '/research' || url.startsWith('/api/research/')) {
+  if (url === '/research' || url.startsWith('/api/research/') || url.startsWith('/api/vault/')) {
     // Basic Auth 已驗證身份，不再做 isAllowed 二次限制（tunnel 外部存取需要）
     if (!checkResearchAuth(req, res)) return;
     if (await handleResearchRequest(req, res)) return;
