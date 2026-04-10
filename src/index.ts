@@ -24,6 +24,7 @@ import { startPatrolService } from './patrol/patrol-service.js';
 import { registerTimers } from './core/service-registry.js';
 import { getUserConfig } from './utils/user-config.js';
 import { startAdminServer } from './admin/server.js';
+import { startQuickTunnel } from './admin/tunnel-service.js';
 import { runDataIntegrityCheck } from './core/safe-write.js';
 import { setOnBreakerOpen } from './monitoring/circuit-breaker.js';
 import { runMigrations } from './core/migrator.js';
@@ -132,10 +133,33 @@ for (const [enabled, name, starter] of optionalServices) {
 // Start Admin UI server (config management on port 3001)
 startAdminServer();
 
+// Quick Tunnel：啟動後透過 Telegram 通知 admin 新 URL
+let tunnelUrl: string | undefined;
+const ownerId = getOwnerUserId(config);
+
+startQuickTunnel({
+  port: 3001,
+  onUrl: (url) => {
+    tunnelUrl = url;
+    if (ownerId) {
+      bot.telegram.sendMessage(
+        ownerId,
+        `🌐 Research 對外網址已就緒\n${url}/research\n\n帳號：${process.env.RESEARCH_USER ?? '（未設定）'}`,
+      ).catch(() => {});
+    }
+  },
+  onError: (msg) => {
+    logger.warn('tunnel', msg);
+    if (ownerId) {
+      bot.telegram.sendMessage(ownerId, `⚠️ Tunnel：${msg}`).catch(() => {});
+    }
+  },
+});
+
 // Send startup health summary after services settle (10s delay)
 setTimeout(async () => {
-  const ownerId = getOwnerUserId(config);
-  if (!ownerId) return;
+  const startupOwnerId = getOwnerUserId(config);
+  if (!startupOwnerId) return;
   const ok = startupResults.filter(r => r.ok).map(r => r.name);
   const fail = startupResults.filter(r => !r.ok);
   const mem = process.memoryUsage();
@@ -145,8 +169,9 @@ setTimeout(async () => {
     `✅ ${ok.length} 個服務正常${ok.length > 0 ? `：${ok.join('、')}` : ''}`,
     ...(fail.length > 0 ? [`❌ ${fail.length} 個服務失敗：${fail.map(f => `${f.name}(${f.error?.slice(0, 30)})`).join('、')}`] : []),
     `💾 記憶體：${heapMB} MB | PID：${process.pid}`,
+    ...(tunnelUrl ? [`🌐 Tunnel：${tunnelUrl}/research`] : ['🌐 Tunnel：等待中…']),
   ];
-  bot.telegram.sendMessage(ownerId, lines.join('\n')).catch(() => {});
+  bot.telegram.sendMessage(startupOwnerId, lines.join('\n')).catch(() => {});
 }, 10_000);
 
 const forceMode = process.argv.includes('--force');

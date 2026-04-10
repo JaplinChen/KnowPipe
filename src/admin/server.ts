@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { readFileSync, existsSync } from 'node:fs';
+import { timingSafeEqual } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { updateUserConfig, getUserConfig } from '../utils/user-config.js';
@@ -44,6 +45,36 @@ function isAllowed(req: IncomingMessage): boolean {
   return remote === '127.0.0.1' || remote === '::1' || remote.startsWith('::ffff:127.');
 }
 
+/** Basic Auth 保護 /research 路由，帳密由 RESEARCH_USER / RESEARCH_PASS 控制。
+ *  未設定環境變數時放行（本機開發不強制）。
+ *  回傳 true 表示通過，false 表示已寫入 401 回應。
+ */
+function checkResearchAuth(req: IncomingMessage, res: ServerResponse): boolean {
+  const user = process.env.RESEARCH_USER;
+  const pass = process.env.RESEARCH_PASS;
+  if (!user || !pass) return true; // 未設定則不保護
+
+  const auth = req.headers['authorization'] ?? '';
+  const [scheme, encoded] = auth.split(' ');
+  if (scheme?.toLowerCase() === 'basic' && encoded) {
+    const [u, p] = Buffer.from(encoded, 'base64').toString('utf-8').split(':');
+    const uBuf = Buffer.from(u ?? '');
+    const pBuf = Buffer.from(p ?? '');
+    const uExp = Buffer.from(user);
+    const pExp = Buffer.from(pass);
+    // 長度不同時 timingSafeEqual 會拋錯，補齊避免
+    const uMatch = uBuf.length === uExp.length && timingSafeEqual(uBuf, uExp);
+    const pMatch = pBuf.length === pExp.length && timingSafeEqual(pBuf, pExp);
+    if (uMatch && pMatch) return true;
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="ObsBot Research"');
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.statusCode = 401;
+  res.end(JSON.stringify({ error: 'Unauthorized' }));
+  return false;
+}
+
 /* ── Request handler ────────────────────────────────────────────────── */
 async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
   const url = (req.url ?? '/').split('?')[0];
@@ -57,6 +88,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
 
   if (url === '/research' || url.startsWith('/api/research/')) {
+    if (!checkResearchAuth(req, res)) return;
     if (url.startsWith('/api/') && !isAllowed(req)) {
       res.statusCode = 403; res.end(JSON.stringify({ error: 'Unauthorized' })); return;
     }
