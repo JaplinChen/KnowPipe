@@ -6,7 +6,7 @@ import { readFileSync, writeFileSync, existsSync, readdirSync, statSync } from '
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawn } from 'node:child_process';
-import { homedir, tmpdir } from 'node:os';
+import { homedir } from 'node:os';
 import type { IncomingMessage } from 'node:http';
 import { getUserConfig } from '../utils/user-config.js';
 
@@ -81,17 +81,31 @@ export function readBody(req: IncomingMessage): Promise<string> {
 
 // ── Browser launcher ──────────────────────────────────────────────────────────
 
-const ADMIN_TAB_FLAG = join(tmpdir(), 'obsbot-admin-tab');
-const TAB_REUSE_TTL_MS = 5 * 60 * 1000;
-
 export function openBrowser(url: string): void {
   try { new URL(url); } catch { return; }
-  if (existsSync(ADMIN_TAB_FLAG)) {
-    const age = Date.now() - statSync(ADMIN_TAB_FLAG).mtimeMs;
-    if (age < TAB_REUSE_TTL_MS) return;
-  }
-  writeFileSync(ADMIN_TAB_FLAG, String(Date.now()));
-  spawn('open', [url], { stdio: 'ignore', detached: true }).unref();
+  const parsed = new URL(url);
+  const origin = `${parsed.protocol}//${parsed.host}`;
+  // 用 AppleScript 偵測 Chrome 是否已有此 origin 的 tab；有則 focus，沒有才開新 tab
+  const script = `
+tell application "Google Chrome"
+  set tabFound to false
+  repeat with w in windows
+    repeat with t in tabs of w
+      if URL of t starts with "${origin}" then
+        set active tab of w to t
+        set index of w to 1
+        activate
+        set tabFound to true
+        exit repeat
+      end if
+    end repeat
+    if tabFound then exit repeat
+  end repeat
+  if not tabFound then
+    open location "${url}"
+  end if
+end tell`;
+  spawn('osascript', ['-e', script], { stdio: 'ignore', detached: true }).unref();
 }
 
 // ── LLM model detection ───────────────────────────────────────────────────────
