@@ -38,7 +38,7 @@ function scoreCategory(cat: CategoryRule, titleH: string, bodyH: string): number
 
 /* ── [3] 靜態關鍵字分類（fallback，同步）──────────────────── */
 
-function classifyWithKeywords(title: string, text: string): string {
+export function classifyWithKeywords(title: string, text: string): string {
   const titleH = title.toLowerCase();
   const bodyH = text.toLowerCase();
   const scores = new Map<string, { score: number; order: number }>();

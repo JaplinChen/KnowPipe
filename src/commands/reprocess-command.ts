@@ -68,6 +68,8 @@ async function reprocessSingle(
     if (!parsed) return { success: false, error: '無法解析筆記 frontmatter' };
 
     let content = parsedNoteToExtractedContent(parsed);
+    // 記住原本的 category（非 inbox 表示用戶已整理過，不應被 classifier 覆蓋）
+    const originalCategory = parsed.category !== 'inbox' ? parsed.category : undefined;
 
     // Refetch: re-extract from URL for fresh metadata
     if (refetch) {
@@ -78,6 +80,11 @@ async function reprocessSingle(
     }
 
     await enrichExtractedContent(content, config);
+
+    // 保留用戶已整理的 category（reprocess 只更新 AI 欄位，不重新分類）
+    if (originalCategory) {
+      content.category = originalCategory;
+    }
     const result = await saveToVault(content, config.vaultPath, { forceOverwrite: true, saveVideos: config.saveVideos });
 
     // Delete old file if reprocess produced a different path (slug/category changed)
