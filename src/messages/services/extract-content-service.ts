@@ -14,6 +14,24 @@ function shouldFallbackToWeb(err: unknown, platform: string): boolean {
   return FALLBACK_ELIGIBLE.has(classifyError(err));
 }
 
+/** CAPTCHA / bot-detection page title patterns */
+const CAPTCHA_TITLE_RE = /^(請稍候|just a moment|security check|verif|attention required|access denied|ddos protection|one more step|enable javascript)/i;
+
+/** CAPTCHA / connection-error content patterns */
+const CAPTCHA_CONTENT_RE = /正在執行安全驗證|安全服務抵禦惡意機器人|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|無法連上這個網站.*中斷連線|cloudflare.*protect|verify you are human|checking if the site connection is secure|此網站使用安全服務/i;
+
+/** Detect useless pages (CAPTCHA / bot-block / connection error) */
+function detectUselessPage(content: import('../../extractors/types.js').ExtractedContent): string | null {
+  if (CAPTCHA_TITLE_RE.test(content.title.trim())) {
+    return `擷取到驗證或封鎖頁面（標題：「${content.title}」），無法取得真實內容`;
+  }
+  const sample = content.text.slice(0, 600);
+  if (CAPTCHA_CONTENT_RE.test(sample)) {
+    return '擷取到安全驗證或網路錯誤頁面，無法取得真實內容';
+  }
+  return null;
+}
+
 /** Filter out noise: too short, pure emoji, or generic one-word reactions */
 function isMeaningfulComment(c: { text: string }): boolean {
   const t = c.text.trim();
@@ -58,6 +76,13 @@ export async function extractContentWithComments(
   }
 
   logger.info('msg', 'extracted', { title: content.title });
+
+  // Reject CAPTCHA / bot-block / connection-error pages immediately
+  const uselessReason = detectUselessPage(content);
+  if (uselessReason) {
+    logger.warn('extract', '偵測到無效頁面，拒絕儲存', { title: content.title, reason: uselessReason });
+    throw new Error(uselessReason);
+  }
 
   if (commentsResult.status === 'fulfilled' && commentsResult.value.length > 0) {
     const meaningful = commentsResult.value.filter(isMeaningfulComment);

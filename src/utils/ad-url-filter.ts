@@ -44,6 +44,13 @@ const STATIC_BLOCKED_DOMAINS = new Set([
   'adnxs.com',
 ]);
 
+/** 使用者自訂封鎖域名 — 在當前網路環境（越南）無法存取的網站 */
+const USER_BLOCKED_DOMAINS = new Set([
+  'medium.com',
+  'daily-co.github.io',
+  'dexcheck.ai',
+]);
+
 export interface AdDomainEntry {
   count: number;
   reason: string;
@@ -96,7 +103,7 @@ export function isStaticAdUrl(url: string): boolean {
   if (AD_URL_PATTERNS.some(re => re.test(url))) return true;
   try {
     const host = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
-    return STATIC_BLOCKED_DOMAINS.has(host);
+    return STATIC_BLOCKED_DOMAINS.has(host) || USER_BLOCKED_DOMAINS.has(host);
   } catch {
     return false;
   }
