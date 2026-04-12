@@ -10,6 +10,7 @@ dist/
 # Runtime / local data
 data/
 .bot.pid
+.loop.pid
 bot.log
 nul
 
