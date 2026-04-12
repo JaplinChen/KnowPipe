@@ -16,6 +16,7 @@ const isDev = process.argv.includes('--dev');
 const RESTART_DELAY_MS = 3_000;
 const CRASH_DELAY_MS = 10_000;
 const LOOP_PID_FILE = join(ROOT, '.loop.pid');
+const BOT_PID_FILE = join(ROOT, '.bot.pid');
 
 // 寫入 PID 檔，讓 /launch 可以精確 kill 此進程
 writeFileSync(LOOP_PID_FILE, String(process.pid), 'utf-8');
@@ -31,6 +32,7 @@ function stopLoop(signal) {
   }
   // 清除 PID 檔
   try { unlinkSync(LOOP_PID_FILE); } catch {}
+  try { unlinkSync(BOT_PID_FILE); } catch {}
   // 強制退出，避免殭屍 loop 殘留
   setTimeout(() => process.exit(0), 3000);
 }
@@ -64,11 +66,14 @@ async function run() {
     });
 
     currentChild = child;
+    // 寫入子進程 PID，讓 /launch 可精確 kill（即使改名為 ObsBot 後仍可 kill by PID）
+    if (child.pid) writeFileSync(BOT_PID_FILE, String(child.pid), 'utf-8');
     const code = await new Promise((resolve) => {
       child.on('exit', (c) => resolve(c ?? 1));
       child.on('error', () => resolve(1));
     });
     currentChild = null;
+    try { unlinkSync(BOT_PID_FILE); } catch {}
 
     if (!running) break;
 

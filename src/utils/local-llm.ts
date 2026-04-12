@@ -41,6 +41,28 @@ interface RunOptions {
 
 /* ── CLI provider (OpenCode + multi-model routing) ───────────────────── */
 
+/** Concurrency semaphore: max 2 simultaneous opencode processes. */
+let _cliActive = 0;
+const _cliQueue: Array<() => void> = [];
+const CLI_MAX_CONCURRENT = 2;
+
+function acquireCli(): Promise<void> {
+  return new Promise((resolve) => {
+    if (_cliActive < CLI_MAX_CONCURRENT) {
+      _cliActive++;
+      resolve();
+    } else {
+      _cliQueue.push(() => { _cliActive++; resolve(); });
+    }
+  });
+}
+
+function releaseCli(): void {
+  _cliActive--;
+  const next = _cliQueue.shift();
+  if (next) next();
+}
+
 /** Strip ANSI escape codes and opencode banner lines from output. */
 export function cleanOpenCodeOutput(raw: string): string {
   const noAnsi = raw.replace(/\x1b\[[0-9;]*m/g, '');
@@ -54,6 +76,7 @@ export function cleanOpenCodeOutput(raw: string): string {
 async function runViaCli(prompt: string, timeoutMs: number, model: string): Promise<string | null> {
   const timeout = Math.min(timeoutMs, getCliTimeout());
 
+  await acquireCli();
   return new Promise((resolve) => {
     let resolved = false;
     const done = (val: string | null) => { if (!resolved) { resolved = true; resolve(val); } };
@@ -74,9 +97,10 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
     proc.stderr.on('data', () => {});
 
-    proc.on('error', () => { clearTimeout(killTimer); done(null); });
+    proc.on('error', () => { clearTimeout(killTimer); releaseCli(); done(null); });
     proc.on('close', () => {
       clearTimeout(killTimer);
+      releaseCli();
       const out = cleanOpenCodeOutput(stdout);
       done(out || null);
     });
