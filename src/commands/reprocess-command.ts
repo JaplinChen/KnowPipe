@@ -17,6 +17,7 @@ import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 import { findExtractor } from '../utils/url-parser.js';
 import { deleteOldFileIfMoved, cleanEmptyDirs } from '../vault/reprocess-helpers.js';
 import type { ExtractorWithComments } from '../extractors/types.js';
+import { detectUselessPage } from '../messages/services/extract-content-service.js';
 
 interface ParsedArgs {
   mode: 'single' | 'batch';
@@ -31,7 +32,7 @@ function parseArgs(text: string): ParsedArgs | null {
   const args = text.replace(/^\/reprocess\s*/, '').replace(/\u2014/g, '--').replace(/\u2013/g, '--').trim();
   if (!args) return null;
 
-  if (args.startsWith('--all') || args.startsWith('--refetch')) {
+  if (args.startsWith('--all') || args.startsWith('--refetch') || args.startsWith('--since')) {
     const refetch = args.includes('--refetch');
     const sinceMatch = args.match(/--since\s+(\d+)d/);
     // No --since means process ALL notes (sinceDays = undefined)
@@ -51,6 +52,12 @@ async function refetchFromUrl(url: string): Promise<import('../extractors/types.
     const extractor = findExtractor(url);
     if (!extractor) return null;
     const content = await (extractor as ExtractorWithComments).extract(url);
+    // Reject CAPTCHA / bot-block pages — same guard as live extraction
+    const uselessReason = detectUselessPage(content);
+    if (uselessReason) {
+      logger.warn('reprocess', 'refetch 得到無效頁面，保留原內容', { url, reason: uselessReason });
+      return null;
+    }
     return content;
   } catch (err) {
     logger.warn('reprocess', 'refetch failed', { url, error: (err as Error).message });

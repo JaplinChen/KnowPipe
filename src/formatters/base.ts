@@ -102,9 +102,11 @@ function fallbackAnalysis(content: ExtractedContent, displayText: string): strin
   const sentences = collectContentSentences(content, displayText);
   if (sentences.length >= 2) {
     const top = sentences.slice(0, 3);
+    const hasVideo = !!(content.videos && content.videos.length > 0);
+    const focusLabel = hasVideo ? '影片重點聚焦在' : '主要探討';
     return [
-      `影片重點聚焦在：${truncateAtBoundary(top[0], 80)}。`,
-      `可落地的做法：${truncateAtBoundary(top[1], 80)}。`,
+      `${focusLabel}：${truncateAtBoundary(top[0], 80)}。`,
+      `重點在於：${truncateAtBoundary(top[1], 80)}。`,
       top[2] ? `補充觀點：${truncateAtBoundary(top[2], 80)}。` : null,
     ].filter(Boolean).join(' ');
   }

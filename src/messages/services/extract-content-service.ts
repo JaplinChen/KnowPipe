@@ -18,10 +18,10 @@ function shouldFallbackToWeb(err: unknown, platform: string): boolean {
 const CAPTCHA_TITLE_RE = /^(請稍候|just a moment|security check|verif|attention required|access denied|ddos protection|one more step|enable javascript)/i;
 
 /** CAPTCHA / connection-error content patterns */
-const CAPTCHA_CONTENT_RE = /正在執行安全驗證|安全服務抵禦惡意機器人|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|無法連上這個網站.*中斷連線|cloudflare.*protect|verify you are human|checking if the site connection is secure|此網站使用安全服務/i;
+const CAPTCHA_CONTENT_RE = /正在執行安全驗證|安全服務抵禦惡意機器人|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|無法連上這個網站.*中斷連線|cloudflare.*protect|verify you are human|checking if the site connection is secure|此網站使用安全服務|Performing security verification|This website uses a security service|Please wait while we verify|你被封鎖了|You've been blocked/i;
 
-/** Detect useless pages (CAPTCHA / bot-block / connection error) */
-function detectUselessPage(content: import('../../extractors/types.js').ExtractedContent): string | null {
+/** Detect useless pages (CAPTCHA / bot-block / connection error) — exported for reprocess */
+export function detectUselessPage(content: import('../../extractors/types.js').ExtractedContent): string | null {
   if (CAPTCHA_TITLE_RE.test(content.title.trim())) {
     return `擷取到驗證或封鎖頁面（標題：「${content.title}」），無法取得真實內容`;
   }
