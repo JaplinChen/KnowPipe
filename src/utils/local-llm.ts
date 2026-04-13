@@ -84,12 +84,12 @@ async function runViaCli(prompt: string, timeoutMs: number, model: string): Prom
     const proc = spawn(
       'opencode',
       ['run', '-m', model],
-      { timeout, stdio: ['pipe', 'pipe', 'pipe'] },
+      { timeout, stdio: ['pipe', 'pipe', 'pipe'], detached: true },
     );
 
-    // Hard kill safety net: SIGKILL if spawn's timeout (SIGTERM) didn't work
+    // Hard kill safety net: kill entire process group (opencode spawns inner binary)
     const killTimer = setTimeout(() => {
-      try { proc.kill('SIGKILL'); } catch { /* already dead */ }
+      try { process.kill(-proc.pid!, 'SIGKILL'); } catch { /* already dead */ }
       done(null);
     }, timeout + 5_000);
 
