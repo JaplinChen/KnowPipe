@@ -13,7 +13,6 @@ interface PoolEntry {
 
 class CamoufoxPool {
   private entries: PoolEntry[] = [];
-  private idleTimer?: NodeJS.Timeout;
   private readonly MAX_SIZE = 4;
   /** Count of browsers currently being created (not yet in entries) */
   private pending = 0;
@@ -88,7 +87,6 @@ class CamoufoxPool {
   }
 
   private resetIdleTimer(): void {
-    clearTimeout(this.idleTimer);
     const allIdle = this.entries.every(e => !e.inUse);
     if (allIdle && this.entries.length > 0) {
       this.closeAll().catch(() => { /* ignore */ });
@@ -97,7 +95,6 @@ class CamoufoxPool {
 
   /** Close all browsers and clear the pool (called automatically after idle). */
   async closeAll(): Promise<void> {
-    clearTimeout(this.idleTimer);
     await Promise.all(this.entries.map(e => e.browser.close().catch(() => {})));
     this.entries = [];
   }

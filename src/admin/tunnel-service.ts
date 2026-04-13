@@ -78,10 +78,13 @@ export function startQuickTunnel(opts: TunnelOptions): () => void {
     }
   }, READY_TIMEOUT_MS);
 
-  // bot 進程退出時清理子進程
+  // bot 進程退出時清理子進程（同時移除 process listeners，避免重複呼叫堆積）
   const cleanup = (): void => {
     if (timeoutId !== undefined) clearTimeout(timeoutId);
     if (!child.killed) child.kill('SIGTERM');
+    process.off('exit', cleanup);
+    process.off('SIGINT', cleanup);
+    process.off('SIGTERM', cleanup);
   };
 
   process.on('exit', cleanup);
