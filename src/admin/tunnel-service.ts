@@ -25,11 +25,17 @@ export interface TunnelOptions {
 export function startQuickTunnel(opts: TunnelOptions): () => void {
   const { port, onUrl, onError } = opts;
 
-  // 確認 cloudflared 是否存在
-  const whichResult = spawnSync('which', ['cloudflared'], { encoding: 'utf-8' });
-  const bin = whichResult.stdout.trim();
+  // 確認 cloudflared 是否存在（跨平台：Windows 用 where，其他用 which）
+  const findCmd = process.platform === 'win32' ? 'where' : 'which';
+  const whichResult = spawnSync(findCmd, ['cloudflared'], { encoding: 'utf-8' });
+  const bin = whichResult.stdout.trim().split('\n')[0].trim();
   if (!bin) {
-    onError?.('cloudflared 未安裝，跳過 Quick Tunnel（brew install cloudflared）');
+    const installHint = process.platform === 'win32'
+      ? 'winget install Cloudflare.cloudflared'
+      : process.platform === 'darwin'
+        ? 'brew install cloudflared'
+        : 'apt install cloudflared';
+    onError?.(`cloudflared 未安裝，跳過 Quick Tunnel（${installHint}）`);
     return () => {};
   }
 

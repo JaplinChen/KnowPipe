@@ -72,6 +72,10 @@ const IS_DOCKER = process.env.NODE_ENV === 'production';
 /** Docker 容器內用 host.docker.internal 連到主機服務 */
 const LOCAL_HOST = IS_DOCKER ? 'host.docker.internal' : '127.0.0.1';
 
+/** 平台偵測：macOS 用 oMLX，Windows 用 Ollama */
+const IS_WINDOWS = process.platform === 'win32';
+const IS_MACOS = process.platform === 'darwin';
+
 const ALL_PLATFORMS = [
   'x', 'threads', 'youtube', 'github', 'bilibili',
   'weibo', 'xiaohongshu', 'douyin', 'tiktok', 'ithome', 'zhihu',
@@ -93,9 +97,11 @@ const DEFAULTS: UserConfig = {
     qualityReview: true,
   },
   llm: {
-    order: ['omlx', 'ollama', 'openai', 'gemini', 'opencode', 'ddg'],
+    order: IS_WINDOWS
+      ? ['ollama', 'openai', 'gemini', 'opencode', 'ddg']
+      : ['omlx', 'ollama', 'openai', 'gemini', 'opencode', 'ddg'],
     enabled: {
-      omlx: true, ollama: false, openai: false,
+      omlx: IS_MACOS, ollama: IS_WINDOWS, openai: false,
       gemini: false, opencode: true, ddg: true,
     },
     omlx: {
@@ -111,8 +117,10 @@ const DEFAULTS: UserConfig = {
     ollama: {
       baseUrl: `http://${LOCAL_HOST}:11434`,
       apiKey: '',
-      model: '',
-      models: { flash: '', standard: '', deep: '' },
+      model: IS_WINDOWS ? 'qwen3:8b' : '',
+      models: IS_WINDOWS
+        ? { flash: 'qwen3:4b', standard: 'qwen3:8b', deep: 'gemma4:e4b' }
+        : { flash: '', standard: '', deep: '' },
     },
     openai: {
       baseUrl: 'https://api.openai.com/v1',

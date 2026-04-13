@@ -89,7 +89,11 @@ export async function handleDoctor(ctx: Context, config: AppConfig): Promise<voi
 
   // 2. Check CLI dependencies
   await updateProgress(2, '正在檢查 CLI 工具…');
-  const browserUseBin = join(homedir(), '.browser-use-env', 'bin', 'browser-use');
+  const isWin = process.platform === 'win32';
+  const isMac = process.platform === 'darwin';
+  const browserUseBin = isWin
+    ? join(homedir(), '.browser-use-env', 'Scripts', 'browser-use.exe')
+    : join(homedir(), '.browser-use-env', 'bin', 'browser-use');
   const cliChecks = await Promise.all([
     checkCli('yt-dlp', 'yt-dlp', ['--version']),
     checkCli('ffmpeg', 'ffmpeg', ['-version']),
@@ -97,8 +101,8 @@ export async function handleDoctor(ctx: Context, config: AppConfig): Promise<voi
   ]);
 
   const installHints: Record<string, string> = {
-    'yt-dlp': '安裝：brew install yt-dlp',
-    'ffmpeg': '安裝：brew install ffmpeg',
+    'yt-dlp': isWin ? '安裝：winget install yt-dlp' : isMac ? '安裝：brew install yt-dlp' : '安裝：pip install yt-dlp',
+    'ffmpeg': isWin ? '安裝：winget install ffmpeg' : isMac ? '安裝：brew install ffmpeg' : '安裝：apt install ffmpeg',
     'browser-use': '安裝：見 browser-use 文件',
   };
 
@@ -125,33 +129,57 @@ export async function handleDoctor(ctx: Context, config: AppConfig): Promise<voi
   // 5. Process & port snapshot
   const processLines: string[] = [];
   try {
-    // ObsBot node 進程
-    const { stdout: psOut } = await execFileAsync(
-      'ps', ['aux'], { timeout: 3_000 },
-    );
-    const botProcs = psOut.split('\n').filter(
-      l => /tsx.*index|node.*dist\/index/.test(l) && !l.includes('grep'),
-    );
-    for (const p of botProcs.slice(0, 3)) {
-      const cols = p.split(/\s+/);
-      const pid = cols[1];
-      const mem = cols[5] ? `${Math.round(Number(cols[5]) / 1024)}MB` : '?';
-      const cmd = cols.slice(10).join(' ').slice(0, 50);
-      processLines.push(`• PID ${pid} (${mem}) ${cmd}`);
+    if (isWin) {
+      // Windows: 用 tasklist 列出 node 進程
+      const { stdout: taskOut } = await execFileAsync(
+        'tasklist', ['/FI', 'IMAGENAME eq node.exe', '/FO', 'CSV'], { timeout: 3_000 },
+      ).catch(() => ({ stdout: '' }));
+      const rows = taskOut.split('\n').slice(1).filter(Boolean);
+      for (const row of rows.slice(0, 3)) {
+        const cols = row.split('","').map(s => s.replace(/"/g, ''));
+        const pid = cols[1] ?? '?';
+        const mem = cols[4] ? cols[4].replace(/[^\d]/g, '') : '?';
+        processLines.push(`• PID ${pid} (${mem}KB) node.exe`);
+      }
+      // Windows port: netstat
+      const { stdout: netOut } = await execFileAsync(
+        'netstat', ['-ano', '-p', 'TCP'], { timeout: 3_000 },
+      ).catch(() => ({ stdout: '' }));
+      const portLines = netOut.split('\n')
+        .filter(l => l.includes('LISTENING'))
+        .slice(0, 5)
+        .map(l => {
+          const cols = l.trim().split(/\s+/);
+          return `• ${cols[1] ?? '?'} PID:${cols[4] ?? '?'}`;
+        });
+      if (portLines.length > 0) processLines.push('', ...portLines);
+    } else {
+      // Unix: ps aux + lsof
+      const { stdout: psOut } = await execFileAsync(
+        'ps', ['aux'], { timeout: 3_000 },
+      );
+      const botProcs = psOut.split('\n').filter(
+        l => /tsx.*index|node.*dist\/index/.test(l) && !l.includes('grep'),
+      );
+      for (const p of botProcs.slice(0, 3)) {
+        const cols = p.split(/\s+/);
+        const pid = cols[1];
+        const mem = cols[5] ? `${Math.round(Number(cols[5]) / 1024)}MB` : '?';
+        const cmd = cols.slice(10).join(' ').slice(0, 50);
+        processLines.push(`• PID ${pid} (${mem}) ${cmd}`);
+      }
+      const { stdout: lsofOut } = await execFileAsync(
+        'lsof', ['-Pan', '-iTCP:LISTEN', '-n'], { timeout: 3_000 },
+      ).catch(() => ({ stdout: '' }));
+      const portLines = lsofOut.split('\n')
+        .filter(l => l.includes('node') || l.includes('omlx') || l.includes('tsx'))
+        .slice(0, 5)
+        .map(l => {
+          const cols = l.split(/\s+/);
+          return `• ${cols[0]} PID:${cols[1]} → ${cols[8] ?? '?'}`;
+        });
+      if (portLines.length > 0) processLines.push('', ...portLines);
     }
-
-    // 監聽 port
-    const { stdout: lsofOut } = await execFileAsync(
-      'lsof', ['-Pan', '-iTCP:LISTEN', '-n'], { timeout: 3_000 },
-    ).catch(() => ({ stdout: '' }));
-    const portLines = lsofOut.split('\n')
-      .filter(l => l.includes('node') || l.includes('omlx') || l.includes('tsx'))
-      .slice(0, 5)
-      .map(l => {
-        const cols = l.split(/\s+/);
-        return `• ${cols[0]} PID:${cols[1]} → ${cols[8] ?? '?'}`;
-      });
-    if (portLines.length > 0) processLines.push('', ...portLines);
   } catch { /* 略過，不影響主報告 */ }
 
   // 6. Format final report (edit the same message)

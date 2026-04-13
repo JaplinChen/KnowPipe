@@ -4,6 +4,7 @@
  * Gracefully handles missing DB with install instructions.
  */
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { loadKnowledge } from './knowledge-store.js';
 import { saveReportToVault } from './report-saver.js';
 import { logger } from '../core/logger.js';
@@ -29,10 +30,16 @@ interface TopicGap {
   examples: string[];
 }
 
+const home = homedir();
 const DB_SEARCH_PATHS = [
-  join(process.env.HOME ?? '~', '.x-bookmarks', 'bookmarks.db'),
-  join(process.env.HOME ?? '~', 'Library', 'Application Support', 'x-bookmarks', 'bookmarks.db'),
-  join(process.env.HOME ?? '~', '.config', 'x-bookmarks', 'bookmarks.db'),
+  join(home, '.x-bookmarks', 'bookmarks.db'),
+  // macOS
+  join(home, 'Library', 'Application Support', 'x-bookmarks', 'bookmarks.db'),
+  // Linux
+  join(home, '.config', 'x-bookmarks', 'bookmarks.db'),
+  // Windows
+  join(process.env.APPDATA ?? home, 'x-bookmarks', 'bookmarks.db'),
+  join(process.env.LOCALAPPDATA ?? home, 'x-bookmarks', 'bookmarks.db'),
 ];
 
 async function tryLoadBookmarks(): Promise<BookmarkRow[] | null> {

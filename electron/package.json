@@ -7,7 +7,7 @@
   "main": "dist/main.js",
   "type": "commonjs",
   "scripts": {
-    "gen-icons": "python3 scripts/gen-icons.py",
+    "gen-icons": "node scripts/gen-icons.mjs",
     "dev": "npm run gen-icons && tsc && electron dist/main.js",
     "build": "npm run gen-icons && tsc",
     "pack:mac-arm64": "npm run build && electron-builder --mac --arm64",

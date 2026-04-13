@@ -5,6 +5,7 @@
  */
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { homedir } from 'node:os';
 import { exec } from 'node:child_process';
 import { promisify } from 'node:util';
 import { saveReportToVault } from './report-saver.js';
@@ -55,10 +56,16 @@ export async function generateMemoir(
   since?: string,
 ): Promise<MemoirResult> {
   const today = new Date().toISOString().split('T')[0];
-  const memoryDir = join(
-    process.env.HOME ?? '~',
-    '.claude', 'projects', '-Users-japlin-Works-ObsBot', 'memory',
-  );
+  // Claude Code project memory 路徑：將 cwd 轉換為 Claude 的 project-slug 格式
+  // Mac: /Users/japlin/Works/ObsBot → -Users-japlin-Works-ObsBot
+  // Win: D:\Works\ObsBot → D--Works-ObsBot
+  const cwd = process.cwd();
+  const projectSlug = cwd.replace(/^[A-Za-z]:/, m => m.replace(':', '')).replace(/[\\/]/g, '-');
+  const claudeHome = process.env.CLAUDE_HOME
+    ?? (process.platform === 'win32'
+      ? join(process.env.USERPROFILE ?? homedir(), '.claude')
+      : join(homedir(), '.claude'));
+  const memoryDir = join(claudeHome, 'projects', projectSlug, 'memory');
 
   const [gitLog, memoryContext, decisionLog] = await Promise.all([
     getGitLog(since),
