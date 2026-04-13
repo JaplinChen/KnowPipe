@@ -115,7 +115,9 @@ export async function ocrContentImages(
   if (!tesseract) return '';
 
   const results: string[] = [];
-  const candidates = imageUrls.slice(0, maxImages);
+  const candidates = imageUrls
+    .filter(u => u.startsWith('http://') || u.startsWith('https://'))
+    .slice(0, maxImages);
 
   for (const url of candidates) {
     const text = await extractTextFromImage(url);

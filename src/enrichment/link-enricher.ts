@@ -86,7 +86,7 @@ function extractBodyText(html: string): string {
 }
 
 async function enrichWebPage(url: string): Promise<Omit<LinkedContentMeta, 'url' | 'source' | 'mentionedBy'>> {
-  const res = await fetchWithTimeout(url, 15_000, {
+  const res = await fetchWithTimeout(url, 5_000, {
     headers: {
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -116,7 +116,7 @@ async function enrichWebPage(url: string): Promise<Omit<LinkedContentMeta, 'url'
 
 /** Fetch GitHub repo metadata: stars, language, topics from HTML */
 async function enrichGithubPage(url: string): Promise<Omit<LinkedContentMeta, 'url' | 'source' | 'mentionedBy'>> {
-  const res = await fetchWithTimeout(url, 15_000, {
+  const res = await fetchWithTimeout(url, 5_000, {
     headers: {
       Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
       'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

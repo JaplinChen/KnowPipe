@@ -171,6 +171,9 @@ export async function reviewEnrichedContent(
 ): Promise<ReviewResult> {
   if (!getUserConfig().features.qualityReview) return PASS_RESULT;
 
+  // 短文（<500 字）內容簡單，規則檢查足夠，跳過 LLM 審查
+  if (content.text.length < 500) return PASS_RESULT;
+
   const start = Date.now();
 
   try {

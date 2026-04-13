@@ -115,20 +115,35 @@ export const xExtractor: ExtractorWithComments = {
     if (!match) throw new Error(`Invalid X.com URL: ${url}`);
 
     const [, screenName, tweetId] = match;
-    const apiUrl = `https://api.fxtwitter.com/${screenName}/status/${tweetId}`;
 
-    const res = await retry(async () => {
-      const response = await fetchWithTimeout(apiUrl, 30_000);
-      if (!response.ok) {
-        throw new Error(`FxTwitter API error: ${response.status} ${response.statusText}`);
+    // 依序嘗試 fxtwitter → vxtwitter，各自 10s timeout、2 次嘗試
+    const endpoints = [
+      `https://api.fxtwitter.com/${screenName}/status/${tweetId}`,
+      `https://api.vxtwitter.com/${screenName}/status/${tweetId}`,
+    ];
+
+    let data: FxTweetResponse | null = null;
+    let lastError: Error = new Error('All tweet API endpoints failed');
+    for (const apiUrl of endpoints) {
+      try {
+        const res = await retry(async () => {
+          const response = await fetchWithTimeout(apiUrl, 10_000);
+          if (!response.ok) {
+            throw new Error(`Tweet API error: ${response.status} ${response.statusText}`);
+          }
+          return response;
+        }, 2, 500);
+        const parsed = (await res.json()) as FxTweetResponse;
+        if (parsed.code === 200) {
+          data = parsed;
+          break;
+        }
+        lastError = new Error(`Tweet API returned code ${parsed.code}: ${parsed.message}`);
+      } catch (e) {
+        lastError = e as Error;
       }
-      return response;
-    }, 3, 1000);
-
-    const data = (await res.json()) as FxTweetResponse;
-    if (data.code !== 200) {
-      throw new Error(`FxTwitter API returned code ${data.code}: ${data.message}`);
     }
+    if (!data) throw lastError;
 
     const { tweet } = data;
     const { article } = tweet;

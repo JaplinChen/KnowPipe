@@ -112,7 +112,7 @@ export async function analyzeContentImages(
 
   const descriptions: string[] = [];
   try {
-    const urls = imageUrls.slice(0, maxCount);
+    const urls = imageUrls.filter(u => u.startsWith('http://') || u.startsWith('https://')).slice(0, maxCount);
     for (let i = 0; i < urls.length; i++) {
       try {
         // Download to temp

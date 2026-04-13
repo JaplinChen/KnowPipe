@@ -67,9 +67,9 @@ export async function fetchLinkedContent(
     enrichLinkedUrls(urlEntries),
     new Promise<null>((resolve) => {
       setTimeout(() => {
-        logger.warn('post-process', '連結補充超時 (30s)，略過');
+        logger.warn('post-process', '連結補充超時 (15s)，略過');
         resolve(null);
-      }, 30_000);
+      }, 15_000);
     }),
   ]);
 
