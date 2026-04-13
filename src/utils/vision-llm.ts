@@ -59,14 +59,19 @@ async function runViaCli(
     const proc = spawn(
       'opencode',
       ['run', '-m', VISION_MODEL, '-f', imagePath],
-      { timeout: timeoutMs, stdio: ['pipe', 'pipe', 'pipe'] },
+      { timeout: timeoutMs, stdio: ['pipe', 'pipe', 'pipe'], detached: true },
     );
+    const killTimer = setTimeout(() => {
+      try { process.kill(-proc.pid!, 'SIGKILL'); } catch { /* already dead */ }
+      resolve(null);
+    }, timeoutMs + 5_000);
 
     let stdout = '';
     proc.stdout.on('data', (d: Buffer) => { stdout += d.toString(); });
     proc.stderr.on('data', () => {});
-    proc.on('error', () => resolve(null));
+    proc.on('error', () => { clearTimeout(killTimer); resolve(null); });
     proc.on('close', () => {
+      clearTimeout(killTimer);
       const cleaned = cleanOpenCodeOutput(stdout);
       resolve(cleaned || null);
     });
