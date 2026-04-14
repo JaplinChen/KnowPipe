@@ -11,9 +11,11 @@ import type { Context } from 'telegraf';
 import { Markup } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import type { RadarQueryType } from '../radar/radar-types.js';
-import { loadRadarConfig, saveRadarConfig, addQuery, removeQuery, autoGenerateQueries } from '../radar/radar-store.js';
+import { loadRadarConfig, saveRadarConfig, removeQuery, autoGenerateQueries } from '../radar/radar-store.js';
 import { runRadarCycle } from '../radar/radar-service.js';
+import { handleRadarAdd } from './radar-add-command.js';
 import { handleWall } from '../radar/wall-command.js';
+import { handleSnapshot } from './radar-snapshot-command.js';
 
 function typeIcon(type: RadarQueryType): string {
   switch (type) {
@@ -35,6 +37,12 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
   if (arg.startsWith('wall')) {
     const subArg = arg.slice(4).trim();
     await handleWall(ctx, config, subArg);
+    return;
+  }
+
+  // /radar snapshot [list | remove <url> | <url>]
+  if (arg.startsWith('snapshot')) {
+    await handleSnapshot(ctx, config, arg.slice(8).trim());
     return;
   }
 
@@ -161,98 +169,9 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     return;
   }
 
-  // /radar add hn <topics>
-  if (arg.startsWith('add hn')) {
-    const topics = arg.slice(6).trim().split(/\s+/).filter(Boolean);
-    const query = addQuery(radarConfig, topics.length > 0 ? topics : ['*'], 'manual', 'hn');
-    await saveRadarConfig(radarConfig);
-    await ctx.reply(`✅ 已新增 HN 來源 [${query.id}]`);
-    return;
-  }
-
-  // /radar add devto <tags>
-  if (arg.startsWith('add devto')) {
-    const tags = arg.slice(9).trim().split(/\s+/).filter(Boolean);
-    const query = addQuery(radarConfig, tags.length > 0 ? tags : ['ai', 'typescript'], 'manual', 'devto');
-    await saveRadarConfig(radarConfig);
-    const desc = query.keywords.join(', ');
-    await ctx.reply(`✅ 已新增 Dev.to 來源 [${query.id}]: ${desc}`);
-    return;
-  }
-
-  // /radar add github <language?>
-  if (arg.startsWith('add github')) {
-    const lang = arg.slice(10).trim() || '';
-    const keywords = lang ? [lang] : [];
-    const query = addQuery(radarConfig, keywords, 'manual', 'github');
-    await saveRadarConfig(radarConfig);
-    const desc = lang || '所有語言';
-    await ctx.reply(`✅ 已新增 GitHub Trending [${query.id}]: ${desc}`);
-    return;
-  }
-
-  // /radar add rss <url>
-  if (arg.startsWith('add rss ')) {
-    const feedUrl = arg.slice(8).trim();
-    if (!feedUrl.startsWith('http')) {
-      await ctx.reply('用法: /radar add rss https://example.com/feed.xml');
-      return;
-    }
-    const query = addQuery(radarConfig, [feedUrl], 'manual', 'rss');
-    await saveRadarConfig(radarConfig);
-    await ctx.reply(`✅ 已新增 RSS 來源 [${query.id}]: ${feedUrl}`);
-    return;
-  }
-
-  // /radar add custom <name> <url> <itemsPath> <urlField> <titleField> [snippetField]
-  // Example: /radar add custom "AI News" "https://api.example.com/posts?q={query}" "items" "url" "title" "summary"
-  if (arg.startsWith('add custom')) {
-    const rest = arg.slice(10).trim();
-    // Parse quoted or space-separated tokens
-    const tokens: string[] = [];
-    const tokenRe = /"([^"]*)"|\S+/g;
-    for (const m of rest.matchAll(tokenRe)) {
-      tokens.push(m[1] ?? m[0]);
-    }
-    if (tokens.length < 5) {
-      await ctx.reply(
-        '用法: /radar add custom <名稱> <url> <itemsPath> <urlField> <titleField> [snippetField]\n\n' +
-        '範例:\n' +
-        '/radar add custom "AI News" "https://api.ex.com/search?q={query}" "results" "link" "title" "description"\n\n' +
-        '說明:\n' +
-        '• url: 支援 {query} 佔位符（會被關鍵字取代）\n' +
-        '• itemsPath: JSON 回傳中項目陣列的路徑（留空 "" 表示根層陣列）\n' +
-        '• urlField / titleField: 每個項目中對應欄位名稱',
-      );
-      return;
-    }
-    const [name, url, itemsPath, urlField, titleField, snippetField] = tokens;
-    if (!url.startsWith('http')) {
-      await ctx.reply('❌ url 必須以 http 開頭');
-      return;
-    }
-    const query = addQuery(radarConfig, [], 'manual', 'custom');
-    query.customConfig = { name, url, itemsPath, urlField, titleField, snippetField };
-    await saveRadarConfig(radarConfig);
-    await ctx.reply(
-      `✅ 已新增自訂來源 [${query.id}]: ${name}\n` +
-      `• URL: ${url.slice(0, 60)}${url.length > 60 ? '…' : ''}\n` +
-      `• 解析: items=${itemsPath || '根'} / url=${urlField} / title=${titleField}`,
-    );
-    return;
-  }
-
-  // /radar add <keywords>
-  if (arg.startsWith('add ')) {
-    const keywords = arg.slice(4).trim().split(/\s+/);
-    if (keywords.length === 0) {
-      await ctx.reply('用法: /radar add <關鍵字1> <關鍵字2> ...');
-      return;
-    }
-    const query = addQuery(radarConfig, keywords, 'manual', 'search');
-    await saveRadarConfig(radarConfig);
-    await ctx.reply(`✅ 已新增查詢 [${query.id}]: ${keywords.join(' ')}`);
-    return;
+  // /radar add * — delegate to radar-add-command
+  if (arg.startsWith('add')) {
+    if (await handleRadarAdd(ctx, arg)) return;
   }
 
   // /radar remove <id>
@@ -271,17 +190,21 @@ export async function handleRadar(ctx: Context, config: AppConfig): Promise<void
     '用法:\n' +
     '/radar — 查看狀態\n' +
     '/radar on|off — 啟用/停用\n' +
-    '/radar add <關鍵字> — 新增搜尋查詢（DDG）\n' +
+    '/radar add topic <主題> — 新增主題監控\n' +
+    '/radar add author <作者> — 新增作者追蹤\n' +
+    '/radar add <關鍵字> — 新增關鍵字搜尋\n' +
     '/radar add hn [主題] — 新增 HN 來源\n' +
     '/radar add devto [tags] — 新增 Dev.to 來源\n' +
     '/radar add github [語言] — 新增 GitHub Trending\n' +
     '/radar add rss <URL> — 新增 RSS 來源\n' +
-    '/radar add custom <名稱> <url> <itemsPath> <urlField> <titleField> — 新增 JSON API 自訂來源\n' +
+    '/radar add custom <名稱> <url> <items> <urlField> <titleField> — 自訂 API\n' +
     '/radar remove <id> — 移除查詢\n' +
     '/radar resume <id> — 恢復暫停的查詢\n' +
     '/radar auto — 從 Vault 自動生成\n' +
     '/radar run — 立即執行\n' +
-    '/radar wall — 工具情報牆',
+    '/radar wall — 工具情報牆\n' +
+    '/radar snapshot <URL> — 競品快照比對\n' +
+    '/radar snapshot list — 列出追蹤中的快照',
   );
 }
 

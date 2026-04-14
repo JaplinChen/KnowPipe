@@ -3,6 +3,7 @@
 import { logger } from '../core/logger.js';
 import { runLocalLlmPrompt, type ModelTier } from '../utils/local-llm.js';
 import { cleanTitle } from '../utils/content-cleaner.js';
+import { buildGithubPrompt, buildChapterPrompt, buildLinkedContentPrompt, buildPredictionPrompt } from './ai-enricher-prompts.js';
 // @ts-expect-error opencc-js lacks proper TS declarations
 import * as OpenCC from 'opencc-js';
 
@@ -13,6 +14,12 @@ const s2tw: (text: string) => string = OpenCC.ConverterFactory(
 );
 
 import type { ChapterInfo } from '../extractors/types.js';
+
+export interface PredictionRaw {
+  text: string;
+  confidence: number;
+  deadline: string;
+}
 
 export interface EnrichResult {
   keywords: string[] | null;
@@ -25,6 +32,8 @@ export interface EnrichResult {
   githubAnalysis?: string;
   /** AI-generated chapters from timed transcript */
   chapters?: ChapterInfo[];
+  /** 1-2 testable predictions for cognitive calibration */
+  predictions?: PredictionRaw[];
 }
 
 function normalizeCategory(raw: unknown): string | undefined {
@@ -46,32 +55,6 @@ function selectModelTier(textLen: number, hasTranscript: boolean, platform?: str
   if (textLen > 1000) return 'deep';
   if (textLen < 300) return 'flash';
   return 'standard';
-}
-
-/** Build GitHub-specific prompt additions */
-function buildGithubPrompt(): string[] {
-  return [
-    '',
-    '=== GitHub 項目專屬分析指令 ===',
-    'JSON 需額外包含 githubAnalysis 欄位（字串，繁體中文，300-500字）。',
-    'githubAnalysis 必須包含以下結構（用 markdown 格式）：',
-    '### 項目用途',
-    '一段話說明這個項目解決什麼問題、目標使用者是誰。',
-    '### 技術棧與架構',
-    '列出主要技術、框架、語言，說明架構特色。',
-    '### 核心功能',
-    '3-5 條最重要的功能，每條一句話。',
-    '### 同類工具對比',
-    '列出 2-3 個替代方案，各用一句話說明差異。',
-    '格式：「vs {工具名}：{差異描述}」',
-    '### 適合場景',
-    '說明最適合哪類開發者或使用場景，以及不適合的場景。',
-    '### 優缺點',
-    '各列 2-3 條具體優缺點。',
-    '',
-    '注意：githubAnalysis 的所有內容必須基於 README 和項目描述推斷，不可臆造。',
-    '如果 README 資訊不足以推斷某個部分，明確標注「資訊不足」。',
-  ];
 }
 
 const NULL_RESULT: EnrichResult = { keywords: null, summary: null, analysis: null, keyPoints: null };
@@ -100,37 +83,20 @@ export async function enrichContent(
   logger.info('enricher', 'model-route', { tier, textLen: text.length, hasTranscript, platform, hasLinkedContent });
 
   const hasChapterRequest = !!timedTranscriptText;
+  // Generate predictions only for substantive content (not flash-tier trivial posts)
+  const wantPredictions = tier !== 'flash' && text.length > 400;
   const jsonKeys = isGithub
     ? 'keywords, summary, analysis, keyPoints, title, category, githubAnalysis'
     : hasChapterRequest
       ? 'keywords, summary, analysis, keyPoints, title, category, chapters'
-      : 'keywords, summary, analysis, keyPoints, title, category';
+      : wantPredictions
+        ? 'keywords, summary, analysis, keyPoints, title, category, predictions'
+        : 'keywords, summary, analysis, keyPoints, title, category';
 
-  const chapterPrompt = hasChapterRequest
-    ? [
-        '',
-        '=== 影片章節分析指令 ===',
-        '以下提供了帶時間戳的轉錄文字。請根據語義轉折點識別章節邊界。',
-        'JSON 需額外包含 chapters 欄位（陣列），每個元素包含：',
-        '  startTime: "MM:SS" 或 "HH:MM:SS" 格式的開始時間',
-        '  title: 章節標題（繁體中文，≤20字）',
-        '  summary: 一句話摘要（繁體中文，≤40字）',
-        '章節數量 3-8 個，根據內容豐富度決定。',
-        '時間戳必須對應轉錄文字中出現的時間點。',
-        '',
-        `[帶時間戳的轉錄文字]\n${timedTranscriptText}`,
-      ]
-    : [];
-
-  const linkedContentPrompt = hasLinkedContent
-    ? [
-        '',
-        '=== 連結文章分析指令 ===',
-        '內容中包含 [連結文章內容] 標記的部分是主文中連結到的外部文章。',
-        '分析時必須綜合主文與連結文章，重點提取連結文章的核心觀點、技術細節和實用資訊。',
-        'summary 和 analysis 應反映連結文章的深度內容，而非僅複述主文的表面列舉。',
-        'keyPoints 應從連結文章中提取最有價值的具體做法或結論。',
-      ]
+  const chapterPrompt = hasChapterRequest ? buildChapterPrompt(timedTranscriptText!) : [];
+  const linkedContentPrompt = hasLinkedContent ? buildLinkedContentPrompt() : [];
+  const predictionPrompt = (wantPredictions && !isGithub && !hasChapterRequest)
+    ? buildPredictionPrompt()
     : [];
 
   const prompt = [
@@ -151,6 +117,7 @@ export async function enrichContent(
     ...(isGithub ? buildGithubPrompt() : []),
     ...linkedContentPrompt,
     ...chapterPrompt,
+    ...predictionPrompt,
     hints ? `Category hints: ${hints}` : '',
     `Original title: ${cleanedTitle}`,
     `Content: ${textPreview}`,
@@ -188,6 +155,21 @@ export async function enrichContent(
             }))
             .filter(ch => ch.title.length > 0)
             .slice(0, 8)
+        : undefined,
+      predictions: Array.isArray(parsed.predictions)
+        ? parsed.predictions
+            .filter((p): p is Record<string, unknown> => typeof p === 'object' && p !== null)
+            .map(p => ({
+              text: typeof p.text === 'string' ? s2tw(p.text).slice(0, 50) : '',
+              confidence: typeof p.confidence === 'number'
+                ? Math.min(0.95, Math.max(0.3, p.confidence))
+                : 0.6,
+              deadline: typeof p.deadline === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(p.deadline)
+                ? p.deadline
+                : new Date(Date.now() + 180 * 86400_000).toISOString().slice(0, 10),
+            }))
+            .filter(p => p.text.length > 5)
+            .slice(0, 2)
         : undefined,
     };
   } catch {

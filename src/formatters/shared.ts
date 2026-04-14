@@ -130,6 +130,11 @@ export function buildFrontmatter(
   ];
   if (content.stars != null) lines.push(`stars: ${content.stars}`);
   if (content.language) lines.push(`language: ${content.language}`);
+  if (content.predictions?.length) {
+    const compact = content.predictions
+      .map(p => `${p.text}[${Math.round(p.confidence * 100)}%/${p.deadline}]`);
+    lines.push(`predictions: [${compact.map(s => `"${s}"`).join(', ')}]`);
+  }
   lines.push(`pipeline_version: "${PIPELINE_VERSION}"`);
   lines.push('---');
   return lines;

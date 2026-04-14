@@ -24,6 +24,7 @@ export interface HealthReport {
     totalNotes: number;
     issuesFound: number;
     autoFixed: number;
+    translated: number;
   };
   extractors: ExtractorHealth[];
   enrichment: {
@@ -40,6 +41,13 @@ export interface MonitorConfig {
   lastVaultCheckAt: string | null;
   lastExtractorCheckAt: string | null;
   extractorHealth: Record<string, ExtractorHealth>;
+}
+
+/** An auto-fix event logged by vault-healer (ALTK-style correction trajectory) */
+export interface CorrectionEvent {
+  file: string;       // ObsBot 相對路徑
+  field: string;      // 'translation' | 'summary' | 'keywords' | 'html' | 'images'
+  timestamp: string;  // ISO datetime
 }
 
 export const DEFAULT_MONITOR_CONFIG: MonitorConfig = {

@@ -28,9 +28,7 @@ export async function fetchJina(url: string): Promise<JinaResult | null> {
       signal: ac.signal,
       headers: {
         Accept: 'application/json',
-        'X-No-Cache': 'true',
         'X-Return-Format': 'markdown',
-        'X-With-Generated-Alt': 'true',
       },
     });
 

@@ -63,6 +63,34 @@ export function getTopEntities(knowledge: VaultKnowledge, limit = 10): Knowledge
     .slice(0, limit);
 }
 
+/**
+ * Get top entities from recently added notes (by analyzedAt).
+ * Uses last `recentCount` notes to surface what's been appearing lately.
+ */
+export function getRecentTopEntities(knowledge: VaultKnowledge, limit = 6, recentCount = 60): KnowledgeEntity[] {
+  const recentNotes = Object.values(knowledge.notes)
+    .sort((a, b) => b.analyzedAt.localeCompare(a.analyzedAt))
+    .slice(0, recentCount);
+
+  const entityMap = new Map<string, { entity: KnowledgeEntity; count: number }>();
+  for (const note of recentNotes) {
+    for (const entity of note.entities) {
+      const key = entity.name.toLowerCase().trim();
+      const existing = entityMap.get(key);
+      if (existing) {
+        existing.count++;
+      } else {
+        entityMap.set(key, { entity, count: 1 });
+      }
+    }
+  }
+
+  return [...entityMap.values()]
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+    .map(e => e.entity);
+}
+
 /** Get top insights sorted by confidence, across all notes */
 export function getTopInsights(knowledge: VaultKnowledge, limit = 5): KnowledgeInsight[] {
   const all: KnowledgeInsight[] = [];

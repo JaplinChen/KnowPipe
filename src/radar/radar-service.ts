@@ -12,6 +12,7 @@ import { webSearch } from '../utils/search-service.js';
 import { findExtractor } from '../utils/url-parser.js';
 import { classifyContent } from '../classifier.js';
 import { saveToVault, isDuplicateUrl } from '../saver.js';
+import { enrichExtractedContent } from '../messages/services/enrich-content-service.js';
 import { logger } from '../core/logger.js';
 import { githubTrendingSource } from './sources/github-trending.js';
 import { rssSource } from './sources/rss-source.js';
@@ -30,6 +31,12 @@ import { isAdUrl } from '../utils/ad-url-filter.js';
 
 /** Max consecutive failures before auto-pausing a query. */
 const MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * 非科技分類 — 雷達自動跳過，避免 RSS 寬泛 feed（如 /atom/everything/）
+ * 帶入個人生活、時事等非 Vault 關注內容。
+ */
+const RADAR_SKIP_CATEGORIES = new Set(['新聞時事', '生活', '其他']);
 
 /** Fetch candidates depending on query type. */
 async function fetchCandidates(
@@ -113,8 +120,16 @@ async function runQuery(
         // Extract content
         const content = await extractor.extract(sr.url);
 
-        // Classify
+        // 先做便宜的分類，跳過非科技內容，再做昂貴的 enrich
         content.category = await classifyContent(content.title, content.text);
+        if (RADAR_SKIP_CATEGORIES.has(content.category ?? '')) {
+          logger.info('radar', '略過非科技分類', { url: sr.url.slice(0, 80), category: content.category });
+          result.skipped++;
+          continue;
+        }
+
+        // Enrich（翻譯、AI 摘要、關鍵字）— 與正常 URL 流程一致
+        await enrichExtractedContent(content, config);
 
         // Save to vault
         const saveResult = await saveToVault(content, config.vaultPath);

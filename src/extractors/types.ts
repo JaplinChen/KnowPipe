@@ -38,6 +38,14 @@ export interface VideoInfo {
   type?: 'video' | 'gif';
 }
 
+/** A testable prediction generated from content (for cognitive calibration) */
+export interface PredictionEntry {
+  text: string;        // 具體可驗證的預測
+  confidence: number;  // 0-1 信心值
+  deadline: string;    // YYYY-MM-DD 驗證截止日
+  status?: 'pending' | 'correct' | 'incorrect';
+}
+
 /** Unified content extracted from any platform */
 export interface ExtractedContent {
   platform: Platform;
@@ -96,6 +104,8 @@ export interface ExtractedContent {
   tempDir?: string;
   /** Transcripts for YouTube videos embedded in web articles */
   embeddedVideoTranscripts?: Array<{ url: string; transcript: string }>;
+  /** AI-generated testable predictions from content (for cognitive calibration) */
+  predictions?: PredictionEntry[];
 }
 
 /** Metadata fetched from a URL found in content or comments */

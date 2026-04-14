@@ -180,6 +180,7 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
   if (enriched.githubAnalysis) content.githubAnalysis = enriched.githubAnalysis;
   // AI-generated chapters (only when no platform-native chapters exist)
   if (!content.chapters && enriched.chapters?.length) content.chapters = enriched.chapters;
+  if (enriched.predictions?.length) content.predictions = enriched.predictions;
 
   // Benchmark: score enrichment quality (non-blocking)
   try {

@@ -25,7 +25,6 @@ import { processSeriesBatch } from './services/series-processing-service.js';
 import { classifyFailureReason, type BotStats } from './types.js';
 import { parseIntent, replySuggestion } from './intent-parser.js';
 import { handleWeeklyDigest } from '../commands/digest-command.js';
-import { handleCompareByArg } from '../commands/knowledge-query-command.js';
 import { isAdUrl, rehabilitateDomain } from '../utils/ad-url-filter.js';
 
 function isSeriesExtractor(e: unknown): e is ExtractorWithSeries {
@@ -73,8 +72,6 @@ export function registerUrlProcessingHandler(
           // High-confidence: auto-execute
           if (intent.intent === 'weekly-digest') {
             await handleWeeklyDigest(ctx, config);
-          } else if (intent.intent === 'compare' && intent.topic && intent.topicB) {
-            await handleCompareByArg(ctx, `${intent.topic} vs ${intent.topicB}`);
           } else if (intent.intent === 'trends') {
             await handleWeeklyDigest(ctx, config);
           }

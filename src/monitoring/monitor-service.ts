@@ -39,13 +39,14 @@ async function runVaultHealthCycle(
   try {
     const result = await healVault(config.vaultPath);
 
-    if (result.autoFixed > 0 || result.pendingReviewTagged > 0) {
+    if (result.autoFixed > 0 || result.pendingReviewTagged > 0 || result.translated > 0) {
       await notify(bot, config, [
         '🔧 Vault 自動修復完成',
         '',
         `掃描：${result.totalNotes} 篇`,
         `發現問題：${result.issues.length} 個`,
         `自動修復：${result.autoFixed} 個`,
+        result.translated > 0 ? `翻譯為繁體中文：${result.translated} 篇` : '',
         result.pendingReviewTagged > 0 ? `標記待審：${result.pendingReviewTagged} 篇` : '',
         '',
         ...result.issues.filter(i => i.fixed).slice(0, 10).map(i => `✅ ${i.file} — ${i.issue}`),

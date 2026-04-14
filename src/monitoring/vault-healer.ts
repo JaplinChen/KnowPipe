@@ -1,14 +1,36 @@
 /**
  * Vault self-healer — scans notes for common issues and auto-fixes them.
- * Fixes: empty summaries, HTML remnants, missing frontmatter fields.
+ * Fixes: empty summaries, HTML remnants, missing frontmatter fields, untranslated content.
  * Quality audit: short summaries, too few keywords → tag pending-review.
  */
 import { readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { getAllMdFiles, parseFrontmatter, parseArrayField } from '../vault/frontmatter-utils.js';
 import { extractKeywords } from '../classifier.js';
-import type { VaultIssue } from './health-types.js';
+import { detectLanguage, translateIfNeeded } from '../enrichment/translator.js';
+import type { VaultIssue, CorrectionEvent } from './health-types.js';
 import { logger } from '../core/logger.js';
+
+const CORRECTIONS_LOG = join('data', 'corrections-log.json');
+
+async function appendCorrections(events: CorrectionEvent[]): Promise<void> {
+  if (events.length === 0) return;
+  try {
+    let existing: CorrectionEvent[] = [];
+    try {
+      const raw = await readFile(CORRECTIONS_LOG, 'utf-8');
+      existing = JSON.parse(raw) as CorrectionEvent[];
+    } catch { /* 首次建立 */ }
+    // 保留最近 500 筆，避免無限增長
+    const updated = [...existing, ...events].slice(-500);
+    await writeFile(CORRECTIONS_LOG, JSON.stringify(updated, null, 2), 'utf-8');
+  } catch (err) {
+    logger.warn('vault-healer', '修正日誌寫入失敗', { err: (err as Error).message });
+  }
+}
+
+/** 每次 heal 最多翻譯幾篇，避免週期過長 */
+const MAX_TRANSLATIONS_PER_RUN = 5;
 
 const HTML_TAG_RE = /<(?:div|span|br|p|a|img|table|tr|td|th|ul|ol|li|h[1-6])\b[^>]*\/?>/gi;
 const HTML_CLOSE_RE = /<\/(?:div|span|p|a|table|tr|td|th|ul|ol|li|h[1-6])>/gi;
@@ -94,6 +116,7 @@ interface ScanResult {
   totalNotes: number;
   autoFixed: number;
   pendingReviewTagged: number;
+  translated: number;
 }
 
 /** Scan and auto-fix vault issues */
@@ -101,8 +124,11 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
   const rootDir = join(vaultPath, 'ObsBot');
   const files = await getAllMdFiles(rootDir);
   const issues: VaultIssue[] = [];
+  const corrections: CorrectionEvent[] = [];
+  const now = new Date().toISOString();
   let autoFixed = 0;
   let pendingReviewTagged = 0;
+  let translated = 0;
 
   for (const filePath of files) {
     try {
@@ -122,6 +148,7 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
           newContent = raw.slice(0, parsed.fmEnd) + cleanBody;
           modified = true;
           issues.push({ file: relPath, issue: 'HTML 殘留（已修復）', autoFixable: true, fixed: true, severity: 'auto_fixed' });
+          corrections.push({ file: relPath, field: 'html', timestamp: now });
         }
       }
 
@@ -168,6 +195,7 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
           newContent = replaceSummary(newContent, extracted);
           modified = true;
           issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字→已修復）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });
+          corrections.push({ file: relPath, field: 'summary', timestamp: now });
         } else {
           unfixableIssues.push('摘要過短');
           issues.push({ file: relPath, issue: `摘要過短（${summary.length} 字）`, autoFixable: false, severity: 'needs_review' });
@@ -184,9 +212,47 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
           newContent = replaceKeywords(newContent, merged);
           modified = true;
           issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length}→${merged.length} 個，已修復）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });
+          corrections.push({ file: relPath, field: 'keywords', timestamp: now });
         } else {
           unfixableIssues.push('關鍵字不足');
           issues.push({ file: relPath, issue: `關鍵字不足（${keywords.length} 個）`, autoFixable: false, severity: 'needs_review' });
+        }
+      }
+
+      // Fix 6: 未翻譯的英文或簡體內容 → 翻譯為繁體中文
+      const hasTranslatedMarker = /^>\s*Translated from:/m.test(newContent);
+      if (!hasTranslatedMarker && translated < MAX_TRANSLATIONS_PER_RUN) {
+        const bodyForLangCheck = parsed.body.replace(/^>\s*\*\*.*?\*\*.*\n/m, '').trim();
+        const lang = detectLanguage(bodyForLangCheck.slice(0, 500));
+        if (lang === 'en' || lang === 'zh-CN') {
+          try {
+            const rawTitle = (fm.get('title') ?? title).replace(/^"|"$/g, '');
+            const result = await translateIfNeeded(rawTitle, bodyForLangCheck);
+            if (result) {
+              // 更新 frontmatter title
+              const escapedTitle = result.translatedTitle?.replace(/"/g, '\\"') ?? rawTitle;
+              newContent = newContent.replace(
+                /^(title:\s*)".*"/m,
+                `$1"${escapedTitle}"`,
+              );
+              // 在 author/date 行後插入翻譯標記與翻譯正文
+              const langLabel: Record<string, string> = {
+                en: 'English', 'zh-CN': 'Chinese (Simplified)',
+              };
+              const marker = `> Translated from: ${langLabel[result.detectedLanguage] ?? result.detectedLanguage}`;
+              newContent = newContent.replace(
+                /(^>\s*\*\*.*?\*\*.*$)/m,
+                `$1\n\n${marker}\n\n${result.translatedText}`,
+              );
+              modified = true;
+              translated++;
+              issues.push({ file: relPath, issue: `未翻譯（${lang}→已翻譯為繁體中文）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });
+              corrections.push({ file: relPath, field: 'translation', timestamp: now });
+              logger.info('vault-healer', '翻譯完成', { file: relPath, lang });
+            }
+          } catch (err) {
+            logger.warn('vault-healer', '翻譯失敗', { file: relPath, err: (err as Error).message });
+          }
         }
       }
 
@@ -215,7 +281,11 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
     issues: issues.length,
     fixed: autoFixed,
     pendingReviewTagged,
+    translated,
+    corrections: corrections.length,
   });
 
-  return { issues, totalNotes: files.length, autoFixed, pendingReviewTagged };
+  if (!dryRun) await appendCorrections(corrections);
+
+  return { issues, totalNotes: files.length, autoFixed, pendingReviewTagged, translated };
 }

@@ -55,19 +55,34 @@ function buildTranslationPrompt(title: string, text: string): string {
 }
 
 function parseTranslationResponse(response: string): TranslationResult | null {
+  // 優先嘗試 JSON 格式（oMLX / 嚴格 LLM 回傳）
   const match = response.match(/\{[\s\S]*\}/);
-  if (!match) return null;
-  try {
-    const parsed = JSON.parse(match[0]) as { translatedTitle?: unknown; translatedText?: unknown };
-    if (typeof parsed.translatedText !== 'string') return null;
+  if (match) {
+    try {
+      const parsed = JSON.parse(match[0]) as { translatedTitle?: unknown; translatedText?: unknown };
+      if (typeof parsed.translatedText === 'string' && parsed.translatedText.length > 0) {
+        return {
+          detectedLanguage: 'en',
+          translatedText: parsed.translatedText,
+          translatedTitle: typeof parsed.translatedTitle === 'string' ? parsed.translatedTitle : undefined,
+        };
+      }
+    } catch { /* fall through */ }
+  }
+
+  // fallback：opencode / DDG 可能直接回傳純文字翻譯（非 JSON）
+  // 只要回應含有中文字就視為有效翻譯
+  const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
+  const trimmed = response.trim();
+  if (CJK_RE.test(trimmed) && trimmed.length > 20) {
     return {
       detectedLanguage: 'en',
-      translatedText: parsed.translatedText,
-      translatedTitle: typeof parsed.translatedTitle === 'string' ? parsed.translatedTitle : undefined,
+      translatedText: trimmed,
+      translatedTitle: undefined,
     };
-  } catch {
-    return null;
   }
+
+  return null;
 }
 
 async function translateEnglishWithLocalLlm(
@@ -78,7 +93,8 @@ async function translateEnglishWithLocalLlm(
   // Short translations (title-only or brief text) use flash; longer ones use standard
   const totalLen = title.length + text.length;
   const tier = totalLen < 500 ? 'flash' : 'standard';
-  const timeoutMs = tier === 'flash' ? 20_000 : 60_000;
+  // 120s for standard: Qwen3.5-9B 翻譯長文（6000 chars）需要 60-90s，60s 太容易超時
+  const timeoutMs = tier === 'flash' ? 20_000 : 120_000;
   const response = await runLocalLlmPrompt(prompt, { timeoutMs, model: tier });
   if (!response) return null;
   return parseTranslationResponse(response);

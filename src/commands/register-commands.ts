@@ -20,11 +20,6 @@ import { handleDigestMenu, handleDigest, handleWeeklyDigest } from './digest-com
 import { handleSuggest } from './suggest-command.js';
 import { handleRadar, handleRadarAction } from './radar-command.js';
 import { handleBenchmark } from './benchmark-command.js';
-import {
-  handleExplore, handleRecommendByTopic, handleBriefByTopic,
-  handleCompareByArg, handleModePicker, resolveCallbackToken,
-} from './knowledge-query-command.js';
-import { handleDeepSynthesis, handleSaveToVault } from './explore-deep-command.js';
 import { runCommandTask } from './command-runner.js';
 import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
@@ -45,6 +40,8 @@ import { handleConfig, handleConfigFeatureToggle, handleConfigResetConfirm, hand
 import { handleResearch, handleSlides, handleAnki } from '../research/research-commands.js';
 import { handleReclassifyPicker, handleReclassifyMove } from './reclassify-action.js';
 import { handleSearchHub, handleSearchCallback } from './search-hub.js';
+import { handleMonitorTopic, handleMonitorAuthor } from './monitor-command.js';
+import { handleRadarAddKeyword, handleRadarAddAuthor } from './radar-callbacks.js';
 import { handleTrackHub, handleTrackCallback } from './track-hub.js';
 import { createVaultHub, createVaultCallback } from './vault-hub.js';
 import { createAdminHub, createAdminCallback } from './admin-hub.js';
@@ -100,7 +97,6 @@ export function registerCommands(
 
   registerAsyncCommand(bot, 'search', 'search-hub', config, handleSearchHub);
   registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
-  registerAsyncCommand(bot, 'explore', 'explore', config, handleExplore);
   registerAsyncCommand(bot, 'digest', 'digest', config, handleDigestMenu);
   registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
   registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
@@ -150,7 +146,6 @@ export function registerCommands(
     const target = ctx.match![1];
     await ctx.answerCbQuery().catch(() => {});
     const navHandlers: Record<string, (c: Context, cfg: AppConfig) => Promise<void>> = {
-      explore: handleExplore,
       discover: handleDiscover,
       knowledge: handleKnowledge,
       digest: handleDigestMenu,
@@ -158,23 +153,6 @@ export function registerCommands(
     const handler = navHandlers[target];
     if (handler) await handler(ctx, config);
   });
-
-  // --- InlineKeyboard: /explore sub-actions (token-based) ---
-  const resolveAndRun = (
-    cmd: string, handler: (ctx: MatchedContext, resolved: string) => Promise<void>, ack?: string,
-  ) => async (ctx: MatchedContext) => {
-    const resolved = resolveCallbackToken(cmd, ctx.match![1]);
-    await ctx.answerCbQuery(ack).catch(() => {});
-    if (!resolved) { await replyExpired(ctx, 'explore', '重新探索'); return; }
-    await handler(ctx, resolved);
-  };
-
-  registerAsyncAction(bot, /^xpick:(.+)$/, 'explore-pick', resolveAndRun('xpick', (c, t) => handleModePicker(c, t)));
-  registerAsyncAction(bot, /^xrec:(.+)$/, 'explore-action', resolveAndRun('xrec', (c, t) => handleRecommendByTopic(c, t)));
-  registerAsyncAction(bot, /^xbrf:(.+)$/, 'explore-action', resolveAndRun('xbrf', (c, t) => handleBriefByTopic(c, t)));
-  registerAsyncAction(bot, /^compare:(.+)$/, 'compare-action', resolveAndRun('compare', (c, a) => handleCompareByArg(c, a)));
-  registerAsyncAction(bot, /^xdeep:(.+)$/, 'explore-deep', resolveAndRun('xdeep', (c, t) => handleDeepSynthesis(c, t, config)));
-  registerAsyncAction(bot, /^xsave:(.+)$/, 'explore-save', resolveAndRun('xsave', (c, p) => handleSaveToVault(c, p, config), '存入 Vault 中…'));
 
   // --- InlineKeyboard: /digest sub-actions ---
   registerAsyncAction(bot, /^dg:(.+)$/, 'digest-action', async (ctx) => {
@@ -191,7 +169,9 @@ export function registerCommands(
   });
 
   // --- InlineKeyboard: hub callbacks ---
-  registerAsyncAction(bot, /^srch:(.+)$/, 'search-hub-cb', handleSearchCallback);
+  registerAsyncAction(bot, /^srch:(.+)$/, 'search-hub-cb', async (ctx) => {
+    await handleSearchCallback(ctx, config);
+  });
   registerAsyncAction(bot, /^trk:(.+)$/, 'track-hub-cb', async (ctx) => {
     await handleTrackCallback(ctx, config);
   });
@@ -283,7 +263,7 @@ export function registerCommands(
   // --- ForceReply dispatch ---
   const frm: Array<[string, string, (c: Context, cfg: AppConfig) => Promise<void>]> = [
     ['search', 'search', handleSearch], ['monitor', 'monitor', handleMonitor],
-    ['timeline', 'timeline', handleTimeline], ['explore', 'explore', handleExplore],
+    ['timeline', 'timeline', handleTimeline],
     ['ask', 'ask', handleAsk], ['discover', 'discover', handleDiscover],
     ['reprocess', 'reprocess', handleReprocess], ['reformat', 'reformat', handleReformat],
     ['subscribe', 'subscribe', handleSubscribe], ['find', 'find', handleFind],
@@ -291,6 +271,24 @@ export function registerCommands(
   ];
   for (const [key, tag, handler] of frm)
     registerForceReplyHandler(key, (ctx) => runCommandTask(ctx, tag, () => handler(ctx, config), formatErrorMessage));
+
+  // --- ForceReply: search topic / author ---
+  registerForceReplyHandler('srch-topic', (ctx) => {
+    const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
+    const topic = text.replace(/^\/srch-topic\s*/i, '').trim();
+    return runCommandTask(ctx, 'search-topic', () => handleMonitorTopic(ctx, config, topic), formatErrorMessage);
+  });
+  registerForceReplyHandler('srch-author', (ctx) => {
+    const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
+    const author = text.replace(/^\/srch-author\s*/i, '').trim();
+    return runCommandTask(ctx, 'search-author', () => handleMonitorAuthor(ctx, config, author), formatErrorMessage);
+  });
+
+  // --- ForceReply: radar add keyword / author ---
+  registerForceReplyHandler('radar-keyword', (ctx) =>
+    runCommandTask(ctx, 'radar-add-keyword', () => handleRadarAddKeyword(ctx, config), formatErrorMessage));
+  registerForceReplyHandler('radar-author', (ctx) =>
+    runCommandTask(ctx, 'radar-add-author', () => handleRadarAddAuthor(ctx, config), formatErrorMessage));
 
   registerInfoCommands(bot, stats, startTime);
 

@@ -6,16 +6,18 @@
  * /patrol topics      → show/set interest topics
  * /patrol github      → run GitHub Trending only (legacy)
  * /patrol devil [N]   → 反指標注射器：找出近 N 天熱門主題，生成反向論點筆記
+ * /patrol predictions → 掃描 Vault 中到期或即將到期的可驗證預測
  */
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { runPatrolCycle, runMultiPatrolCycle } from '../patrol/patrol-service.js';
 import { loadPatrolConfig, savePatrolConfig } from '../patrol/patrol-store.js';
 import { formatPatrolNotification, buildPatrolButtons } from '../patrol/patrol-notifier.js';
-import { writeFile, mkdir } from 'node:fs/promises';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { collectRecentNotes } from './digest-command.js';
 import { runLocalLlmPrompt } from '../utils/local-llm.js';
+import { getAllMdFiles } from '../vault/frontmatter-utils.js';
 
 const AVAILABLE_SOURCES = ['github-trending', 'hn', 'reddit', 'devto'];
 
@@ -39,6 +41,9 @@ export async function handlePatrol(ctx: Context, config: AppConfig): Promise<voi
   if (sub === 'devil') {
     const days = parseInt(args[1] ?? '7', 10) || 7;
     return handleDevil(ctx, config, days);
+  }
+  if (sub === 'predictions') {
+    return handlePredictions(ctx, config);
   }
 
   // Default: multi-platform patrol
@@ -187,18 +192,43 @@ async function handleDevil(ctx: Context, config: AppConfig, days: number): Promi
 部分筆記標題：
 ${sample}
 
-請用繁體中文撰寫一篇 400-600 字的反向論點分析：
-1. 如果「${topic}」的主流敘事是錯的或被高估的，最可能的原因是什麼？
-2. 哪些反向證據或盲點值得關注？
-3. 給我一個具體的下一步：應該去找什麼類型的反向資料？
+請用繁體中文撰寫一篇 400-600 字的反向論點分析，**必須使用 Markdown 格式**：
 
-格式：直接輸出分析內容，不要加任何前言。`;
+## 主張「${topic}」被高估的最可能原因
 
-      const result = await runLocalLlmPrompt(prompt, { task: 'summarize' });
-      if (!result) continue;
+- **論點一**：說明
+- **論點二**：說明
+（列出 3-5 點）
+
+## 值得關注的反向證據與盲點
+
+- **盲點一**：說明
+（列出 3-5 點）
+
+## 具體下一步（要找的反向資料）
+
+- **資料類型一**：說明去哪找、找什麼
+（列出 2-3 點）
+
+> [!tip] 優先建議
+> 一句話總結：最值得優先蒐集哪類反向資料，原因為何。
+
+規則：直接輸出 Markdown 內容，從 ## 開始，不要加任何前言或說明。`;
+
+      const rawResult = await runLocalLlmPrompt(prompt, { task: 'summarize' });
+      if (!rawResult) continue;
+
+      // 清理 LLM 可能夾帶的 UI metadata 垃圾字串
+      const result = rawResult
+        .replace(/^[\s·\-]+$/gm, '')                         // 孤立的符號行
+        .replace(/^(Private|Fast|public)\s*$/gim, '')         // ChatGPT/Claude UI 標籤
+        .replace(/^All chats are private\..*$/gim, '')        // Claude UI 底部說明
+        .replace(/^AI can make mistakes\..*$/gim, '')         // 錯誤免責聲明
+        .replace(/\n{3,}/g, '\n\n')                           // 多餘空行壓縮
+        .trim();
 
       const today = new Date().toISOString().slice(0, 10);
-      const content = `---\ntitle: "${topic}——反向論點分析"\ndate: ${today}\ncategory: inbox\nkeywords: [反向論點, 批判性思考, ${topic}]\nsummary: "近 ${days} 天「${topic}」出現 ${titles.length} 篇筆記，本文提出反向思考"\n---\n\n# ${topic}——如果主流敘事是錯的？\n\n> 反向論點自動生成：當某主題在 ${days} 天內累積 ${titles.length} 篇，自動觸發批判性審視。\n\n${result}\n`;
+      const content = `---\ntitle: "${topic}——反向論點分析"\ndate: ${today}\ncategory: inbox\nkeywords: [反向論點, 批判性思考, ${topic}]\nsummary: "近 ${days} 天「${topic}」出現 ${titles.length} 篇筆記，本文提出反向思考"\n---\n\n# ${topic}——如果主流敘事是錯的？\n\n> [!warning] 反向論點自動生成\n> 當某主題在 ${days} 天內累積 **${titles.length} 篇**，自動觸發批判性審視。\n\n${result}\n`;
 
       const outDir = join(config.vaultPath, 'ObsBot', 'inbox', '反向論點');
       await mkdir(outDir, { recursive: true });
@@ -215,6 +245,55 @@ ${sample}
     );
   } catch (err) {
     await ctx.reply(`反向論點生成失敗：${(err as Error).message}`);
+  } finally {
+    await ctx.deleteMessage(status.message_id).catch(() => {});
+  }
+}
+
+/** 掃描 Vault 中到期或即將到期（30 天內）的可驗證預測 */
+async function handlePredictions(ctx: Context, config: AppConfig): Promise<void> {
+  const status = await ctx.reply('🔮 掃描可驗證預測中…');
+  try {
+    const rootDir = join(config.vaultPath, 'ObsBot');
+    const files = await getAllMdFiles(rootDir);
+    const today = new Date();
+    const cutoff = new Date(today.getTime() + 30 * 86400_000);
+    const PRED_RE = /predictions:\s*\[(.+)\]/;
+    const ENTRY_RE = /"([^"]+)\[(\d+)%\/(\d{4}-\d{2}-\d{2})\]"/g;
+
+    const due: string[] = [];
+    const overdue: string[] = [];
+
+    for (const f of files) {
+      const raw = await readFile(f, 'utf-8').catch(() => '');
+      const fmEnd = raw.indexOf('\n---', 4);
+      const fm = fmEnd > 0 ? raw.slice(0, fmEnd) : raw.slice(0, 500);
+      const m = PRED_RE.exec(fm);
+      if (!m) continue;
+      const relPath = f.replace(/.*ObsBot[\\/]/, '');
+      for (const em of m[1].matchAll(ENTRY_RE)) {
+        const [, text, conf, dl] = em;
+        const deadline = new Date(dl);
+        if (deadline < today) {
+          overdue.push(`⏰ *${text}* [${conf}%] 截止 ${dl}\n   └ ${relPath}`);
+        } else if (deadline <= cutoff) {
+          due.push(`🔔 *${text}* [${conf}%] 截止 ${dl}\n   └ ${relPath}`);
+        }
+      }
+    }
+
+    const total = overdue.length + due.length;
+    if (total === 0) {
+      await ctx.reply('📭 沒有即將到期或已過期的預測。');
+    } else {
+      const parts: string[] = [`🔮 找到 ${total} 個需驗證的預測：\n`];
+      if (overdue.length) parts.push(`**已到期（請回填結果）**\n${overdue.join('\n\n')}`);
+      if (due.length) parts.push(`**30 天內到期**\n${due.join('\n\n')}`);
+      parts.push('\n回填方式：打開筆記，將 `預測文字[信心%/日期]` 改為 `[✅正確]` 或 `[❌錯誤]`');
+      await ctx.reply(parts.join('\n\n'), { parse_mode: 'Markdown' });
+    }
+  } catch (err) {
+    await ctx.reply(`預測掃描失敗：${(err as Error).message}`);
   } finally {
     await ctx.deleteMessage(status.message_id).catch(() => {});
   }
