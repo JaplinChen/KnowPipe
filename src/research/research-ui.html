@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ObsBot Research</title>
 <script src="https://cdn.jsdelivr.net/npm/marked@15/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--bg0:#f0f2f5;--bg1:#ffffff;--bg2:#f8f9fb;--bg3:#eef0f4;--bdr:#e0e3ea;--bdr2:#cdd2dc;--txt1:#1a1a2e;--txt2:#4a4a6a;--txt3:#8890a4;--gold:#667eea;--gold2:rgba(102,126,234,.12);--gold3:rgba(102,126,234,.30);--pu:#667eea;--pu2:rgba(102,126,234,.10);--pu3:rgba(102,126,234,.25);--gn:#27ae60;--gn2:rgba(39,174,96,.10);--gn3:rgba(39,174,96,.25)}
@@ -110,6 +111,18 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .msg-text hr{border:none;border-top:1px solid var(--bdr);margin:16px 0}
 .msg-text .wikilink{color:var(--pu);background:var(--pu2);padding:1px 6px;border-radius:4px;font-size:0.92em;cursor:pointer;text-decoration:none;display:inline}
 .msg-text .wikilink:hover{background:var(--pu3);text-decoration:underline}
+.mermaid-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:16px;margin:12px 0;overflow-x:auto;text-align:center}
+.mermaid-wrap svg{max-width:100%;height:auto}
+/* 架構圖容器 — 永遠深色主題（不隨頁面主題反色，語義顏色保持正確） */
+.arch-svg-wrap{background:#020617;border:1px solid #1e293b;border-radius:12px;padding:0;margin:14px 0;overflow:auto;line-height:0;box-shadow:0 4px 24px rgba(0,0,0,.35)}
+.arch-svg-wrap svg{width:100%;height:auto;display:block;border-radius:12px}
+/* 工具結果標題列 */
+.tool-result-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border:1px solid var(--bdr);border-radius:10px 10px 0 0;margin-bottom:-1px;border-bottom:2px solid var(--pu3)}
+.tool-result-icon{font-size:16px;line-height:1}
+.tool-result-label{font-size:13px;font-weight:700;color:var(--txt1);letter-spacing:.3px}
+.tool-result-topic{font-size:11px;color:var(--txt3);background:var(--bg3);padding:2px 8px;border-radius:10px;margin-left:auto}
+/* 工具結果 msg — 加強上方間距，並加左側彩條 */
+.msg[data-tool] .msg-body{border-left:3px solid var(--pu3);padding-left:12px}
 .msg-actions{display:flex;gap:5px;margin-top:10px;flex-wrap:wrap;align-items:center}
 .msg-action-btn{background:transparent;color:var(--txt3);border:1px solid var(--bdr);padding:3px 9px;border-radius:5px;cursor:pointer;font-size:11.5px;display:flex;align-items:center;gap:4px;transition:all .15s;white-space:nowrap;font-family:inherit}
 .msg-action-btn:hover{background:var(--bg3);color:var(--txt2);border-color:var(--bdr2)}
@@ -425,6 +438,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
   </div>
 </div>
 <script>
+/* ── Mermaid init ── */
+if(typeof mermaid!=='undefined'){
+  mermaid.initialize({startOnLoad:false,theme:'base',themeVariables:{primaryColor:'#667eea',primaryTextColor:'#1a1a2e',lineColor:'#8890a4',background:'#f8f9fb'}});
+}
+function runMermaid(){
+  if(typeof mermaid==='undefined')return;
+  var nodes=document.querySelectorAll('.mermaid:not([data-processed])');
+  if(!nodes.length)return;
+  try{mermaid.run({nodes:Array.from(nodes)});}catch(e){}
+}
 /* ── i18n engine ── */
 /* __LOCALES_INJECT__ */
 /* ── Dark mode (sync with admin) ── */
@@ -605,14 +628,29 @@ function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace
 
 function renderMd(s){
   if(!s)return'';
-  // 將 Obsidian wikilink [[...]] 轉為可點擊連結
-  var t=(s||'').replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,function(_,link,alias){
+  // 移除 EXPORT_PPTX 動作標記（不顯示給用戶）
+  var t=(s||'').replace(/\[\[EXPORT_PPTX\]\]/g,'').trim();
+  // 將 Obsidian wikilink [[...]] 轉為可點擊連結（排除動作標記）
+  t=t.replace(/\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g,function(_,link,alias){
     var display=alias||link;
     return '<a class="wikilink" href="javascript:void(0)" onclick="openNoteModal(\''+link.replace(/'/g,"\\'")+'\')">'+(display)+'</a>';
   });
   if(typeof marked!=='undefined'){
     marked.setOptions({breaks:true,gfm:true});
-    return marked.parse(t);
+    var html=marked.parse(t);
+    // 將 ```mermaid 代碼塊轉為 <pre class="mermaid">，由 mermaid.run() 統一渲染
+    html=html.replace(/<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/gi,function(_,code){
+      var decoded=code.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim();
+      return '<div class="mermaid-wrap"><pre class="mermaid">'+decoded+'</pre></div>';
+    });
+    // 將 ```svg 代碼塊直接嵌入為 SVG（深色主題架構圖）
+    html=html.replace(/<pre><code class="language-svg">([\s\S]*?)<\/code><\/pre>/gi,function(_,code){
+      var decoded=code.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim();
+      // 基本安全檢查：只允許 <svg 開頭的代碼
+      if(!decoded.startsWith('<svg'))return'<pre><code>'+code+'</code></pre>';
+      return '<div class="arch-svg-wrap">'+decoded+'</div>';
+    });
+    return html;
   }
   return'<p>'+esc(s).replace(/\n/g,'<br>')+'</p>';
 }
@@ -627,7 +665,7 @@ async function openNoteModal(name){
     var d=await r.json();
     if(d.error){$('noteModalBody').innerHTML='<div class="empty">'+esc(d.error)+'</div>';return;}
     $('noteModalTitle').textContent=d.name;
-    $('noteModalBody').innerHTML=renderMd(d.body);
+    $('noteModalBody').innerHTML=renderMd(d.body);setTimeout(runMermaid,80);
   }catch(e){$('noteModalBody').innerHTML='<div class="empty">載入失敗：'+esc(e.message)+'</div>';}
 }
 
@@ -671,7 +709,7 @@ async function openNoteByPath(path){
     var r=await fetch('/api/vault/note?path='+encodeURIComponent(path));
     var d=await r.json();
     if(d.error){$('noteModalBody').innerHTML='<div class="empty">'+esc(d.error)+'</div>';return;}
-    $('noteModalBody').innerHTML=renderMd(d.body);
+    $('noteModalBody').innerHTML=renderMd(d.body);setTimeout(runMermaid,80);
   }catch(e){$('noteModalBody').innerHTML='<div class="empty">載入失敗：'+esc(e.message)+'</div>';}
 }
 
@@ -809,6 +847,10 @@ async function sendMsg(){
     const d=await r.json();
     S.history.push({role:'assistant',content:d.reply});
     renderMessages();saveSession();
+    // 偵測 PPTX 匯出動作標記
+    if(d.reply&&d.reply.includes('[[EXPORT_PPTX]]')){
+      setTimeout(()=>exportPptx(),300);
+    }
   }catch(e){msgEl.querySelector('.msg-text').textContent=t('research.error')+e.message;}
 }
 
@@ -842,9 +884,11 @@ function renderMessages(){
   if(!S.history.length){renderEmpty();return;}
   $('messages').innerHTML=S.history.map((m,i)=>{
     const isAi=m.role==='assistant';
-    return '<div class="msg"><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+(isAi?renderMd(m.content):esc(m.content))+'</div>'+(isAi?msgActionBar(i):'')+'</div></div>';
+    const toolAttr=m._tool?' data-tool="'+m._tool+'"':'';
+    return '<div class="msg"'+toolAttr+'><div class="msg-ava '+(isAi?'ai':'user')+'">'+(isAi?t('research.avatarAI'):t('research.avatarUser'))+'</div><div class="msg-body"><div class="msg-role">'+(isAi?t('research.roleAI'):t('research.roleUser'))+'</div><div class="msg-text">'+(isAi?renderMd(m.content):esc(m.content))+'</div>'+(isAi?msgActionBar(i):'')+'</div></div>';
   }).join('');
   $('messages').scrollTop=$('messages').scrollHeight;
+  setTimeout(runMermaid,80);
 }
 
 function switchTab(btn,tab){
@@ -886,6 +930,19 @@ function renderRight(){
     h+='<div class="overview-section"><h3>'+t('research.aiTools')+'</h3>';
     if(noAnalysis)h+='<div class="tool-section-note">請先執行分析以啟用 AI 工具</div>';
     h+=apiTools.map(a=>'<button class="tool-btn'+tDis+'" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
+    h+='</div>';
+    h+='<div class="overview-section"><h3>圖表生成</h3>';
+    if(noTopic)h+='<div class="tool-section-note">請先輸入主題以啟用</div>';
+    var diagrams=[
+      {icon:'🔀',label:'流程圖',tool:'diagram:flowchart'},
+      {icon:'🧠',label:'心智圖',tool:'diagram:mindmap'},
+      {icon:'🏗️',label:'架構圖',tool:'diagram:architecture'},
+      {icon:'⏱️',label:'時間軸',tool:'diagram:timeline'},
+      {icon:'↔️',label:'時序圖',tool:'diagram:sequence'},
+    ];
+    h+=diagrams.map(d=>'<button class="tool-btn'+eDis+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('');
+    h+='</div>';
+    h+='<div class="overview-section"><h3>提示工具</h3>';
     h+=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
     h+='</div>';
     el.innerHTML=h;
@@ -904,6 +961,17 @@ function sendPromptTool(idx){
   $('chatInput').value=p.prompt;sendMsg();
 }
 
+const TOOL_LABELS={
+  'report':       {icon:'📄', label:'研究報告'},
+  'compare':      {icon:'📊', label:'比較分析'},
+  'anki':         {icon:'🃏', label:'Anki 閃卡'},
+  'outline':      {icon:'📚', label:'教學大綱'},
+  'diagram:flowchart':   {icon:'📊', label:'流程圖'},
+  'diagram:mindmap':     {icon:'🧠', label:'心智圖'},
+  'diagram:architecture':{icon:'🏗️', label:'架構圖'},
+  'diagram:timeline':    {icon:'📅', label:'時間軸'},
+  'diagram:sequence':    {icon:'🔄', label:'時序圖'},
+};
 async function runTool(tool){
   if(!S.topic){alert(t('research.noTopic'));return;}
   const msgEl=document.createElement('div');msgEl.className='msg';
@@ -912,7 +980,9 @@ async function runTool(tool){
   try{
     const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected]})});
     const d=await r.json();
-    S.history.push({role:'assistant',content:d.result});renderMessages();
+    const meta=TOOL_LABELS[tool]||{icon:'🔧',label:tool};
+    const header='<div class="tool-result-header"><span class="tool-result-icon">'+meta.icon+'</span><span class="tool-result-label">'+meta.label+'</span><span class="tool-result-topic">'+S.topic+'</span></div>\n\n';
+    S.history.push({role:'assistant',content:header+d.result,_tool:tool});renderMessages();
     var last=$('messages').lastElementChild;if(last)last.scrollIntoView({behavior:'smooth',block:'start'});
   }catch(e){msgEl.querySelector('.msg-text').textContent=t('research.generateFail')+e.message;}
 }

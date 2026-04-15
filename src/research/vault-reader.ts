@@ -105,6 +105,21 @@ export function buildNoteContext(notes: NoteRecord[], topic: string, maxChars = 
   return `你是「${topic}」主題的研究助手，熟悉用戶的 Obsidian 筆記。\n`
     + '用繁體中文回答，深入有結構，使用 Markdown（# ## ### #### 標題、表格、- 清單、**粗體**、> 引言、```程式碼```）。\n'
     + '引用筆記時用 [[筆記名稱]] 標注來源。\n\n'
+    + '## 圖表（必讀）\n\n'
+    + '**每次回覆都必須在適當位置主動插入至少一個 Mermaid 圖表**，前端會自動渲染為圖片。\n'
+    + '不需要等用戶要求——只要回覆中有流程、階層、對比、時序、架構等可視化結構，立即插入對應圖表。\n\n'
+    + '選擇最合適的圖表類型：\n'
+    + '- `flowchart LR` / `flowchart TD` — 流程、因果、步驟\n'
+    + '- `mindmap` — 概念展開、知識結構\n'
+    + '- `timeline` — 發展歷程、時間順序\n'
+    + '- `sequenceDiagram` — 互動、訊息傳遞\n'
+    + '- `graph TD` — 系統架構、模組關係\n\n'
+    + '格式範例：\n'
+    + '````\n```mermaid\nflowchart LR\n  A[輸入] --> B[處理] --> C[輸出]\n```\n````\n\n'
+    + '節點文字用繁體中文，圖表放在最相關的段落之後。如果整段回覆只是短答案（一兩句），可省略圖表。\n\n'
+    + '## 建立 PPTX\n\n'
+    + '當用戶要求「建立 PPTX」「製作簡報」「生成投影片」等，先生成完整的 Markdown 簡報大綱（## 標題為各張投影片），'
+    + '然後在回覆最後一行單獨加上 `[[EXPORT_PPTX]]`，系統會自動匯出 PPTX 檔案。\n\n'
     + (srcs ? `已選取 ${notes.length} 篇筆記：\n\n${srcs}` : '（未選取筆記，使用通用知識）');
 }
 

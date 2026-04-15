@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 import { scanVaultNotes, searchNotes, loadNoteBody } from './vault-reader.js';
 import { compressNote, compressBatch, getCacheStats } from './compress-cache.js';
 import { preprocessText } from './text-cleaner.js';
-import { analyzeNotes, chatWithNotes, generateResearchReport, generateComparisonTable, generateAnkiCards, generateTeachingOutline } from './chat-service.js';
+import { analyzeNotes, chatWithNotes, generateResearchReport, generateComparisonTable, generateAnkiCards, generateTeachingOutline, generateDiagram } from './chat-service.js';
+import type { DiagramType } from './chat-service.js';
 import { buildSlideSpec, parseSlideSpecPayload } from './slide-spec.js';
 import { buildPptx } from './slide-pptx.js';
 import { renderSlidePreviewHtml } from './slide-preview.js';
@@ -193,7 +194,15 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
       case 'compare': result = await generateComparisonTable(body.topic, selected); break;
       case 'anki': result = await generateAnkiCards(body.topic, selected); break;
       case 'outline': result = await generateTeachingOutline(body.topic, selected); break;
-      default: json(res, { error: `未知工具：${tool}` }, 400); return true;
+      default: {
+        // 圖表工具：diagram:flowchart、diagram:mindmap 等
+        if (tool && tool.startsWith('diagram:')) {
+          const diagramType = tool.slice('diagram:'.length) as DiagramType;
+          result = await generateDiagram(diagramType, body.topic, selected);
+          break;
+        }
+        json(res, { error: `未知工具：${tool}` }, 400); return true;
+      }
     }
     json(res, { result });
     return true;
