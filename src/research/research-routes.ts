@@ -202,7 +202,7 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
   // 知識工具
   if (url.startsWith('/api/research/tools/') && method === 'POST') {
     const tool = url.split('/').pop();
-    const body = parseBody<{ topic: string; paths: string[] }>(await readBody(req), res);
+    const body = parseBody<{ topic: string; paths: string[]; diagramStyle?: string }>(await readBody(req), res);
     if (!body) return true;
     const notes = await getNotes();
     const vp = getVaultPath();
@@ -211,6 +211,7 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
       if (!note.body) note.body = await loadNoteBody(vp, note.path);
     }
     let result = '';
+    const archStyle = (['dark', 'sketch', 'minimal'].includes(body.diagramStyle ?? '') ? body.diagramStyle : 'sketch') as import('./arch-svg-builder.js').ArchStyle;
     switch (tool) {
       case 'report': result = await generateResearchReport(body.topic, selected); break;
       case 'compare': result = await generateComparisonTable(body.topic, selected); break;
@@ -220,7 +221,7 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
         // 圖表工具：diagram:flowchart、diagram:mindmap 等
         if (tool && tool.startsWith('diagram:')) {
           const diagramType = tool.slice('diagram:'.length) as DiagramType;
-          result = await generateDiagram(diagramType, body.topic, selected);
+          result = await generateDiagram(diagramType, body.topic, selected, archStyle);
           break;
         }
         json(res, { error: `未知工具：${tool}` }, 400); return true;

@@ -113,8 +113,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .msg-text .wikilink:hover{background:var(--pu3);text-decoration:underline}
 .mermaid-wrap{background:var(--bg2);border:1px solid var(--bdr);border-radius:10px;padding:16px;margin:12px 0;overflow-x:auto;text-align:center}
 .mermaid-wrap svg{max-width:100%;height:auto}
-/* 架構圖容器 — 永遠深色主題（不隨頁面主題反色，語義顏色保持正確） */
-.arch-svg-wrap{background:#020617;border:1px solid #1e293b;border-radius:12px;padding:0;margin:14px 0;overflow:auto;line-height:0;box-shadow:0 4px 24px rgba(0,0,0,.35)}
+/* 架構圖容器 — 依風格自適應（dark/sketch/minimal） */
+.diag-style-row{display:flex;align-items:center;gap:6px;margin-top:10px;flex-wrap:wrap}
+.diag-style-label{font-size:11px;color:var(--txt3);white-space:nowrap;margin-right:2px}
+.diag-style-btn{font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid var(--bdr);background:var(--bg2);color:var(--txt2);cursor:pointer;transition:all .15s}
+.diag-style-btn:hover{border-color:var(--pu2);color:var(--pu2)}
+.diag-style-btn.on{background:var(--pu3);border-color:var(--pu2);color:var(--pu2);font-weight:600}
+.arch-svg-wrap{border-radius:12px;padding:0;margin:14px 0;overflow:auto;line-height:0}
+.arch-svg-wrap.style-dark{background:#020617;border:1px solid #1e293b;box-shadow:0 4px 24px rgba(0,0,0,.35)}
+.arch-svg-wrap.style-sketch{background:#fafaf9;border:1px solid #e2e8f0;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+.arch-svg-wrap.style-minimal{background:#fff;border:1px solid #e2e8f0;box-shadow:0 1px 8px rgba(0,0,0,.06)}
 .arch-svg-wrap svg{width:100%;height:auto;display:block;border-radius:12px}
 /* 工具結果標題列 */
 .tool-result-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--bg2);border:1px solid var(--bdr);border-radius:10px 10px 0 0;margin-bottom:-1px;border-bottom:2px solid var(--pu3)}
@@ -693,7 +701,8 @@ function renderMd(s){
       var decoded=code.replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').trim();
       // 基本安全檢查：只允許 <svg 開頭的代碼
       if(!decoded.startsWith('<svg'))return'<pre><code>'+code+'</code></pre>';
-      return '<div class="arch-svg-wrap">'+decoded+'</div>';
+      var styleClass='style-'+(localStorage.getItem('rd-diagram-style')||'sketch');
+      return '<div class="arch-svg-wrap '+styleClass+'">'+decoded+'</div>';
     });
     return html;
   }
@@ -1056,8 +1065,14 @@ function renderRight(){
       {icon:'⏱️',label:'時間軸',tool:'diagram:timeline'},
       {icon:'↔️',label:'時序圖',tool:'diagram:sequence'},
     ];
+    var curStyle=localStorage.getItem('rd-diagram-style')||'sketch';
+    var styleOpts=[{id:'dark',label:'暗黑科技',icon:'🌑'},{id:'sketch',label:'手繪插畫',icon:'✏️'},{id:'minimal',label:'簡約白',icon:'⬜'}];
+    var styleRow='<div class="diag-style-row"><span class="diag-style-label">圖表風格</span>'
+      +styleOpts.map(s=>'<button class="diag-style-btn'+(curStyle===s.id?' on':'')+'" onclick="setDiagStyle(\''+s.id+'\',this)">'+s.icon+' '+s.label+'</button>').join('')
+      +'</div>';
     var diagBody=(noTopic?'<div class="tool-section-note">請先輸入主題以啟用</div>':'')
-      +diagrams.map(d=>'<button class="tool-btn'+eDis+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('');
+      +diagrams.map(d=>'<button class="tool-btn'+eDis+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('')
+      +styleRow;
 
     // 提示工具
     var promptBody=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
@@ -1122,6 +1137,11 @@ function _adDemo(mode){
   return'<div class="ad-demo">'+demoA+demoB+'</div>';
 }
 
+function setDiagStyle(style,btn){
+  localStorage.setItem('rd-diagram-style',style);
+  document.querySelectorAll('.diag-style-btn').forEach(function(b){b.classList.remove('on');});
+  if(btn)btn.classList.add('on');
+}
 function setADMode(mode){_ADConfig.mode=mode;renderRight();}
 function toggleADType(type){
   var types=_ADConfig.types;
@@ -1195,7 +1215,7 @@ async function runTool(tool){
   msgEl.innerHTML='<div class="msg-ava ai">'+t('research.avatarAI')+'</div><div class="msg-body"><div class="msg-role">'+t('research.roleAI')+'</div><div class="msg-text" style="color:var(--txt3)">'+t('research.generating')+'</div></div>';
   $('messages').appendChild(msgEl);$('messages').scrollTop=$('messages').scrollHeight;
   try{
-    const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected]})});
+    const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],diagramStyle:localStorage.getItem('rd-diagram-style')||'sketch'})});
     const d=await r.json();
     const meta=TOOL_LABELS[tool]||{icon:'🔧',label:tool};
     S.history.push({role:'assistant',content:d.result,_tool:tool});renderMessages();

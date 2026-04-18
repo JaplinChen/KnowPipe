@@ -3,7 +3,7 @@
  */
 import { runLocalLlmPrompt } from '../utils/local-llm.js';
 import { buildNoteContext } from './vault-reader.js';
-import { parseArchSpec, buildArchitectureSvg } from './arch-svg-builder.js';
+import { parseArchSpec, buildArchitectureSvg, type ArchStyle } from './arch-svg-builder.js';
 import type { NoteRecord } from './types.js';
 
 function stripThinkingTags(text: string): string {
@@ -47,6 +47,7 @@ export async function generateDiagram(
   type: DiagramType,
   topic: string,
   notes: NoteRecord[],
+  style: ArchStyle = 'sketch',
 ): Promise<string> {
   const context = buildNoteContext(notes, topic);
   const templatePrompt = DIAGRAM_PROMPTS[type] ?? DIAGRAM_PROMPTS.flowchart;
@@ -70,7 +71,7 @@ export async function generateDiagram(
       if (retry) spec = parseArchSpec(stripThinkingTags(retry));
     }
     if (spec && spec.nodes.length > 0) {
-      return '```svg\n' + buildArchitectureSvg(spec) + '\n```';
+      return '```svg\n' + buildArchitectureSvg(spec, style) + '\n```';
     }
     return '（架構圖生成失敗：LLM 未回傳有效 JSON，請稍後重試）';
   }
