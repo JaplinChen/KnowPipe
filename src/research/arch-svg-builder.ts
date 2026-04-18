@@ -142,12 +142,12 @@ export function buildArchitectureSvg(spec: ArchSpec): string {
         // 同欄：向右彎避免線條穿過中間節點
         const bow = BOX_W / 2 + 40;
         const cpx = src.cx + bow;
-        pathD = `M ${x1} ${y1} C ${cpx} ${y1 + dist * 0.35} ${cpx} ${y2 - dist * 0.35} ${x2} ${y2}`;
+        pathD = `M ${x1} ${y1} C ${cpx} ${y1 + dy * 0.35} ${cpx} ${y2 - dy * 0.35} ${x2} ${y2}`;
         lx = Math.round(src.cx + bow * 0.7);
         ly = Math.round((y1 + y2) / 2);
       } else {
-        // 不同欄垂直主導：S 型曲線
-        pathD = `M ${x1} ${y1} C ${x1} ${y1 + dist * 0.45} ${x2} ${y2 - dist * 0.45} ${x2} ${y2}`;
+        // 不同欄垂直主導：C 型曲線
+        pathD = `M ${x1} ${y1} C ${x1} ${y1 + dy * 0.45} ${x2} ${y2 - dy * 0.45} ${x2} ${y2}`;
         lx = Math.round((x1 + x2) / 2);
         ly = Math.round((y1 + y2) / 2) - 6;
       }
