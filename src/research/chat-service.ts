@@ -7,8 +7,8 @@ import { isOmlxAvailable, omlxStreamCompletion } from '../utils/omlx-client.js';
 import { buildNoteContext } from './vault-reader.js';
 import type { NoteRecord, ChatMessage, AnalysisOverview } from './types.js';
 
-export type { DiagramType } from './diagram-service.js';
-export { generateDiagram } from './diagram-service.js';
+export type { DiagramType, DiagramSuggestion } from './diagram-service.js';
+export { generateDiagram, analyzeForDiagrams } from './diagram-service.js';
 
 /* ── 工具函式 ────────────────────────────────────────────────── */
 
@@ -201,12 +201,15 @@ export async function generateTeachingOutline(
 /**
  * 以筆記為上下文串流對話，透過 oMLX SSE 逐 token 回傳。
  * 若 oMLX 不可用，回退為一次性完整回覆。
+ * opts.autodiagramA — 在 prompt 中注入模式A插圖標記指令
+ * opts.allowedTypes — 允許的圖表類型清單
  */
 export async function* streamChatWithNotes(
   topic: string,
   notes: NoteRecord[],
   history: ChatMessage[],
   userMessage: string,
+  opts: { autodiagramA?: boolean; allowedTypes?: string[] } = {},
 ): AsyncGenerator<string> {
   if (!(await isOmlxAvailable())) {
     // 回退：整段完成再 yield
@@ -221,8 +224,14 @@ export async function* streamChatWithNotes(
     .map((m) => `${m.role === 'user' ? '使用者' : '助手'}：${m.content}`)
     .join('\n\n');
 
+  const diagramInstruction = opts.autodiagramA
+    ? `\n\n【插圖規則】若回覆涉及架構、流程、步驟或比較，可在相關段落後插入標記：[DIAGRAM:type:主題]。`
+      + `type 限：${(opts.allowedTypes ?? ['flowchart', 'architecture']).join('/')}。`
+      + '整個回覆最多插入 2 個標記，只在確實有助理解時才插入，不強制插入。'
+    : '';
+
   const fullPrompt = [
-    systemPrompt,
+    systemPrompt + diagramInstruction,
     historyText ? `\n\n對話歷史：\n${historyText}` : '',
     `\n\n使用者：${userMessage}`,
     '\n\n助手：',

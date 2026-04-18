@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { scanVaultNotes, searchNotes, loadNoteBody } from './vault-reader.js';
 import { compressBatch, getCacheStats } from './compress-cache.js';
 import { preprocessText } from './text-cleaner.js';
-import { analyzeNotes, chatWithNotes, streamChatWithNotes, generateResearchReport, generateComparisonTable, generateAnkiCards, generateTeachingOutline, generateDiagram } from './chat-service.js';
+import { analyzeNotes, chatWithNotes, streamChatWithNotes, generateResearchReport, generateComparisonTable, generateAnkiCards, generateTeachingOutline, generateDiagram, analyzeForDiagrams } from './chat-service.js';
 import type { DiagramType } from './chat-service.js';
 import type { NoteRecord, ChatMessage, CleanLevel } from './types.js';
 import { handleVaultManageRequest } from './vault-manage-routes.js';
@@ -111,7 +111,7 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
 
   // SSE 串流對話
   if (url === '/api/research/chat/stream' && method === 'POST') {
-    const body = parseBody<{ topic: string; paths: string[]; history: ChatMessage[]; message: string }>(await readBody(req), res);
+    const body = parseBody<{ topic: string; paths: string[]; history: ChatMessage[]; message: string; autodiagramA?: boolean; allowedDiagramTypes?: string[] }>(await readBody(req), res);
     if (!body) return true;
     const notes = await getNotes();
     const vp = getVaultPath();
@@ -124,12 +124,28 @@ export async function handleResearchRequest(req: IncomingMessage, res: ServerRes
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
     try {
-      for await (const chunk of streamChatWithNotes(body.topic, selected, body.history, body.message)) {
+      for await (const chunk of streamChatWithNotes(body.topic, selected, body.history, body.message, {
+        autodiagramA: body.autodiagramA,
+        allowedTypes: body.allowedDiagramTypes,
+      })) {
         res.write(`data: ${JSON.stringify({ delta: chunk })}\n\n`);
       }
     } catch { /* ignore mid-stream errors */ }
     res.write('data: [DONE]\n\n');
     res.end();
+    return true;
+  }
+
+  // 模式B：後處理自動插圖分析
+  if (url === '/api/research/auto-diagram' && method === 'POST') {
+    const body = parseBody<{ replyText: string; allowedTypes: DiagramType[]; maxDiagrams: number }>(await readBody(req), res);
+    if (!body) return true;
+    const suggestions = await analyzeForDiagrams(
+      body.replyText,
+      body.allowedTypes ?? ['flowchart'],
+      Math.min(body.maxDiagrams ?? 2, 3),
+    );
+    json(res, { suggestions });
     return true;
   }
 

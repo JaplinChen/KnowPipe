@@ -306,6 +306,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .mgmt-btn.cancel:hover{border-color:var(--bdr2);color:var(--txt1)}
 .mgmt-btn.danger{background:none;border-color:#e74c3c;color:#e74c3c}
 .mgmt-btn.danger:hover{background:#e74c3c;color:#fff}
+/* ── 自動插圖設定 ── */
+.autodiag-panel{background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:6px}
+.autodiag-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
+.autodiag-row:last-child{margin-bottom:0}
+.autodiag-label{font-size:11px;color:var(--txt3);font-weight:600;width:30px;flex-shrink:0;padding-top:3px}
+.autodiag-grp{display:flex;flex-wrap:wrap;gap:4px;flex:1}
+.autodiag-btn{background:var(--bg1);border:1px solid var(--bdr);border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;color:var(--txt2);font-family:inherit;transition:all .15s;white-space:nowrap}
+.autodiag-btn:hover{border-color:var(--bdr2);color:var(--txt1)}
+.autodiag-btn.on{background:var(--pu2);border-color:var(--pu3);color:var(--pu);font-weight:600}
+.autodiag-loading{color:var(--txt3);font-size:12px;margin-top:8px;display:flex;align-items:center;gap:5px;font-style:italic}
 </style>
 </head>
 <body>
@@ -496,6 +506,16 @@ document.addEventListener('click', function(e) { var sw = document.querySelector
 
 const S={notes:[],selected:new Set(),topic:'',history:[],overview:null,tab:'overview',folderOpen:{},activeTag:'',allTags:[]};
 const $=id=>document.getElementById(id);
+
+// 自動插圖設定（存 localStorage）
+var _ADConfig={
+  get mode(){return localStorage.getItem('rd-ad-mode')||'off';},
+  set mode(v){localStorage.setItem('rd-ad-mode',v);},
+  get types(){try{return JSON.parse(localStorage.getItem('rd-ad-types')||'["flowchart","architecture"]');}catch{return['flowchart','architecture'];}},
+  set types(v){localStorage.setItem('rd-ad-types',JSON.stringify(v));},
+  get max(){return parseInt(localStorage.getItem('rd-ad-max')||'2',10);},
+  set max(v){localStorage.setItem('rd-ad-max',String(v));},
+};
 
 async function loadNotes(q){
   const url=q?'/api/research/notes?q='+encodeURIComponent(q):'/api/research/notes';
@@ -857,7 +877,8 @@ async function sendMsg(){
   const textEl=msgEl.querySelector('.stream-bubble');
 
   let fullText='';
-  const payload=JSON.stringify({topic:S.topic,paths:[...S.selected],history:S.history,message:txt});
+  var _adMode=_ADConfig.mode;
+  const payload=JSON.stringify({topic:S.topic,paths:[...S.selected],history:S.history,message:txt,autodiagramA:_adMode==='a'||_adMode==='ab',allowedDiagramTypes:_ADConfig.types});
 
   try{
     const resp=await fetch('/api/research/chat/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:payload});
@@ -896,6 +917,23 @@ async function sendMsg(){
       if(textEl)textEl.textContent=t('research.error')+(e instanceof Error?e.message:String(e));
       return;
     }
+  }
+
+  // 自動插圖後處理（模式A/B）
+  if(_adMode!=='off'&&fullText&&textEl){
+    textEl.insertAdjacentHTML('beforeend','<div class="autodiag-loading">🖼 正在生成插圖…</div>');
+    $('messages').scrollTop=$('messages').scrollHeight;
+    try{
+      if((_adMode==='a'||_adMode==='ab')&&fullText.includes('[DIAGRAM:')){
+        fullText=await _processDiagramMarkers(fullText);
+      }
+      if(_adMode==='b'||_adMode==='ab'){
+        fullText=await _processAutoDiagramB(fullText);
+      }
+      textEl.innerHTML=renderMd(fullText)||'…';
+      setTimeout(runMermaid,80);
+      $('messages').scrollTop=$('messages').scrollHeight;
+    }catch{/* 插圖失敗不影響主對話 */}
   }
 
   S.history.push({role:'assistant',content:fullText});
@@ -1003,12 +1041,77 @@ function renderRight(){
     h+='<div class="overview-section"><h3>提示工具</h3>';
     h+=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
     h+='</div>';
+    // 自動插圖設定
+    var adMode=_ADConfig.mode,adTypes=_ADConfig.types,adMax=_ADConfig.max;
+    var _MODES=[{id:'off',label:'關閉'},{id:'a',label:'LLM標記'},{id:'b',label:'智能分析'},{id:'ab',label:'兩者'}];
+    var _DTYPES=[{id:'architecture',label:'架構圖'},{id:'flowchart',label:'流程圖'},{id:'mindmap',label:'心智圖'},{id:'sequence',label:'時序圖'},{id:'timeline',label:'時間軸'}];
+    h+='<div class="overview-section"><h3>🖼 自動插圖</h3><div class="autodiag-panel">';
+    h+='<div class="autodiag-row"><span class="autodiag-label">模式</span><div class="autodiag-grp">';
+    h+=_MODES.map(m=>'<button class="autodiag-btn'+(adMode===m.id?' on':'')+'" onclick="setADMode(\''+m.id+'\')">'+m.label+'</button>').join('');
+    h+='</div></div>';
+    if(adMode!=='off'){
+      h+='<div class="autodiag-row"><span class="autodiag-label">類型</span><div class="autodiag-grp">';
+      h+=_DTYPES.map(dt=>'<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>').join('');
+      h+='</div></div>';
+      h+='<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">';
+      h+=[1,2,3].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('');
+      h+='</div></div>';
+    }
+    h+='</div></div>';
     el.innerHTML=h;
     window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
   }else if(S.tab==='slides'){
     el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>'
       +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>';
   }
+}
+
+function setADMode(mode){_ADConfig.mode=mode;renderRight();}
+function toggleADType(type){
+  var types=_ADConfig.types;
+  var idx=types.indexOf(type);
+  if(idx>=0){if(types.length>1)types.splice(idx,1);}else types.push(type);
+  _ADConfig.types=types;renderRight();
+}
+function setADMax(n){_ADConfig.max=n;renderRight();}
+
+async function _fetchDiagram(type,topic){
+  var r=await fetch('/api/research/tools/diagram:'+type,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
+  var d=await r.json();return d.result||'';
+}
+
+async function _processDiagramMarkers(text){
+  var RE=/\[DIAGRAM:(flowchart|mindmap|timeline|sequence|architecture):([^\]\n]{1,60})\]/g;
+  var matches=[],m,max=_ADConfig.max,types=_ADConfig.types;
+  while((m=RE.exec(text))!==null&&matches.length<max){
+    if(types.includes(m[1]))matches.push({full:m[0],type:m[1],topic:m[2].trim()});
+  }
+  for(var i=0;i<matches.length;i++){
+    var r=matches[i];
+    try{var svg=await _fetchDiagram(r.type,r.topic);text=text.replace(r.full,svg?'\n\n'+svg+'\n\n':'');}
+    catch{text=text.replace(r.full,'');}
+  }
+  return text.replace(/\[DIAGRAM:[^\]]*\]/g,'');
+}
+
+async function _processAutoDiagramB(text){
+  var types=_ADConfig.types,max=_ADConfig.max;
+  try{
+    var resp=await fetch('/api/research/auto-diagram',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({replyText:text,allowedTypes:types,maxDiagrams:max})});
+    var d=await resp.json();
+    if(!d.suggestions||!d.suggestions.length)return text;
+    for(var i=0;i<d.suggestions.length;i++){
+      var s=d.suggestions[i];
+      try{
+        var svg=await _fetchDiagram(s.type,s.topic);
+        if(!svg)continue;
+        var idx=text.indexOf(s.anchor);
+        if(idx>=0){var paraEnd=text.indexOf('\n\n',idx+s.anchor.length);var ins=paraEnd>=0?paraEnd:text.length;text=text.slice(0,ins)+'\n\n'+svg+text.slice(ins);}
+        else text+='\n\n'+svg;
+      }catch{}
+    }
+  }catch{}
+  return text;
 }
 
 function askQuestion(q){$('chatInput').value=q;sendMsg();}
