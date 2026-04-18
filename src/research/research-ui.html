@@ -306,6 +306,13 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .mgmt-btn.cancel:hover{border-color:var(--bdr2);color:var(--txt1)}
 .mgmt-btn.danger{background:none;border-color:#e74c3c;color:#e74c3c}
 .mgmt-btn.danger:hover{background:#e74c3c;color:#fff}
+/* ── 工具類別摺疊 ── */
+.t-sec{margin-bottom:2px}
+.t-sec-hdr{display:flex;align-items:center;gap:6px;padding:7px 2px;cursor:pointer;color:var(--txt3);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;user-select:none;border-radius:5px;transition:color .15s}
+.t-sec-hdr:hover{color:var(--txt2)}
+.t-sec-arrow{font-size:9px;transition:transform .2s;flex-shrink:0;width:12px;text-align:center}
+.t-sec-arrow.open{transform:rotate(90deg)}
+.t-sec-body{padding-bottom:6px}
 /* ── 自動插圖設定 ── */
 .autodiag-panel{background:var(--bg2);border:1px solid var(--bdr);border-radius:8px;padding:10px 12px;margin-bottom:6px}
 .autodiag-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:7px}
@@ -316,6 +323,15 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .autodiag-btn:hover{border-color:var(--bdr2);color:var(--txt1)}
 .autodiag-btn.on{background:var(--pu2);border-color:var(--pu3);color:var(--pu);font-weight:600}
 .autodiag-loading{color:var(--txt3);font-size:12px;margin-top:8px;display:flex;align-items:center;gap:5px;font-style:italic}
+/* ── 自動插圖示意圖 ── */
+.ad-demo{margin-top:8px;border:1px solid var(--bdr);border-radius:8px;padding:8px 10px;background:var(--bg0);font-size:11px}
+.ad-demo-lbl{color:var(--txt3);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px}
+.ad-demo-bubble{background:var(--bg1);border:1px solid var(--bdr);border-radius:8px;padding:6px 10px;margin:4px 0;color:var(--txt2);line-height:1.7;font-size:11.5px}
+.ad-demo-tag{display:inline-block;background:var(--pu);color:#fff;border-radius:4px;padding:0 5px;font-family:'SF Mono',Monaco,monospace;font-size:10px;vertical-align:middle;margin:1px 0}
+.ad-demo-chart{background:var(--bg2);border:1px dashed var(--pu3);border-radius:6px;padding:5px 8px;margin:4px 0;text-align:center}
+.ad-demo-flow{display:flex;align-items:center;justify-content:center;gap:3px;padding:2px 0}
+.ad-demo-node{background:var(--pu2);border:1px solid var(--pu3);border-radius:4px;padding:2px 7px;color:var(--pu);font-size:10px;white-space:nowrap}
+.ad-demo-arr{color:var(--txt3);font-size:12px}
 </style>
 </head>
 <body>
@@ -1022,16 +1038,17 @@ function renderRight(){
     ];
     var noAnalysis=!S.overview,noTopic=!S.topic;
     var eDis=noTopic?' disabled':'',tDis=noAnalysis?' disabled':'';
-    let h='<div class="overview-section"><h3>'+t('research.quickExport')+'</h3>';
-    if(noTopic)h+='<div class="tool-section-note">請先執行分析以啟用匯出</div>';
-    h+='<button class="tool-btn'+eDis+'" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>';
-    h+='<button class="tool-btn'+eDis+'" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button></div>';
-    h+='<div class="overview-section"><h3>'+t('research.aiTools')+'</h3>';
-    if(noAnalysis)h+='<div class="tool-section-note">請先執行分析以啟用 AI 工具</div>';
-    h+=apiTools.map(a=>'<button class="tool-btn'+tDis+'" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
-    h+='</div>';
-    h+='<div class="overview-section"><h3>圖表生成</h3>';
-    if(noTopic)h+='<div class="tool-section-note">請先輸入主題以啟用</div>';
+
+    // 快速匯出
+    var exportBody=(noTopic?'<div class="tool-section-note">請先執行分析以啟用匯出</div>':'')
+      +'<button class="tool-btn'+eDis+'" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>'
+      +'<button class="tool-btn'+eDis+'" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>';
+
+    // AI 工具
+    var aiBody=(noAnalysis?'<div class="tool-section-note">請先執行分析以啟用 AI 工具</div>':'')
+      +apiTools.map(a=>'<button class="tool-btn'+tDis+'" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
+
+    // 圖表生成
     var diagrams=[
       {icon:'🔀',label:'流程圖',tool:'diagram:flowchart'},
       {icon:'🧠',label:'心智圖',tool:'diagram:mindmap'},
@@ -1039,34 +1056,70 @@ function renderRight(){
       {icon:'⏱️',label:'時間軸',tool:'diagram:timeline'},
       {icon:'↔️',label:'時序圖',tool:'diagram:sequence'},
     ];
-    h+=diagrams.map(d=>'<button class="tool-btn'+eDis+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('');
-    h+='</div>';
-    h+='<div class="overview-section"><h3>提示工具</h3>';
-    h+=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
-    h+='</div>';
-    // 自動插圖設定
+    var diagBody=(noTopic?'<div class="tool-section-note">請先輸入主題以啟用</div>':'')
+      +diagrams.map(d=>'<button class="tool-btn'+eDis+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('');
+
+    // 提示工具
+    var promptBody=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
+
+    // 自動插圖
     var adMode=_ADConfig.mode,adTypes=_ADConfig.types,adMax=_ADConfig.max;
     var _MODES=[{id:'off',label:'關閉'},{id:'a',label:'LLM標記'},{id:'b',label:'智能分析'},{id:'ab',label:'兩者'}];
     var _DTYPES=[{id:'architecture',label:'架構圖'},{id:'flowchart',label:'流程圖'},{id:'mindmap',label:'心智圖'},{id:'sequence',label:'時序圖'},{id:'timeline',label:'時間軸'}];
-    h+='<div class="overview-section"><h3>🖼 自動插圖</h3><div class="autodiag-panel">';
-    h+='<div class="autodiag-row"><span class="autodiag-label">模式</span><div class="autodiag-grp">';
-    h+=_MODES.map(m=>'<button class="autodiag-btn'+(adMode===m.id?' on':'')+'" onclick="setADMode(\''+m.id+'\')">'+m.label+'</button>').join('');
-    h+='</div></div>';
+    var adBody='<div class="autodiag-panel"><div class="autodiag-row"><span class="autodiag-label">模式</span><div class="autodiag-grp">'
+      +_MODES.map(m=>'<button class="autodiag-btn'+(adMode===m.id?' on':'')+'" onclick="setADMode(\''+m.id+'\')">'+m.label+'</button>').join('')
+      +'</div></div>';
     if(adMode!=='off'){
-      h+='<div class="autodiag-row"><span class="autodiag-label">類型</span><div class="autodiag-grp">';
-      h+=_DTYPES.map(dt=>'<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>').join('');
-      h+='</div></div>';
-      h+='<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">';
-      h+=[1,2,3].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('');
-      h+='</div></div>';
+      adBody+='<div class="autodiag-row"><span class="autodiag-label">類型</span><div class="autodiag-grp">'
+        +_DTYPES.map(dt=>'<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>').join('')
+        +'</div></div>'
+        +'<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">'
+        +[1,2,3].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('')
+        +'</div></div>';
     }
-    h+='</div></div>';
+    adBody+='</div>'+_adDemo(adMode);
+
+    let h=_tsec('export','📥',t('research.quickExport'),exportBody)
+      +_tsec('ai','🤖',t('research.aiTools'),aiBody)
+      +_tsec('diagram','📊','圖表生成',diagBody)
+      +_tsec('prompt','💡','提示工具',promptBody)
+      +_tsec('autodiag','🖼','自動插圖',adBody);
     el.innerHTML=h;
     window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
   }else if(S.tab==='slides'){
     el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>'
       +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>';
   }
+}
+
+var _toolOpen={export:false,ai:true,diagram:true,prompt:false,autodiag:true};
+function toggleToolSec(id){_toolOpen[id]=!_toolOpen[id];renderRight();}
+
+function _tsec(id,icon,label,body){
+  var open=_toolOpen[id]!==false;
+  return '<div class="t-sec"><div class="t-sec-hdr" onclick="toggleToolSec(\''+id+'\')">'
+    +'<span class="t-sec-arrow'+(open?' open':'')+'">▶</span>'+icon+' '+label
+    +'</div>'+(open?'<div class="t-sec-body">'+body+'</div>':'')+'</div>';
+}
+
+function _adDemo(mode){
+  if(mode==='off')return'';
+  var demoA='<div class="ad-demo-lbl">模式 A — LLM 在回覆中標記插圖位置</div>'
+    +'<div class="ad-demo-bubble">解釋 CI/CD 的部署流程...<br>'
+    +'<span class="ad-demo-tag">[DIAGRAM:flowchart:CI/CD流程]</span><br>'
+    +'此標記會自動展開為圖表↓</div>'
+    +'<div class="ad-demo-chart"><div class="ad-demo-flow">'
+    +'<div class="ad-demo-node">推送代碼</div><span class="ad-demo-arr">→</span>'
+    +'<div class="ad-demo-node">CI 測試</div><span class="ad-demo-arr">→</span>'
+    +'<div class="ad-demo-node">部署</div>'
+    +'</div></div>';
+  var demoB='<div class="ad-demo-lbl">模式 B — 智能分析，在段落後自動插圖</div>'
+    +'<div class="ad-demo-bubble">回覆完成後，AI 掃描哪些段落需要視覺化，然後自動插入↓</div>'
+    +'<div class="ad-demo-bubble">微服務架構由前端、API 閘道、服務層構成…</div>'
+    +'<div class="ad-demo-chart" style="color:var(--pu);font-size:11px">🏗️ 架構圖自動插入此處</div>';
+  if(mode==='a')return'<div class="ad-demo">'+demoA+'</div>';
+  if(mode==='b')return'<div class="ad-demo">'+demoB+'</div>';
+  return'<div class="ad-demo">'+demoA+demoB+'</div>';
 }
 
 function setADMode(mode){_ADConfig.mode=mode;renderRight();}
