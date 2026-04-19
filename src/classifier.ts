@@ -86,10 +86,21 @@ export async function classifyContent(_title: string, _text: string): Promise<st
 export function extractKeywords(title: string, text: string): string[] {
   const winner = classifyWithKeywords(title, text);
   const cat = CATEGORIES.find(c => c.name === winner);
-  if (!cat) return [];
   const titleH = title.toLowerCase();
   const bodyH = text.toLowerCase();
-  return cat.keywords
-    .filter(kw => keywordMatch(titleH, kw) || keywordMatch(bodyH, kw))
-    .slice(0, 5);
+
+  // Primary: category keywords that appear in content
+  const catMatches = cat
+    ? cat.keywords.filter(kw => keywordMatch(titleH, kw) || keywordMatch(bodyH, kw))
+    : [];
+
+  // Fallback: extract meaningful CJK/English words from title when category matching is thin
+  const titleWords: string[] = [];
+  if (catMatches.length < 3) {
+    const cjk = title.match(/[\u4e00-\u9fff\u3040-\u30ff]{2,6}/g) ?? [];
+    const eng = title.match(/\b[A-Za-z][a-z]{2,}\b/g)?.map(w => w.toLowerCase()) ?? [];
+    titleWords.push(...cjk.slice(0, 4), ...eng.slice(0, 3));
+  }
+
+  return [...new Set([...catMatches, ...titleWords])].slice(0, 5);
 }
