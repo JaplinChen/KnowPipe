@@ -55,6 +55,33 @@ function collectContentSentences(content: ExtractedContent, displayText: string)
     .filter((s) => s.length >= 10 && !isLikelyStatsLine(s));
 }
 
+/**
+ * 判斷兩個欄位是否高度重複。
+ * 用字元集合覆蓋率：若 b 的 70% 字元都出現在 a 的滑動視窗中，視為重複。
+ * 故意使用輕量字串比對，避免引入外部依賴。
+ */
+function isDuplicateContent(a: string, b: string): boolean {
+  const normalize = (s: string) =>
+    s.replace(/[，。！？、：；\s]/g, '').toLowerCase();
+  const na = normalize(a);
+  const nb = normalize(b);
+  if (!na || !nb) return false;
+  // 子字串包含：其中一方完全被另一方涵蓋
+  if (na.includes(nb) || nb.includes(na)) return true;
+  // 字元 n-gram 覆蓋率：用 3-gram 判斷
+  const ngrams = (s: string, n: number): Set<string> => {
+    const set = new Set<string>();
+    for (let i = 0; i <= s.length - n; i++) set.add(s.slice(i, i + n));
+    return set;
+  };
+  const gA = ngrams(na, 3);
+  const gB = ngrams(nb, 3);
+  if (gB.size === 0) return false;
+  let overlap = 0;
+  for (const g of gB) if (gA.has(g)) overlap++;
+  return overlap / gB.size > 0.7;
+}
+
 function looksGeneric(input: string): boolean {
   const text = input.trim();
   if (!text) return true;
@@ -164,11 +191,15 @@ export function assembleNote(
     lines.push('## 重點摘要', '', cleanSummary.slice(0, 300).replace(/\n/g, ' ').trim(), '');
   }
 
-  const cleanAnalysis = content.enrichedAnalysis
+  const rawAnalysis = content.enrichedAnalysis
     && isReadableText(content.enrichedAnalysis)
     && !looksGeneric(content.enrichedAnalysis)
     ? content.enrichedAnalysis
     : fallbackAnalysis(content, displayText);
+  // 若 analysis 與 summary 高度重複則不渲染，避免三個 section 複述同一句話
+  const cleanAnalysis = rawAnalysis && cleanSummary && isDuplicateContent(cleanSummary, rawAnalysis)
+    ? null
+    : rawAnalysis;
   if (cleanAnalysis) {
     lines.push('## 內容分析', '', cleanAnalysis.replace(/\n/g, ' ').trim(), '');
   }

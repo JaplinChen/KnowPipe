@@ -13,6 +13,14 @@ interface ArticleMediaEntity {
   };
 }
 
+interface FxTweetThread {
+  text: string;
+  media?: {
+    photos?: Array<{ url: string }>;
+    videos?: Array<{ url: string; thumbnail_url: string; type: 'video' | 'gif' }>;
+  };
+}
+
 interface FxTweetResponse {
   code: number;
   message: string;
@@ -40,6 +48,9 @@ interface FxTweetResponse {
         blocks?: ArticleBlock[];
         media_entities?: ArticleMediaEntity[];
       };
+    };
+    thread?: {
+      tweets?: FxTweetThread[];
     };
     created_at: string;
     created_timestamp: number;
@@ -181,12 +192,29 @@ export const xExtractor: ExtractorWithComments = {
       }
     }
 
+    // 附加同作者自回覆串（thread）
+    const threadTweets = tweet.thread?.tweets ?? [];
+    const threadParts: string[] = [];
+    for (const t of threadTweets) {
+      if (t.text?.trim()) threadParts.push(t.text.trim());
+      for (const p of t.media?.photos ?? []) {
+        if (!images.includes(p.url)) images.push(p.url);
+      }
+      for (const v of t.media?.videos ?? []) {
+        videos.push({ url: v.url, thumbnailUrl: v.thumbnail_url, type: v.type });
+      }
+    }
+
+    const fullText = threadParts.length
+      ? `${text}\n\n${threadParts.join('\n\n')}`
+      : text;
+
     return {
       platform: 'x',
       author: tweet.author.name,
       authorHandle: `@${tweet.author.screen_name}`,
       title,
-      text: article?.title ? `# ${article.title}\n\n${text}` : text,
+      text: article?.title ? `# ${article.title}\n\n${fullText}` : fullText,
       images,
       videos,
       date: new Date(tweet.created_timestamp * 1000).toISOString().split('T')[0],
@@ -210,23 +238,38 @@ export const xExtractor: ExtractorWithComments = {
       const tweetEls = await page.locator('[data-testid="tweet"]').all();
       const comments: ThreadComment[] = [];
 
+      // 取 OP handle（第一個推文元素）
+      let opHandle = '';
+      try {
+        const opHref = await tweetEls[0]?.locator('[data-testid="User-Name"] a').last().getAttribute('href') ?? '';
+        opHandle = opHref.replace('/', '').toLowerCase();
+      } catch { /* ignore */ }
+
+      // thread 結束旗標：一旦出現非 OP 推文，後續即使是 OP 也視為一般回覆
+      let threadEnded = false;
+
       for (const el of tweetEls.slice(1)) {
         if (comments.length >= limit) break;
         try {
           const author = await el.locator('[data-testid="User-Name"] span').first().innerText();
           const handle = await el.locator('[data-testid="User-Name"] a').last().getAttribute('href') ?? '';
+          const cleanHandle = handle.replace('/', '').toLowerCase();
           const text = await el.locator('[data-testid="tweetText"]').innerText().catch(() => '');
           const timeEl = await el.locator('time').getAttribute('datetime').catch(() => '');
           const date = timeEl ? new Date(timeEl).toISOString().split('T')[0] : '';
 
-          if (text.trim()) {
-            comments.push({
-              author: author.trim(),
-              authorHandle: `@${handle.replace('/', '')}`,
-              text: text.trim(),
-              date,
-            });
-          }
+          if (!text.trim()) continue;
+
+          const isOp = opHandle && cleanHandle === opHandle;
+          if (!isOp) threadEnded = true;
+
+          comments.push({
+            author: author.trim(),
+            authorHandle: `@${handle.replace('/', '')}`,
+            text: text.trim(),
+            date,
+            isThreadContinuation: (isOp && !threadEnded) || undefined,
+          });
         } catch { /* skip malformed */ }
       }
       return comments;

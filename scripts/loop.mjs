@@ -24,6 +24,10 @@ writeFileSync(LOOP_PID_FILE, String(process.pid), 'utf-8');
 let running = true;
 let currentChild = null;
 
+function getNpxCommand() {
+  return process.platform === 'win32' ? 'npx.cmd' : 'npx';
+}
+
 function stopLoop(signal) {
   running = false;
   console.log(`\n[loop] 收到 ${signal}，停止重啟`);
@@ -55,18 +59,17 @@ async function run() {
     console.log(`[loop] ${timestamp()} 啟動 Bot${isDev ? ' (dev mode)' : ''}…`);
 
     const args = isDev
-      ? ['tsx', 'src/index.ts', '--force']
-      : ['node', 'dist/index.js', '--force'];
+      ? ['tsx', 'src/index.ts']
+      : ['node', 'dist/index.js'];
 
-    const child = spawn('npx', args, {
+    const child = spawn(getNpxCommand(), args, {
       cwd: ROOT,
       stdio: 'inherit',
-      shell: true,
       env: { ...process.env, LOOP_WRAPPER: '1' },
     });
 
     currentChild = child;
-    // 寫入子進程 PID，讓 /launch 可精確 kill（即使改名為 ObsBot 後仍可 kill by PID）
+    // 直接追蹤 npx 子程序，避免 shell 先退出導致 loop 誤判 bot 已崩潰。
     if (child.pid) writeFileSync(BOT_PID_FILE, String(child.pid), 'utf-8');
     const code = await new Promise((resolve) => {
       child.on('exit', (c) => resolve(c ?? 1));

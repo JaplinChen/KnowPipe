@@ -12,6 +12,8 @@ export interface ThreadComment {
   date: string;
   likes?: number;
   replies?: ThreadComment[];
+  /** True if this is the OP's own self-reply continuation in a thread */
+  isThreadContinuation?: boolean;
 }
 
 /** A transcript segment with timing information */

@@ -85,13 +85,17 @@ export async function enrichContent(
   const hasChapterRequest = !!timedTranscriptText;
   // Generate predictions only for substantive content (not flash-tier trivial posts)
   const wantPredictions = tier !== 'flash' && text.length > 400;
+  // 薄內容（原文 < 300 字）跳過 analysis，避免 LLM 複述 summary
+  const isThinContent = text.length < 300;
   const jsonKeys = isGithub
     ? 'keywords, summary, analysis, keyPoints, title, category, githubAnalysis'
     : hasChapterRequest
       ? 'keywords, summary, analysis, keyPoints, title, category, chapters'
       : wantPredictions
         ? 'keywords, summary, analysis, keyPoints, title, category, predictions'
-        : 'keywords, summary, analysis, keyPoints, title, category';
+        : isThinContent
+          ? 'keywords, summary, keyPoints, title, category'
+          : 'keywords, summary, analysis, keyPoints, title, category';
 
   const chapterPrompt = hasChapterRequest ? buildChapterPrompt(timedTranscriptText!) : [];
   const linkedContentPrompt = hasLinkedContent ? buildLinkedContentPrompt() : [];
@@ -111,6 +115,7 @@ export async function enrichContent(
     'summary: <= 120字，客觀陳述核心主題與實用價值，語氣中性專業。',
     'analysis: 2-4句，引用內容中的具體做法/技術細節，不引用情緒語言。',
     'keyPoints: 3-5條，每條<=24字，必須可執行或可驗證，不可出現泛用模板語或推銷語。',
+    'CRITICAL: summary / analysis / keyPoints 三個欄位絕對不可出現相同的句子或重複的描述。每個欄位必須提供不同維度的資訊：summary 說「是什麼」，analysis 說「怎麼做/技術原理」，keyPoints 說「能對用戶帶來什麼具體行動」。若原文內容不足以填充三個欄位，analysis 可縮短至 1 句，keyPoints 可減至 2 條，但不可直接複述 summary 的文字。',
     'title: 格式「{工具或概念名}-{簡短描述}」，<=40字，語意清楚，不要作者前綴，不要感嘆號。',
     '例：「Kaku-整合AI的深度定製終端」「Symphony-AI自動完成CI和PR」「Obsidian-雙向連結筆記管理工具」',
     'If content is insufficient, state what is missing briefly instead of inventing.',
