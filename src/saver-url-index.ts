@@ -7,9 +7,22 @@ import { safeWriteJSON } from './core/safe-write.js';
 
 const INDEX_FILE = join('data', 'url-index.json');
 
+// In-memory URL index
 let urlIndex: Map<string, string> | null = null;
+let indexBuiltAt = 0;
 // Concurrent calls share one build Promise instead of triggering multiple scans
 let indexBuilding: Promise<Map<string, string>> | null = null;
+
+/** Force the next isDuplicateUrl call to rebuild the index from disk. */
+export function invalidateUrlIndex(): void {
+  urlIndex = null;
+  indexBuilding = null;
+  indexBuiltAt = 0;
+}
+
+/** TTL: rebuild index if it has been in memory for more than 30 minutes.
+ *  Covers the case where the user manually modifies the Vault without going through saveToVault. */
+const INDEX_TTL_MS = 30 * 60 * 1000;
 
 async function loadPersistedIndex(vaultPath: string): Promise<Map<string, string> | null> {
   try {
@@ -58,11 +71,19 @@ async function buildUrlIndex(vaultPath: string): Promise<Map<string, string>> {
   return index;
 }
 
-/** Check for duplicate URL (O(1) after first scan). Concurrent calls share one build Promise. */
+/** Check for duplicate URL (O(1) after first scan). Concurrent calls share one build Promise.
+ *  Automatically rebuilds if the index is older than INDEX_TTL_MS (30 min). */
 export async function isDuplicateUrl(url: string, vaultPath: string): Promise<string | null> {
+  const stale = urlIndex !== null && (Date.now() - indexBuiltAt) > INDEX_TTL_MS;
+  if (stale) invalidateUrlIndex();
+
   if (!urlIndex) {
     if (!indexBuilding) {
-      indexBuilding = buildUrlIndex(vaultPath).then(idx => { urlIndex = idx; return idx; });
+      indexBuilding = buildUrlIndex(vaultPath).then(idx => {
+        urlIndex = idx;
+        indexBuiltAt = Date.now();
+        return idx;
+      });
     }
     urlIndex = await indexBuilding;
   }
@@ -73,6 +94,7 @@ export async function isDuplicateUrl(url: string, vaultPath: string): Promise<st
 export function updateUrlIndex(normUrl: string, mdPath: string): void {
   if (urlIndex) {
     urlIndex.set(normUrl, mdPath);
+    indexBuiltAt = Date.now(); // reset TTL on each write
     persistIndex(urlIndex).catch(() => {});
   }
 }
