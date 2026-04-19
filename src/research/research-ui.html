@@ -144,6 +144,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .msg-tool-menu.open{display:block}
 .msg-tool-item{display:flex;align-items:center;gap:7px;padding:6px 10px;border-radius:5px;cursor:pointer;font-size:12px;color:var(--txt2);white-space:nowrap;transition:background .12s}
 .msg-tool-item:hover{background:var(--bg3);color:var(--txt1)}
+.msg-tool-item.active{background:var(--bg3);color:var(--txt1);font-weight:600}
 /* Toast 提示 */
 #vaultToast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%) translateY(20px);background:#1b4332;color:#fff;padding:9px 18px;border-radius:8px;font-size:12.5px;opacity:0;pointer-events:none;transition:all .25s;z-index:2000;max-width:420px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 #vaultToast.show{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -476,11 +477,27 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 </div>
 <script>
 /* ── Mermaid init ── */
-if(typeof mermaid!=='undefined'){
-  mermaid.initialize({startOnLoad:false,theme:'base',themeVariables:{primaryColor:'#667eea',primaryTextColor:'#1a1a2e',lineColor:'#8890a4',background:'#f8f9fb'}});
+function getMermaidConfig(style){
+  var s=style||localStorage.getItem('rd-diagram-style')||'sketch';
+  if(s==='dark'||s==='retro')return{startOnLoad:false,theme:'dark'};
+  if(s==='minimal'||s==='blueprint')return{startOnLoad:false,theme:'default'};
+  // pastel — 粉彩：溫柔粉嫩
+  if(s==='pastel')return{startOnLoad:false,theme:'base',themeVariables:{
+    primaryColor:'#fdf4ff',primaryTextColor:'#6b21a8',primaryBorderColor:'#d8b4fe',
+    lineColor:'#94a3b8',background:'#fef9f6',nodeBorder:'#d8b4fe',
+    clusterBkg:'#fef9f6',edgeLabelBackground:'#fdf4ff',fontFamily:'sans-serif'
+  }};
+  // sketch — 手繪插畫：暖色紙質感
+  return{startOnLoad:false,theme:'base',themeVariables:{
+    primaryColor:'#e8d5b0',primaryTextColor:'#3d2b1f',primaryBorderColor:'#8b7355',
+    lineColor:'#8b7355',background:'#fafaf9',nodeBorder:'#8b7355',
+    clusterBkg:'#f5ede0',edgeLabelBackground:'#faf6ee',fontFamily:'Georgia,serif'
+  }};
 }
+if(typeof mermaid!=='undefined'){mermaid.initialize(getMermaidConfig());}
 function runMermaid(){
   if(typeof mermaid==='undefined')return;
+  mermaid.initialize(getMermaidConfig());
   var nodes=Array.from(document.querySelectorAll('.mermaid:not([data-processed])'));
   if(!nodes.length)return;
   mermaid.run({nodes}).catch(function(){
@@ -988,8 +1005,23 @@ function msgActionBar(i,tool){
     +'<div class="msg-tool-item" onclick="runTool(\'compare\');closeToolMenus()">📊 比較觀點表格</div>'
     +'<div class="msg-tool-item" onclick="runTool(\'anki\');closeToolMenus()">🃏 Anki 卡片</div>'
     +'<div class="msg-tool-item" onclick="runTool(\'outline\');closeToolMenus()">✏️ 教學大綱</div>'
-    +'</div></div>'
-    +'</div>';
+    +'</div></div>';
+  if(isDiagram){
+    var smid='stylemenu-'+i;
+    var curS=localStorage.getItem('rd-diagram-style')||'sketch';
+    var _sicons={dark:'🌑',sketch:'✏️',minimal:'⬜',retro:'🖥',blueprint:'📐',pastel:'🌸'};
+    h+='<span class="msg-action-sep">|</span>'
+      +'<div class="msg-tool-wrap"><button class="msg-action-btn" id="stylePickerBtn-'+i+'" onclick="toggleToolMenu(\''+smid+'\',event)">'+(_sicons[curS]||'✏️')+' 風格 ▾</button>'
+      +'<div class="msg-tool-menu" id="'+smid+'">'
+      +'<div class="msg-tool-item'+(curS==='dark'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'dark\',this)">🌑 暗黑科技</div>'
+      +'<div class="msg-tool-item'+(curS==='sketch'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'sketch\',this)">✏️ 手繪插畫</div>'
+      +'<div class="msg-tool-item'+(curS==='minimal'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'minimal\',this)">⬜ 簡約白</div>'
+      +'<div class="msg-tool-item'+(curS==='retro'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'retro\',this)">🖥 復古終端機</div>'
+      +'<div class="msg-tool-item'+(curS==='blueprint'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'blueprint\',this)">📐 工程藍圖</div>'
+      +'<div class="msg-tool-item'+(curS==='pastel'?' active':'')+'" onclick="switchDiagramStyle('+i+',\'pastel\',this)">🌸 粉彩</div>'
+      +'</div></div>';
+  }
+  h+='</div>';
   return h;
 }
 
@@ -1144,6 +1176,7 @@ function setDiagStyle(style,btn){
   localStorage.setItem('rd-diagram-style',style);
   document.querySelectorAll('.diag-style-btn').forEach(function(b){b.classList.remove('on');});
   if(btn)btn.classList.add('on');
+  if(typeof mermaid!=='undefined')mermaid.initialize(getMermaidConfig(style));
 }
 function setADMode(mode){_ADConfig.mode=mode;renderRight();}
 function toggleADType(type){
@@ -1270,6 +1303,22 @@ function rerunDiagram(idx,btn){
   var msg=S.history[idx];if(!msg||!msg._tool)return;
   var orig=btn.innerHTML;btn.innerHTML='⏳';btn.disabled=true;
   runTool(msg._tool).finally(()=>{btn.innerHTML=orig;btn.disabled=false;});
+}
+function switchDiagramStyle(idx,style,item){
+  closeToolMenus();
+  var _sicons={dark:'🌑',sketch:'✏️',minimal:'⬜',retro:'🖥',blueprint:'📐',pastel:'🌸'};
+  setDiagStyle(style,null);
+  // 更新按鈕 label
+  var pickerBtn=document.getElementById('stylePickerBtn-'+idx);
+  if(pickerBtn)pickerBtn.textContent=(_sicons[style]||'✏️')+' 風格 ▾';
+  // 更新選單 active 狀態
+  var menu=document.getElementById('stylemenu-'+idx);
+  if(menu)menu.querySelectorAll('.msg-tool-item').forEach(function(el){
+    el.classList.toggle('active',el.textContent.includes(_sicons[style]));
+  });
+  // 重新生成
+  var msg=S.history[idx];if(!msg||!msg._tool)return;
+  runTool(msg._tool);
 }
 
 async function saveAllToVault(btn){
