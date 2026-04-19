@@ -24,6 +24,7 @@ interface ParsedArgs {
   path?: string;
   sinceDays?: number;
   refetch?: boolean;
+  pendingReview?: boolean;
 }
 
 /** Parse command arguments into execution mode */
@@ -32,12 +33,13 @@ function parseArgs(text: string): ParsedArgs | null {
   const args = text.replace(/^\/reprocess\s*/, '').replace(/\u2014/g, '--').replace(/\u2013/g, '--').trim();
   if (!args) return null;
 
-  if (args.startsWith('--all') || args.startsWith('--refetch') || args.startsWith('--since')) {
+  if (args.startsWith('--all') || args.startsWith('--refetch') || args.startsWith('--since') || args.startsWith('--pending-review')) {
     const refetch = args.includes('--refetch');
+    const pendingReview = args.includes('--pending-review');
     const sinceMatch = args.match(/--since\s+(\d+)d/);
     // No --since means process ALL notes (sinceDays = undefined)
     const sinceDays = sinceMatch ? parseInt(sinceMatch[1], 10) : undefined;
-    return { mode: 'batch', sinceDays, refetch };
+    return { mode: 'batch', sinceDays, refetch, pendingReview };
   }
 
   // Single mode — optionally with --refetch flag
@@ -114,11 +116,14 @@ async function reprocessBatch(
   sinceDays: number | undefined,
   refetch: boolean,
   onProgress: (processed: number, total: number, current: string) => Promise<void>,
+  pendingReview?: boolean,
 ): Promise<{ total: number; success: number; failed: number; errors: string[] }> {
   const notes = await scanVaultNotes(config.vaultPath);
 
   let targets = notes;
-  if (sinceDays != null) {
+  if (pendingReview) {
+    targets = notes.filter(n => n.rawContent.includes('pending-review'));
+  } else if (sinceDays != null) {
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - sinceDays);
     const cutoffStr = cutoff.toISOString().slice(0, 10);
@@ -184,6 +189,7 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
         '• 單篇重新抓取：AI/Claude-Code/xxx.md --refetch',
         '• 全部重新豐富：--all',
         '• 近 N 天：--all --since 7d',
+        '• 重新處理 pending-review：--pending-review',
         '• 重新抓取（含 GitHub 元資料）：--refetch',
         '• 近 N 天重新抓取：--refetch --since 7d',
       ].join('\n')),
@@ -210,7 +216,8 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
 
   // Batch mode
   const refetch = parsed.refetch ?? false;
-  const dayLabel = parsed.sinceDays != null ? `近 ${parsed.sinceDays} 天` : '全部';
+  const pendingReview = parsed.pendingReview ?? false;
+  const dayLabel = pendingReview ? 'pending-review' : (parsed.sinceDays != null ? `近 ${parsed.sinceDays} 天` : '全部');
   const modeLabel = refetch ? '（重新抓取模式）' : '';
   const status = await ctx.reply(`正在掃描並重新處理${dayLabel}的筆記${modeLabel}...`);
 
@@ -221,7 +228,7 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
         `處理中 ${processed}/${total}：${current.slice(0, 40)}`,
       );
     } catch { /* rate limit or unchanged text */ }
-  });
+  }, pendingReview);
 
   try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
 
