@@ -14,11 +14,13 @@ function shouldFallbackToWeb(err: unknown, platform: string): boolean {
   return FALLBACK_ELIGIBLE.has(classifyError(err));
 }
 
-/** CAPTCHA / bot-detection page title patterns */
-const CAPTCHA_TITLE_RE = /^(請稍候|just a moment|security check|verif|attention required|access denied|ddos protection|one more step|enable javascript)/i;
+/** CAPTCHA / bot-detection page title patterns.
+ *  Group 1: must start the title (^).
+ *  Group 2: can appear anywhere (covers "Reddit - 請等待驗證" style prefixes). */
+const CAPTCHA_TITLE_RE = /(?:^(?:請稍候|just a moment|security check|security verif|verif|attention required|access denied|ddos protection|one more step|enable javascript)|請等待驗證|please wait.*verif|security verification)/i;
 
 /** CAPTCHA / connection-error content patterns */
-const CAPTCHA_CONTENT_RE = /正在執行安全驗證|安全服務抵禦惡意機器人|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|無法連上這個網站.*中斷連線|cloudflare.*protect|verify you are human|checking if the site connection is secure|此網站使用安全服務|Performing security verification|This website uses a security service|Please wait while we verify|你被封鎖了|You've been blocked/i;
+const CAPTCHA_CONTENT_RE = /正在執行安全驗證|安全服務抵禦惡意機器人|您已被網路安全阻擋|請登入您的\s*Reddit\s*帳號|ERR_CONNECTION_CLOSED|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|無法連上這個網站.*中斷連線|cloudflare.*protect|verify you are human|checking if the site connection is secure|此網站使用安全服務|Performing security verification|This website uses a security service|Please wait while we verify|你被封鎖了|You've been blocked/i;
 
 /** Detect useless pages (CAPTCHA / bot-block / connection error) — exported for reprocess */
 export function detectUselessPage(content: import('../../extractors/types.js').ExtractedContent): string | null {
@@ -98,10 +100,19 @@ export async function extractContentWithComments(
   }
 
   if (commentsResult.status === 'fulfilled' && commentsResult.value.length > 0) {
-    const meaningful = commentsResult.value.filter(isMeaningfulComment);
+    // Thread continuation（OP 自回覆串）— 附加到主文，不算 comment
+    const threadParts = commentsResult.value
+      .filter(c => c.isThreadContinuation && c.text.trim())
+      .map(c => c.text.trim());
+    if (threadParts.length > 0) {
+      content.text = `${content.text}\n\n${threadParts.join('\n\n')}`;
+    }
+
+    const regularComments = commentsResult.value.filter(c => !c.isThreadContinuation);
+    const meaningful = regularComments.filter(isMeaningfulComment);
     if (meaningful.length > 0) {
       content.comments = meaningful;
-      content.commentCount = commentsResult.value.length;
+      content.commentCount = regularComments.length;
     }
   }
 

@@ -1,4 +1,4 @@
-import { mkdir, writeFile, readFile, copyFile, stat } from 'node:fs/promises';
+import { mkdir, writeFile, readFile, copyFile, stat, readdir } from 'node:fs/promises';
 import { join, extname, resolve, sep } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { ExtractedContent, Platform } from './extractors/types.js';
@@ -162,6 +162,63 @@ export async function isDuplicateUrl(url: string, vaultPath: string): Promise<st
   return urlIndex.get(canonicalizeUrl(url)) ?? null;
 }
 
+/** Warn when same source domain floods the same category within a time window.
+ *  Reads only the first 300 bytes of each candidate file to extract the url field. */
+export async function warnIfDomainFlood(
+  url: string,
+  notesDir: string,
+  opts = { maxSameSource: 5, dayWindowDays: 7 },
+): Promise<void> {
+  let hostname: string;
+  try {
+    hostname = new URL(url).hostname.replace(/^www\./, '');
+  } catch {
+    return;
+  }
+
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - opts.dayWindowDays);
+  const cutoffStr = cutoff.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  let files: string[];
+  try {
+    files = await readdir(notesDir);
+  } catch {
+    return;
+  }
+
+  let count = 0;
+  for (const fname of files) {
+    if (!fname.endsWith('.md')) continue;
+    // Filename: slug-YYYY-MM-DD-platform.md — extract date segment
+    const dateMatch = fname.match(/-(\d{4}-\d{2}-\d{2})-[^-]+\.md$/);
+    if (!dateMatch || dateMatch[1] < cutoffStr) continue;
+
+    const fpath = join(notesDir, fname);
+    try {
+      const buf = Buffer.alloc(300);
+      const fd = await import('node:fs/promises').then(m => m.open(fpath, 'r'));
+      await fd.read(buf, 0, 300, 0);
+      await fd.close();
+      const head = buf.toString('utf-8');
+      const urlMatch = head.match(/^url:\s*["']?(https?:\/\/[^\s"'\n]+)/m);
+      if (!urlMatch) continue;
+      const fHost = new URL(urlMatch[1]).hostname.replace(/^www\./, '');
+      if (fHost === hostname) count++;
+    } catch {
+      continue;
+    }
+  }
+
+  if (count >= opts.maxSameSource) {
+    logger.warn('saver', `同來源 domain 近 ${opts.dayWindowDays} 天已有 ${count} 篇，留意是否重複`, {
+      hostname,
+      count,
+      dir: notesDir.split('/').slice(-2).join('/'),
+    });
+  }
+}
+
 /** Save extracted content as Obsidian Markdown + images to the vault */
 export async function saveToVault(
   content: ExtractedContent,
@@ -235,6 +292,8 @@ export async function saveToVault(
     const imagesDir = join(vaultPath, 'attachments', 'obsbot', content.platform);
     await mkdir(notesDir, { recursive: true });
     await mkdir(imagesDir, { recursive: true });
+    // Non-blocking flood warning — logs if same domain already has ≥5 notes in this category this week
+    warnIfDomainFlood(content.url, notesDir).catch(() => {});
 
     // Download images in parallel (slug-based readable filenames)
     const imageResults = await Promise.allSettled(
