@@ -48,7 +48,8 @@ function buildTranslationPrompt(title: string, text: string): string {
   const textToTranslate = text.length > 6000 ? text.slice(0, 6000) : text;
   return [
     'Translate the following English content to Traditional Chinese (zh-TW).',
-    'Return ONLY valid JSON with keys: translatedTitle, translatedText.',
+    'Return ONLY this exact JSON format (no markdown, no explanation, no code block):',
+    '{"translatedTitle": "...", "translatedText": "..."}',
     `Title: ${title}`,
     `Text: ${textToTranslate}`,
   ].join('\n');
