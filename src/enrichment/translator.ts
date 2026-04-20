@@ -54,16 +54,31 @@ function buildTranslationPrompt(title: string, text: string): string {
   ].join('\n');
 }
 
+function extractTranslatedText(raw: unknown): string | null {
+  if (typeof raw !== 'string' || raw.length === 0) return null;
+  // 防止 LLM 回傳嵌套 JSON：translatedText 本身又是 {"translatedTitle":...,"translatedText":...}
+  if (raw.trimStart().startsWith('{')) {
+    try {
+      const inner = JSON.parse(raw) as { translatedText?: unknown };
+      if (typeof inner.translatedText === 'string' && inner.translatedText.length > 0) {
+        return inner.translatedText;
+      }
+    } catch { /* fall through */ }
+  }
+  return raw;
+}
+
 function parseTranslationResponse(response: string): TranslationResult | null {
   // 優先嘗試 JSON 格式（oMLX / 嚴格 LLM 回傳）
   const match = response.match(/\{[\s\S]*\}/);
   if (match) {
     try {
       const parsed = JSON.parse(match[0]) as { translatedTitle?: unknown; translatedText?: unknown };
-      if (typeof parsed.translatedText === 'string' && parsed.translatedText.length > 0) {
+      const translatedText = extractTranslatedText(parsed.translatedText);
+      if (translatedText) {
         return {
           detectedLanguage: 'en',
-          translatedText: parsed.translatedText,
+          translatedText,
           translatedTitle: typeof parsed.translatedTitle === 'string' ? parsed.translatedTitle : undefined,
         };
       }
