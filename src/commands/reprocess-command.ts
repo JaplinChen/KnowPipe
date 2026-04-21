@@ -1,8 +1,8 @@
 /**
  * /reprocess — Re-enrich existing vault notes without re-extracting from source.
  * Single mode:  /reprocess AI/Claude-Code/xxx.md
- * Batch mode:   /reprocess --all [--since 7d]
- * Refetch mode: /reprocess --refetch [--since 7d]  (re-extracts from URL, best for GitHub)
+ * Batch mode:   /reprocess --all [--since 7d] [--source x]
+ * Refetch mode: /reprocess --refetch [--since 7d] [--source x]  (re-extracts from URL)
  */
 import type { Context } from 'telegraf';
 import { readFile } from 'node:fs/promises';
@@ -25,6 +25,7 @@ interface ParsedArgs {
   sinceDays?: number;
   refetch?: boolean;
   pendingReview?: boolean;
+  source?: string;
 }
 
 /** Parse command arguments into execution mode */
@@ -33,13 +34,15 @@ function parseArgs(text: string): ParsedArgs | null {
   const args = text.replace(/^\/reprocess\s*/, '').replace(/\u2014/g, '--').replace(/\u2013/g, '--').trim();
   if (!args) return null;
 
-  if (args.startsWith('--all') || args.startsWith('--refetch') || args.startsWith('--since') || args.startsWith('--pending-review')) {
+  if (args.startsWith('--all') || args.startsWith('--refetch') || args.startsWith('--since') || args.startsWith('--pending-review') || args.startsWith('--source')) {
     const refetch = args.includes('--refetch');
     const pendingReview = args.includes('--pending-review');
     const sinceMatch = args.match(/--since\s+(\d+)d/);
+    const sourceMatch = args.match(/--source\s+(\S+)/);
     // No --since means process ALL notes (sinceDays = undefined)
     const sinceDays = sinceMatch ? parseInt(sinceMatch[1], 10) : undefined;
-    return { mode: 'batch', sinceDays, refetch, pendingReview };
+    const source = sourceMatch ? sourceMatch[1].toLowerCase() : undefined;
+    return { mode: 'batch', sinceDays, refetch, pendingReview, source };
   }
 
   // Single mode — optionally with --refetch flag
@@ -110,6 +113,16 @@ async function reprocessSingle(
 
 const BATCH_CONCURRENCY = 3;
 
+/** Match note URL against --source platform alias (x → x.com/twitter.com, else substring) */
+function matchesSource(rawContent: string, source: string): boolean {
+  const fm = rawContent.split('\n').slice(0, 20).join('\n');
+  const urlMatch = fm.match(/^url:\s*["']?(.+?)["']?\s*$/m);
+  if (!urlMatch) return false;
+  const url = urlMatch[1].toLowerCase();
+  if (source === 'x' || source === 'twitter') return url.includes('x.com') || url.includes('twitter.com');
+  return url.includes(source);
+}
+
 /** Reprocess batch: all vault notes with concurrency control */
 async function reprocessBatch(
   config: AppConfig,
@@ -117,6 +130,7 @@ async function reprocessBatch(
   refetch: boolean,
   onProgress: (processed: number, total: number, current: string) => Promise<void>,
   pendingReview?: boolean,
+  source?: string,
 ): Promise<{ total: number; success: number; failed: number; errors: string[] }> {
   const notes = await scanVaultNotes(config.vaultPath);
 
@@ -132,6 +146,10 @@ async function reprocessBatch(
       const dateMatch = fm.match(/^date:\s*(.+)$/m);
       return dateMatch && dateMatch[1].trim() >= cutoffStr;
     });
+  }
+
+  if (source) {
+    targets = targets.filter(n => matchesSource(n.rawContent, source));
   }
 
   const result = { total: targets.length, success: 0, failed: 0, errors: [] as string[] };
@@ -192,6 +210,8 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
         '• 重新處理 pending-review：--pending-review',
         '• 重新抓取（含 GitHub 元資料）：--refetch',
         '• 近 N 天重新抓取：--refetch --since 7d',
+        '• 指定平台重新抓取：--refetch --source x',
+        '  （支援平台：x / github / youtube / reddit / zhihu …）',
       ].join('\n')),
       forceReplyMarkup('筆記路徑或 --all…'),
     );
@@ -217,9 +237,11 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
   // Batch mode
   const refetch = parsed.refetch ?? false;
   const pendingReview = parsed.pendingReview ?? false;
+  const source = parsed.source;
   const dayLabel = pendingReview ? 'pending-review' : (parsed.sinceDays != null ? `近 ${parsed.sinceDays} 天` : '全部');
+  const sourceLabel = source ? ` [${source}]` : '';
   const modeLabel = refetch ? '（重新抓取模式）' : '';
-  const status = await ctx.reply(`正在掃描並重新處理${dayLabel}的筆記${modeLabel}...`);
+  const status = await ctx.reply(`正在掃描並重新處理${dayLabel}${sourceLabel}的筆記${modeLabel}...`);
 
   const result = await reprocessBatch(config, parsed.sinceDays, refetch, async (processed, total, current) => {
     try {
@@ -228,12 +250,12 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
         `處理中 ${processed}/${total}：${current.slice(0, 40)}`,
       );
     } catch { /* rate limit or unchanged text */ }
-  }, pendingReview);
+  }, pendingReview, source);
 
   try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
 
   const lines = [
-    `重新處理完成${modeLabel}（${dayLabel}）`,
+    `重新處理完成${modeLabel}（${dayLabel}${sourceLabel}）`,
     `總計：${result.total} 篇`,
     `成功：${result.success} | 失敗：${result.failed}`,
   ];

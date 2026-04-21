@@ -12,6 +12,7 @@ import { douyinExtractor } from './douyin-extractor.js';
 import { tiktokExtractor } from './tiktok-extractor.js';
 import { ithomeExtractor } from './ithome-extractor.js';
 import { zhihuExtractor } from './zhihu-extractor.js';
+import { redditExtractor } from './reddit-extractor.js';
 import { directVideoExtractor } from './direct-video-extractor.js';
 import { webExtractor } from './web-extractor.js';
 import { loadPlugins } from '../plugins/plugin-loader.js';
@@ -32,6 +33,7 @@ const PLATFORM_EXTRACTORS: Record<string, Extractor> = {
   tiktok: tiktokExtractor,
   ithome: ithomeExtractor,
   zhihu: zhihuExtractor,
+  reddit: redditExtractor,
   'direct-video': directVideoExtractor,
 };
 

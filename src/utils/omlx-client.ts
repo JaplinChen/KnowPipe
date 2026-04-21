@@ -9,6 +9,9 @@ import type { ModelTier } from './local-llm.js';
 import { getUserConfig } from './user-config.js';
 
 const AVAILABILITY_CACHE_MS = 30_000;
+/** 507 (model load OOM) 後，跳過該 model 的冷卻時間。*/
+const MODEL_507_CACHE_MS = 60_000;
+const failed507Models = new Map<string, number>(); // modelId → failedAt
 
 /** Read base URL from user config (falls back to env var → default). */
 function getOmlxBase(): string {
@@ -137,6 +140,12 @@ export async function omlxChatCompletion(
     ...(isQwenModel ? { chat_template_kwargs: { enable_thinking: false } } : {}),
   });
 
+  // 跳過最近 507 的 model（記憶體不足時不浪費 deadline）
+  const failedAt507 = failed507Models.get(modelId);
+  if (failedAt507 !== undefined && Date.now() - failedAt507 < MODEL_507_CACHE_MS) {
+    return null;
+  }
+
   try {
     const res = await fetchWithTimeout(`${getOmlxBase()}/v1/chat/completions`, timeoutMs, {
       method: 'POST',
@@ -146,10 +155,17 @@ export async function omlxChatCompletion(
 
     if (!res.ok) {
       console.error(`[omlx] HTTP ${res.status} for model ${modelId}`);
-      invalidateCache();
+      if (res.status === 507) {
+        // 507 = model 記憶體不足；server 仍在，只快取該 model 失敗
+        failed507Models.set(modelId, Date.now());
+      } else {
+        invalidateCache();
+      }
       return null;
     }
 
+    // 成功後清除 507 快取
+    failed507Models.delete(modelId);
     return parseOmlxContent(res, `omlx:${modelId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
