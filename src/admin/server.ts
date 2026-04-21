@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -49,7 +49,36 @@ function isAllowed(req: IncomingMessage): boolean {
  *  /research 頁面 Basic Auth 成功後會 Set-Cookie，後續 API 帶 cookie 即可。
  */
 const SESSION_COOKIE = '_obs_r';
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
+const AUTH_SESSIONS_FILE = join(process.cwd(), 'data', 'research-auth-sessions.json');
 const validSessions = new Set<string>();
+
+interface StoredSession { token: string; createdAt: number; }
+
+function loadPersistedSessions(): void {
+  try {
+    if (!existsSync(AUTH_SESSIONS_FILE)) return;
+    const records = JSON.parse(readFileSync(AUTH_SESSIONS_FILE, 'utf-8')) as StoredSession[];
+    const now = Date.now();
+    for (const r of records) {
+      if (now - r.createdAt < SESSION_TTL_MS) validSessions.add(r.token);
+    }
+  } catch { /* ignore */ }
+}
+
+function persistSession(token: string): void {
+  try {
+    const now = Date.now();
+    const existing: StoredSession[] = existsSync(AUTH_SESSIONS_FILE)
+      ? (JSON.parse(readFileSync(AUTH_SESSIONS_FILE, 'utf-8')) as StoredSession[])
+          .filter(r => now - r.createdAt < SESSION_TTL_MS)
+      : [];
+    existing.push({ token, createdAt: now });
+    writeFileSync(AUTH_SESSIONS_FILE, JSON.stringify(existing), 'utf-8');
+  } catch { /* ignore */ }
+}
+
+loadPersistedSessions();
 
 function parseCookies(req: IncomingMessage): Record<string, string> {
   const raw = req.headers['cookie'] ?? '';
@@ -61,7 +90,8 @@ function parseCookies(req: IncomingMessage): Record<string, string> {
 function setSessionCookie(res: ServerResponse): string {
   const token = [Math.random(), Math.random()].map(n => n.toString(36).slice(2)).join('');
   validSessions.add(token);
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax`);
+  persistSession(token);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
   return token;
 }
 

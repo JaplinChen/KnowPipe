@@ -162,6 +162,7 @@
   "research.generating": "Đang tạo...",
   "research.generateFail": "Tạo thất bại: ",
   "research.exportFail": "Xuất thất bại: ",
+  "research.authExpired": "Phiên hết hạn, vui lòng làm mới trang (F5)",
 
   "research.prompt.knowledgeMap": "Phân tích mối quan hệ khái niệm giữa các ghi chú, mô tả kết nối bằng danh sách phân cấp.",
   "research.prompt.gaps": "Phân tích phạm vi bao phủ của các ghi chú hiện tại và chỉ ra những khía cạnh quan trọng chưa được ghi nhận.",

@@ -1272,6 +1272,7 @@ async function runTool(tool){
   $('messages').appendChild(msgEl);$('messages').scrollTop=$('messages').scrollHeight;
   try{
     const r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],diagramStyle:localStorage.getItem('rd-diagram-style')||'sketch'})});
+    if(!(r.headers.get('content-type')||'').includes('json')){throw new Error(r.status===401?t('research.authExpired'):'HTTP '+r.status+' — '+t('research.authExpired'));}
     const d=await r.json();
     const meta=TOOL_LABELS[tool]||{icon:'🔧',label:tool};
     S.history.push({role:'assistant',content:d.result,_tool:tool,_style:tool.startsWith('diagram:')?localStorage.getItem('rd-diagram-style')||'sketch':undefined});renderMessages();
@@ -1347,6 +1348,7 @@ async function _runToolInPlace(idx,tool,style){
   if(msgEl){var tb=msgEl.querySelector('.msg-text');if(tb)tb.innerHTML='<span style="color:var(--txt3)">'+t('research.generating')+'</span>';}
   try{
     var r=await fetch('/api/research/tools/'+tool,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic:S.topic,paths:[...S.selected],diagramStyle:style||localStorage.getItem('rd-diagram-style')||'sketch'})});
+    if(!(r.headers.get('content-type')||'').includes('json')){throw new Error(r.status===401?t('research.authExpired'):'HTTP '+r.status+' — '+t('research.authExpired'));}
     var d=await r.json();
     S.history[idx].content=d.result;
     S.history[idx]._style=style;

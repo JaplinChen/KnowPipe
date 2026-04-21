@@ -162,6 +162,7 @@
   "research.generating": "正在生成...",
   "research.generateFail": "生成失敗：",
   "research.exportFail": "匯出失敗：",
+  "research.authExpired": "認證逾時，請重新整理頁面（F5）",
 
   "research.prompt.knowledgeMap": "請分析筆記間的概念關聯，用階層式清單描述各主題與子主題的連結。",
   "research.prompt.gaps": "請分析目前筆記的覆蓋範圍，指出哪些重要面向尚未記錄。",

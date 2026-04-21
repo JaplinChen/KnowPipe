@@ -162,6 +162,7 @@
   "research.generating": "Generating...",
   "research.generateFail": "Generation failed: ",
   "research.exportFail": "Export failed: ",
+  "research.authExpired": "Session expired, please refresh the page (F5)",
 
   "research.prompt.knowledgeMap": "Analyze the conceptual relationships between notes and describe the connections using a hierarchical list.",
   "research.prompt.gaps": "Analyze the coverage of current notes and identify which important aspects are not yet documented.",
