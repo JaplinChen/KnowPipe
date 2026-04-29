@@ -11,6 +11,8 @@ import type { MonitorConfig } from './health-types.js';
 import { logger } from '../core/logger.js';
 import { getRegisteredExtractors } from '../extractors/index.js';
 import type { Extractor } from '../extractors/types.js';
+import { cleanupSystemProcesses, getSystemHealthSnapshot } from '../admin/system-health.js';
+import { getUserConfig } from '../utils/user-config.js';
 
 /** Send Telegram notification to owner */
 async function notify(bot: Telegraf, config: AppConfig, message: string): Promise<void> {
@@ -101,12 +103,64 @@ async function runExtractorProbeCycle(
   }
 }
 
+/** Run conservative memory cleanup cycle */
+async function runMemoryCleanupCycle(
+  bot: Telegraf,
+  config: AppConfig,
+  monConfig: MonitorConfig,
+): Promise<void> {
+  const tuning = getUserConfig().monitor;
+  if (!tuning.memoryCleanupEnabled) return;
+
+  const now = Date.now();
+  const cooldownMs = tuning.cooldownMinutes * 60 * 1000;
+  if (monConfig.lastMemoryCleanupAt) {
+    const lastTs = new Date(monConfig.lastMemoryCleanupAt).getTime();
+    if (now - lastTs < cooldownMs) return;
+  }
+
+  const snapshot = await getSystemHealthSnapshot();
+  const free = snapshot.freeMemoryPercent;
+  if (free === null || free >= tuning.freeThresholdPercent) return;
+
+  const killed = new Set<number>();
+  if (snapshot.candidates.some((candidate) => candidate.label === 'oMLX')) {
+    const result = await cleanupSystemProcesses('omlx');
+    result.killedPids.forEach((pid) => killed.add(pid));
+  }
+
+  const shouldTrimClaude = free < tuning.claudeThresholdPercent && snapshot.claudeSessions.length > 0;
+  if (shouldTrimClaude) {
+    const result = await cleanupSystemProcesses('claude-cli');
+    result.killedPids.forEach((pid) => killed.add(pid));
+  }
+
+  if (killed.size === 0) return;
+
+  monConfig.lastMemoryCleanupAt = new Date().toISOString();
+  await saveMonitorConfig(monConfig);
+
+  logger.info('monitor', '保守自動記憶體清理完成', {
+    freeMemoryPercent: free,
+    killedPids: [...killed],
+    claudeSessions: snapshot.claudeSessions.length,
+  });
+
+  await notify(bot, config, [
+    '🧹 自動記憶體清理完成',
+    `系統可用記憶體：${free}%`,
+    `已處理 PID：${[...killed].join(', ')}`,
+    `Claude sessions：${snapshot.claudeSessions.length}`,
+  ].join('\n'));
+}
+
 /** Start self-healing monitoring service */
 export async function startMonitorService(
   bot: Telegraf,
   config: AppConfig,
 ): Promise<NodeJS.Timeout[]> {
   const monConfig = await loadMonitorConfig();
+  const tuning = getUserConfig().monitor;
   const timers: NodeJS.Timeout[] = [];
 
   // Vault health cycle: check every 4 hours
@@ -127,15 +181,29 @@ export async function startMonitorService(
     ),
   );
 
+  // Conservative memory cleanup: check every 15 min
+  const memoryCleanupIntervalMs = tuning.intervalMinutes * 60 * 1000;
+  timers.push(
+    setInterval(
+      () => { runMemoryCleanupCycle(bot, config, monConfig).catch((e) => logger.warn('monitor', 'memory cleanup 失敗', { message: (e as Error).message })); },
+      memoryCleanupIntervalMs,
+    ),
+  );
+
   // Initial vault check after 10 min (non-blocking)
   setTimeout(
     () => { runVaultHealthCycle(bot, config, monConfig).catch((e) => logger.warn('monitor', 'vault 初始檢查失敗', { message: (e as Error).message })); },
     10 * 60 * 1000,
   );
+  setTimeout(
+    () => { runMemoryCleanupCycle(bot, config, monConfig).catch((e) => logger.warn('monitor', 'memory 初始清理失敗', { message: (e as Error).message })); },
+    5 * 60 * 1000,
+  );
 
   logger.info('monitor', '自我修復監控啟動', {
     vaultCheck: `${monConfig.vaultCheckHours}h`,
     extractorCheck: `${monConfig.extractorCheckHours}h`,
+    memoryCleanup: `${memoryCleanupIntervalMs / 60000}m`,
   });
 
   return timers;

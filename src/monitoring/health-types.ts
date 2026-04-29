@@ -38,6 +38,8 @@ export interface MonitorConfig {
   vaultCheckHours: number;
   /** Extractor probe interval in hours (default: 24) */
   extractorCheckHours: number;
+  /** Last conservative memory cleanup run */
+  lastMemoryCleanupAt: string | null;
   lastVaultCheckAt: string | null;
   lastExtractorCheckAt: string | null;
   extractorHealth: Record<string, ExtractorHealth>;
@@ -54,6 +56,7 @@ export interface CorrectionEvent {
 export const DEFAULT_MONITOR_CONFIG: MonitorConfig = {
   vaultCheckHours: 12,
   extractorCheckHours: 24,
+  lastMemoryCleanupAt: null,
   lastVaultCheckAt: null,
   lastExtractorCheckAt: null,
   extractorHealth: {},

@@ -14,6 +14,7 @@ import { ocrContentImages, isLikelyScreenshot } from '../../enrichment/ocr-servi
 import { cleanTitle } from '../../utils/content-cleaner.js';
 import { getUserConfig } from '../../utils/user-config.js';
 import { fetchYouTubeTranscript } from '../../utils/transcript-service.js';
+import { identifySpeakers } from '../../utils/speaker-identifier.js';
 import { isDuplicateUrl } from '../../saver.js';
 import { basename } from 'node:path';
 
@@ -85,6 +86,21 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
       content.embeddedVideoTranscripts = transcripts;
       logger.info('msg', 'embedded-video-transcripts', { count: transcripts.length });
     }
+  }
+
+  // Speaker identification: label YouTube transcripts with speaker names (opt-in)
+  if (
+    content.platform === 'youtube' &&
+    content.transcript &&
+    content.transcript.length >= 500 &&
+    features.speakerIdentification
+  ) {
+    logger.info('msg', 'running speaker identification');
+    content.transcript = await identifySpeakers(content.transcript, {
+      title: content.title,
+      author: content.author,
+      description: content.text.slice(0, 300),
+    });
   }
 
   // Build timed transcript text for chapter generation

@@ -15,6 +15,7 @@ const CHROME_COOKIE_DB = join(
 );
 const SALT = 'saltysalt';
 const IV = Buffer.alloc(16, 0x20);
+let _cachedKey: Buffer | null = null;
 
 export interface XCookies {
   ct0: string;
@@ -22,9 +23,11 @@ export interface XCookies {
 }
 
 function deriveKey(): Buffer {
+  if (_cachedKey) return _cachedKey;
   const password = execSync('security find-generic-password -s "Chrome Safe Storage" -w 2>/dev/null')
     .toString().trim();
-  return pbkdf2Sync(password, SALT, 1003, 16, 'sha1');
+  _cachedKey = pbkdf2Sync(password, SALT, 1003, 16, 'sha1');
+  return _cachedKey;
 }
 
 function decrypt(encrypted: Buffer, key: Buffer): string {

@@ -6,6 +6,8 @@ import { Markup } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { logger } from '../core/logger.js';
 import { getMonthlyCostStats, formatCostStats } from '../core/cost-tracker.js';
 
@@ -76,7 +78,20 @@ export async function handleRestartConfirm(ctx: Context): Promise<void> {
   await ctx.answerCbQuery().catch(() => {});
   await ctx.reply('🔄 正在準備重啟…');
   logger.info('admin', '收到重啟確認');
-  setTimeout(() => { process.exit(0); }, 1000);
+  setTimeout(() => {
+    // 若沒有 loop wrapper（LOOP_WRAPPER env 未設），自行 spawn loop.mjs
+    if (!process.env.LOOP_WRAPPER) {
+      const loopScript = join(process.cwd(), 'scripts', 'loop.mjs');
+      if (existsSync(loopScript)) {
+        spawn(process.execPath, [loopScript], {
+          detached: true,
+          stdio: 'ignore',
+          env: { ...process.env },
+        }).unref();
+      }
+    }
+    process.exit(0);
+  }, 1000);
 }
 
 /** admin:cancel callback — dismiss */

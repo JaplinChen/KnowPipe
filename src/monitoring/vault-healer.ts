@@ -10,48 +10,16 @@ import { extractKeywords } from '../classifier.js';
 import { detectLanguage, translateIfNeeded } from '../enrichment/translator.js';
 import type { VaultIssue, CorrectionEvent } from './health-types.js';
 import { logger } from '../core/logger.js';
-
-const CORRECTIONS_LOG = join('data', 'corrections-log.json');
-
-async function appendCorrections(events: CorrectionEvent[]): Promise<void> {
-  if (events.length === 0) return;
-  try {
-    let existing: CorrectionEvent[] = [];
-    try {
-      const raw = await readFile(CORRECTIONS_LOG, 'utf-8');
-      existing = JSON.parse(raw) as CorrectionEvent[];
-    } catch { /* 首次建立 */ }
-    // 保留最近 500 筆，避免無限增長
-    const updated = [...existing, ...events].slice(-500);
-    await writeFile(CORRECTIONS_LOG, JSON.stringify(updated, null, 2), 'utf-8');
-  } catch (err) {
-    logger.warn('vault-healer', '修正日誌寫入失敗', { err: (err as Error).message });
-  }
-}
+import { appendCorrections, extractSummaryFromBody, stripHtml } from './vault-healer-utils.js';
 
 /** 每次 heal 最多翻譯幾篇，避免週期過長 */
 const MAX_TRANSLATIONS_PER_RUN = 5;
 
-const HTML_TAG_RE = /<(?:div|span|br|p|a|img|table|tr|td|th|ul|ol|li|h[1-6])\b[^>]*\/?>/gi;
-const HTML_CLOSE_RE = /<\/(?:div|span|p|a|table|tr|td|th|ul|ol|li|h[1-6])>/gi;
+const HTML_TAG_SCAN_RE = /<(?:div|span|br|p|a|img|table|tr|td|th|ul|ol|li|h[1-6])\b[^>]*\/?>/i;
 
 const SUMMARY_MIN_CHARS = 20;
 const KEYWORDS_MIN_COUNT = 3;
 const PENDING_REVIEW_TAG = 'pending-review';
-
-/** Strip HTML tags from text, preserving content */
-function stripHtml(text: string): string {
-  return text
-    .replace(HTML_TAG_RE, '')
-    .replace(HTML_CLOSE_RE, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
-}
 
 /** Parse frontmatter and body from raw markdown */
 function splitNote(raw: string): { frontmatter: string; body: string; fmEnd: number } | null {
@@ -62,15 +30,6 @@ function splitNote(raw: string): { frontmatter: string; body: string; fmEnd: num
     body: raw.slice(match[0].length),
     fmEnd: match[0].length,
   };
-}
-
-/** 從正文提取摘要（前 150 字有意義的文字） */
-function extractSummaryFromBody(body: string): string {
-  const lines = body.split('\n')
-    .map(l => l.trim())
-    .filter(l => l.length > 0 && !/^[#>*\-|]/.test(l) && !/^!\[/.test(l));
-  const text = lines.join(' ').replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').trim();
-  return text.slice(0, 150).replace(/\n/g, ' ');
 }
 
 /** 替換或插入 frontmatter 中的 keywords 行 */
@@ -137,12 +96,13 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
       if (!parsed) continue;
 
       const relPath = filePath.replace(/.*KnowPipe[\\/]/, '');
+      // MOC 目錄是索引頁，不做品質審計與翻譯
+      if (relPath.startsWith('MOC/') || relPath.startsWith('MOC\\')) continue;
       let modified = false;
       let newContent = raw;
 
       // Fix 1: HTML remnants in body
-      if (HTML_TAG_RE.test(parsed.body)) {
-        HTML_TAG_RE.lastIndex = 0; // reset regex state
+      if (HTML_TAG_SCAN_RE.test(parsed.body)) {
         const cleanBody = stripHtml(parsed.body);
         if (cleanBody !== parsed.body) {
           newContent = raw.slice(0, parsed.fmEnd) + cleanBody;
@@ -222,28 +182,37 @@ export async function healVault(vaultPath: string, dryRun: boolean = false): Pro
       // Fix 6: 未翻譯的英文或簡體內容 → 翻譯為繁體中文
       const hasTranslatedMarker = /^>\s*Translated from:/m.test(newContent);
       if (!hasTranslatedMarker && translated < MAX_TRANSLATIONS_PER_RUN) {
-        const bodyForLangCheck = parsed.body.replace(/^>\s*\*\*.*?\*\*.*\n/m, '').trim();
-        const lang = detectLanguage(bodyForLangCheck.slice(0, 500));
+        // 只取 article body（author 行到第一個 KnowPipe section 之間），不含已是中文的 enriched sections
+        const SECTION_START_RE = /^## (?:重點摘要|內容分析|重點整理|Images|Videos|相關連結|精選討論|評論|章節|插圖說明|內嵌影片逐字稿)|^Category:|^\[View original\]/m;
+        const authorLineMatch = parsed.body.match(/^(>\s*\*\*.*?\*\*.*\n)/m);
+        const bodyAfterAuthor = authorLineMatch
+          ? parsed.body.slice(parsed.body.indexOf(authorLineMatch[0]) + authorLineMatch[0].length)
+          : parsed.body;
+        const sectionIdx = bodyAfterAuthor.search(SECTION_START_RE);
+        const articleBody = (sectionIdx >= 0 ? bodyAfterAuthor.slice(0, sectionIdx) : bodyAfterAuthor).trim();
+        const lang = detectLanguage(articleBody.slice(0, 500));
         if (lang === 'en' || lang === 'zh-CN') {
           try {
             const rawTitle = (fm.get('title') ?? title).replace(/^"|"$/g, '');
-            const result = await translateIfNeeded(rawTitle, bodyForLangCheck);
+            const result = await translateIfNeeded(rawTitle, articleBody);
             if (result) {
               // 更新 frontmatter title
               const escapedTitle = result.translatedTitle?.replace(/"/g, '\\"') ?? rawTitle;
-              newContent = newContent.replace(
+              const updatedFm = newContent.slice(0, parsed.fmEnd).replace(
                 /^(title:\s*)".*"/m,
                 `$1"${escapedTitle}"`,
               );
-              // 在 author/date 行後插入翻譯標記與翻譯正文
+              // 重組 body：frontmatter + author 行 + 翻譯標記 + 譯文 + sections（原文丟棄）
               const langLabel: Record<string, string> = {
                 en: 'English', 'zh-CN': 'Chinese (Simplified)',
               };
               const marker = `> Translated from: ${langLabel[result.detectedLanguage] ?? result.detectedLanguage}`;
-              newContent = newContent.replace(
-                /(^>\s*\*\*.*?\*\*.*$)/m,
-                `$1\n\n${marker}\n\n${result.translatedText}`,
-              );
+              const authorLine = authorLineMatch ? authorLineMatch[0] : '';
+              const sectionsText = sectionIdx >= 0 ? bodyAfterAuthor.slice(sectionIdx) : '';
+              newContent = updatedFm
+                + authorLine
+                + `\n${marker}\n\n${result.translatedText}\n\n`
+                + sectionsText;
               modified = true;
               translated++;
               issues.push({ file: relPath, issue: `未翻譯（${lang}→已翻譯為繁體中文）`, autoFixable: true, fixed: true, severity: 'auto_fixed' });

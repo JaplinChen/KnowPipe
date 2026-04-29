@@ -22,6 +22,7 @@ const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
   patrol: '自動巡邏',
   consolidation: '記憶整合',
   qualityReview: '品質審查',
+  speakerIdentification: 'YouTube 說話人識別',
 };
 
 /** Main /config handler */

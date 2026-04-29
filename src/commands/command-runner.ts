@@ -19,3 +19,41 @@ export async function runCommandTask(
   }
 }
 
+/**
+ * Send a status message, run fn(), then delete the status message when done.
+ * On error: sends errorPrefix + error message, still deletes the status.
+ */
+export async function withTypingIndicator(
+  ctx: Context,
+  statusText: string,
+  fn: () => Promise<void>,
+  errorPrefix: string,
+): Promise<void> {
+  const status = await ctx.reply(statusText);
+  try {
+    await fn();
+  } catch (err) {
+    await ctx.reply(`${errorPrefix}：${(err as Error).message ?? String(err)}`).catch(() => {});
+  } finally {
+    await ctx.deleteMessage(status.message_id).catch(() => {});
+  }
+}
+
+/**
+ * Send a status message, run task with status as parameter, always delete status afterwards.
+ * Errors propagate (rethrow). Use when you need to edit the status message during task,
+ * or when caller wants to control error handling.
+ */
+export async function withStatusMessage<T>(
+  ctx: Context,
+  statusText: string,
+  task: (status: { message_id: number; chat: { id: number } }) => Promise<T>,
+): Promise<T> {
+  const status = await ctx.reply(statusText);
+  try {
+    return await task(status as { message_id: number; chat: { id: number } });
+  } finally {
+    await ctx.deleteMessage(status.message_id).catch(() => {});
+  }
+}
+

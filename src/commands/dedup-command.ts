@@ -13,6 +13,7 @@ import { logger } from '../core/logger.js';
 import { canonicalizeUrl } from '../utils/url-canonicalizer.js';
 import { getAllMdFiles } from '../vault/frontmatter-utils.js';
 import { cleanEmptyDirs } from '../vault/reprocess-helpers.js';
+import { withStatusMessage } from './command-runner.js';
 
 interface NoteEntry {
   filePath: string;
@@ -84,87 +85,80 @@ export async function handleDedup(ctx: Context, config: AppConfig): Promise<void
   const text = 'text' in ctx.message! ? (ctx.message as { text: string }).text : '';
   const fix = text.includes('--fix');
 
-  const status = await ctx.reply('正在掃描 Vault 中的重複筆記...');
+  await withStatusMessage(ctx, '正在掃描 Vault 中的重複筆記...', async () => {
+    const dupes = await findDuplicates(config.vaultPath);
 
-  const dupes = await findDuplicates(config.vaultPath);
+    if (dupes.size === 0) {
+      await ctx.reply('沒有找到重複的筆記 🎉');
+      return;
+    }
 
-  if (dupes.size === 0) {
-    try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-    await ctx.reply('沒有找到重複的筆記 🎉');
-    return;
-  }
+    const report = formatReport(dupes, config.vaultPath);
 
-  const report = formatReport(dupes, config.vaultPath);
+    if (!fix) {
+      const truncated = report.length > 3900
+        ? report.slice(0, 3900) + '\n\n...（太長已截斷）'
+        : report;
+      await ctx.reply(truncated, Markup.inlineKeyboard([
+        [Markup.button.callback(`🗑 確認刪除 ${dupes.size} 組重複`, 'dedup:fix')],
+      ]));
+      return;
+    }
 
-  if (!fix) {
-    try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-    // Truncate if too long for Telegram (4096 char limit)
-    const truncated = report.length > 3900
-      ? report.slice(0, 3900) + '\n\n...（太長已截斷）'
-      : report;
-    await ctx.reply(truncated, Markup.inlineKeyboard([
-      [Markup.button.callback(`🗑 確認刪除 ${dupes.size} 組重複`, 'dedup:fix')],
-    ]));
-    return;
-  }
+    let deleted = 0;
+    const errors: string[] = [];
+    const rootDir = join(config.vaultPath, 'KnowPipe');
 
-  // Execute deletion
-  let deleted = 0;
-  const errors: string[] = [];
-  const rootDir = join(config.vaultPath, 'KnowPipe');
+    for (const [, entries] of dupes) {
+      entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+      const remove = entries.slice(1);
 
-  for (const [, entries] of dupes) {
-    entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-    const remove = entries.slice(1);
-
-    for (const r of remove) {
-      try {
-        await unlink(r.filePath);
-        deleted++;
-      } catch (err) {
-        errors.push(`${relative(rootDir, r.filePath)}: ${(err as Error).message}`);
+      for (const r of remove) {
+        try {
+          await unlink(r.filePath);
+          deleted++;
+        } catch (err) {
+          errors.push(`${relative(rootDir, r.filePath)}: ${(err as Error).message}`);
+        }
       }
     }
-  }
 
-  // Clean up empty directories
-  await cleanEmptyDirs(rootDir);
+    await cleanEmptyDirs(rootDir);
 
-  try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-
-  const result = [`已刪除 ${deleted} 個重複檔案`];
-  if (errors.length > 0) {
-    result.push(`\n失敗 ${errors.length} 個：`);
-    for (const e of errors.slice(0, 5)) result.push(`• ${e}`);
-  }
-  await ctx.reply(result.join('\n'));
-  logger.info('dedup', '清理完成', { duplicateGroups: dupes.size, deleted, errors: errors.length });
+    const result = [`已刪除 ${deleted} 個重複檔案`];
+    if (errors.length > 0) {
+      result.push(`\n失敗 ${errors.length} 個：`);
+      for (const e of errors.slice(0, 5)) result.push(`• ${e}`);
+    }
+    await ctx.reply(result.join('\n'));
+    logger.info('dedup', '清理完成', { duplicateGroups: dupes.size, deleted, errors: errors.length });
+  });
 }
 
 /** dedup:fix callback — execute deletion from button */
 export async function handleDedupFix(ctx: Context, config: AppConfig): Promise<void> {
-  const status = await ctx.reply('正在刪除重複筆記…');
-  const dupes = await findDuplicates(config.vaultPath);
-  const rootDir = join(config.vaultPath, 'KnowPipe');
-  let deleted = 0;
-  const errors: string[] = [];
+  await withStatusMessage(ctx, '正在刪除重複筆記…', async () => {
+    const dupes = await findDuplicates(config.vaultPath);
+    const rootDir = join(config.vaultPath, 'KnowPipe');
+    let deleted = 0;
+    const errors: string[] = [];
 
-  for (const [, entries] of dupes) {
-    entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
-    for (const r of entries.slice(1)) {
-      try { await unlink(r.filePath); deleted++; } catch (err) {
-        errors.push(`${relative(rootDir, r.filePath)}: ${(err as Error).message}`);
+    for (const [, entries] of dupes) {
+      entries.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
+      for (const r of entries.slice(1)) {
+        try { await unlink(r.filePath); deleted++; } catch (err) {
+          errors.push(`${relative(rootDir, r.filePath)}: ${(err as Error).message}`);
+        }
       }
     }
-  }
-  await cleanEmptyDirs(rootDir);
-  await ctx.deleteMessage(status.message_id).catch(() => {});
+    await cleanEmptyDirs(rootDir);
 
-  const result = [`✅ 已刪除 ${deleted} 個重複檔案`];
-  if (errors.length > 0) {
-    result.push(`\n失敗 ${errors.length} 個：`);
-    for (const e of errors.slice(0, 5)) result.push(`• ${e}`);
-  }
-  await ctx.reply(result.join('\n'));
-  logger.info('dedup', '按鈕清理完成', { deleted, errors: errors.length });
+    const result = [`✅ 已刪除 ${deleted} 個重複檔案`];
+    if (errors.length > 0) {
+      result.push(`\n失敗 ${errors.length} 個：`);
+      for (const e of errors.slice(0, 5)) result.push(`• ${e}`);
+    }
+    await ctx.reply(result.join('\n'));
+    logger.info('dedup', '按鈕清理完成', { deleted, errors: errors.length });
+  });
 }

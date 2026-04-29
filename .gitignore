@@ -31,6 +31,7 @@ scripts/*
 !scripts/postinstall.sh
 !scripts/setup.mjs
 !scripts/copy-assets.mjs
+!scripts/memory-audit.sh
 test.ts
 
 # External tools and local models

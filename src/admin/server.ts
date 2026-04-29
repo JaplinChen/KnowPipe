@@ -1,6 +1,6 @@
 import { createServer } from 'node:http';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { timingSafeEqual } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,7 @@ import {
   readEnv, writeEnv, findVaults, testToken,
   readBody, openBrowser, detectModels,
 } from './admin-utils.js';
+import { cleanupSystemProcesses, getSystemHealthSnapshot } from './system-health.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PORT = 3001;
@@ -49,7 +50,36 @@ function isAllowed(req: IncomingMessage): boolean {
  *  /research 頁面 Basic Auth 成功後會 Set-Cookie，後續 API 帶 cookie 即可。
  */
 const SESSION_COOKIE = '_obs_r';
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 天
+const AUTH_SESSIONS_FILE = join(process.cwd(), 'data', 'research-auth-sessions.json');
 const validSessions = new Set<string>();
+
+interface StoredSession { token: string; createdAt: number; }
+
+function loadPersistedSessions(): void {
+  try {
+    if (!existsSync(AUTH_SESSIONS_FILE)) return;
+    const records = JSON.parse(readFileSync(AUTH_SESSIONS_FILE, 'utf-8')) as StoredSession[];
+    const now = Date.now();
+    for (const r of records) {
+      if (now - r.createdAt < SESSION_TTL_MS) validSessions.add(r.token);
+    }
+  } catch { /* ignore */ }
+}
+
+function persistSession(token: string): void {
+  try {
+    const now = Date.now();
+    const existing: StoredSession[] = existsSync(AUTH_SESSIONS_FILE)
+      ? (JSON.parse(readFileSync(AUTH_SESSIONS_FILE, 'utf-8')) as StoredSession[])
+          .filter(r => now - r.createdAt < SESSION_TTL_MS)
+      : [];
+    existing.push({ token, createdAt: now });
+    writeFileSync(AUTH_SESSIONS_FILE, JSON.stringify(existing), 'utf-8');
+  } catch { /* ignore */ }
+}
+
+loadPersistedSessions();
 
 function parseCookies(req: IncomingMessage): Record<string, string> {
   const raw = req.headers['cookie'] ?? '';
@@ -61,7 +91,8 @@ function parseCookies(req: IncomingMessage): Record<string, string> {
 function setSessionCookie(res: ServerResponse): string {
   const token = [Math.random(), Math.random()].map(n => n.toString(36).slice(2)).join('');
   validSessions.add(token);
-  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax`);
+  persistSession(token);
+  res.setHeader('Set-Cookie', `${SESSION_COOKIE}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
   return token;
 }
 
@@ -173,11 +204,34 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
     res.end(JSON.stringify(updateUserConfig(JSON.parse(await readBody(req)) as Record<string, unknown>)));
     return;
   }
+  if (url === '/api/system/cleanup' && method === 'POST') {
+    const { action } = JSON.parse(await readBody(req)) as { action?: 'omlx' | 'claude-cli' | 'trim' };
+    if (!action || !['omlx', 'claude-cli', 'trim'].includes(action)) {
+      res.statusCode = 400;
+      res.end(JSON.stringify({ error: 'Invalid cleanup action' }));
+      return;
+    }
+    res.end(JSON.stringify(await cleanupSystemProcesses(action)));
+    return;
+  }
 
   // Dashboard (runtime monitoring)
   if (url === '/api/status' && method === 'GET') {
     const mem = process.memoryUsage();
-    res.end(JSON.stringify({ uptime: Math.round(process.uptime()), heapMB: Math.round(mem.heapUsed / 1024 / 1024), rssMB: Math.round(mem.rss / 1024 / 1024), pid: process.pid, nodeVersion: process.version, breakers: getBreakerStatus() }));
+    const systemHealth = await getSystemHealthSnapshot();
+    res.end(JSON.stringify({
+      uptime: Math.round(process.uptime()),
+      heapMB: Math.round(mem.heapUsed / 1024 / 1024),
+      rssMB: Math.round(mem.rss / 1024 / 1024),
+      pid: process.pid,
+      nodeVersion: process.version,
+      breakers: getBreakerStatus(),
+      systemMemoryFreePercent: systemHealth.freeMemoryPercent,
+      memoryPressureStatus: systemHealth.pressureStatus,
+      memoryCandidateCount: systemHealth.candidateCount,
+      topMemoryCandidate: systemHealth.topCandidate,
+      claudeSessionCount: systemHealth.claudeSessions.length,
+    }));
     return;
   }
   if (url === '/api/metrics' && method === 'GET') {
@@ -187,10 +241,21 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse): Promise
   }
   if (url === '/api/health' && method === 'GET') {
     const mem = process.memoryUsage();
+    const systemHealth = await getSystemHealthSnapshot();
     const openBreakers = getBreakerStatus().filter(b => b.status === 'open');
-    const healthy = openBreakers.length < 5 && mem.heapUsed < 1024 * 1024 * 1024;
+    const healthy = openBreakers.length < 5
+      && mem.heapUsed < 1024 * 1024 * 1024
+      && systemHealth.pressureStatus === 'healthy';
     res.statusCode = healthy ? 200 : 503;
-    res.end(JSON.stringify({ status: healthy ? 'healthy' : 'degraded', uptime: Math.round(process.uptime()), heapMB: Math.round(mem.heapUsed / 1024 / 1024), openBreakers: openBreakers.length }));
+    res.end(JSON.stringify({
+      status: healthy ? 'healthy' : 'degraded',
+      uptime: Math.round(process.uptime()),
+      heapMB: Math.round(mem.heapUsed / 1024 / 1024),
+      openBreakers: openBreakers.length,
+      systemMemoryFreePercent: systemHealth.freeMemoryPercent,
+      memoryCandidateCount: systemHealth.candidateCount,
+      claudeSessionCount: systemHealth.claudeSessions.length,
+    }));
     return;
   }
 

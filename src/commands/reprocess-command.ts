@@ -18,6 +18,7 @@ import { findExtractor } from '../utils/url-parser.js';
 import { deleteOldFileIfMoved, cleanEmptyDirs } from '../vault/reprocess-helpers.js';
 import type { ExtractorWithComments } from '../extractors/types.js';
 import { detectUselessPage } from '../messages/services/extract-content-service.js';
+import { withStatusMessage } from './command-runner.js';
 
 interface ParsedArgs {
   mode: 'single' | 'batch';
@@ -201,16 +202,14 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
   if (parsed.mode === 'single') {
     const vaultNotesDir = join(config.vaultPath, 'KnowPipe');
     const filePath = join(vaultNotesDir, parsed.path!);
-    const status = await ctx.reply(`正在重新處理：${parsed.path}...`);
-
-    const result = await reprocessSingle(filePath, config, parsed.refetch);
-    try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-
-    if (result.success) {
-      await ctx.reply(`✅ 已重新豐富：${result.title}`);
-    } else {
-      await ctx.reply(`❌ 處理失敗：${result.error}`);
-    }
+    await withStatusMessage(ctx, `正在重新處理：${parsed.path}...`, async () => {
+      const result = await reprocessSingle(filePath, config, parsed.refetch);
+      if (result.success) {
+        await ctx.reply(`✅ 已重新豐富：${result.title}`);
+      } else {
+        await ctx.reply(`❌ 處理失敗：${result.error}`);
+      }
+    });
     return;
   }
 
@@ -219,29 +218,27 @@ export async function handleReprocess(ctx: Context, config: AppConfig): Promise<
   const pendingReview = parsed.pendingReview ?? false;
   const dayLabel = pendingReview ? 'pending-review' : (parsed.sinceDays != null ? `近 ${parsed.sinceDays} 天` : '全部');
   const modeLabel = refetch ? '（重新抓取模式）' : '';
-  const status = await ctx.reply(`正在掃描並重新處理${dayLabel}的筆記${modeLabel}...`);
+  await withStatusMessage(ctx, `正在掃描並重新處理${dayLabel}的筆記${modeLabel}...`, async (status) => {
+    const result = await reprocessBatch(config, parsed.sinceDays, refetch, async (processed, total, current) => {
+      try {
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id, status.message_id, undefined,
+          `處理中 ${processed}/${total}：${current.slice(0, 40)}`,
+        );
+      } catch { /* rate limit or unchanged text */ }
+    }, pendingReview);
 
-  const result = await reprocessBatch(config, parsed.sinceDays, refetch, async (processed, total, current) => {
-    try {
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id, status.message_id, undefined,
-        `處理中 ${processed}/${total}：${current.slice(0, 40)}`,
-      );
-    } catch { /* rate limit or unchanged text */ }
-  }, pendingReview);
-
-  try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-
-  const lines = [
-    `重新處理完成${modeLabel}（${dayLabel}）`,
-    `總計：${result.total} 篇`,
-    `成功：${result.success} | 失敗：${result.failed}`,
-  ];
-  if (result.errors.length > 0) {
-    lines.push('', '失敗清單：');
-    for (const e of result.errors.slice(0, 5)) lines.push(`• ${e}`);
-    if (result.errors.length > 5) lines.push(`...及其他 ${result.errors.length - 5} 項`);
-  }
-  await ctx.reply(lines.join('\n'));
-  logger.info('reprocess', '批次完成', { total: result.total, success: result.success, failed: result.failed, refetch });
+    const lines = [
+      `重新處理完成${modeLabel}（${dayLabel}）`,
+      `總計：${result.total} 篇`,
+      `成功：${result.success} | 失敗：${result.failed}`,
+    ];
+    if (result.errors.length > 0) {
+      lines.push('', '失敗清單：');
+      for (const e of result.errors.slice(0, 5)) lines.push(`• ${e}`);
+      if (result.errors.length > 5) lines.push(`...及其他 ${result.errors.length - 5} 項`);
+    }
+    await ctx.reply(lines.join('\n'));
+    logger.info('reprocess', '批次完成', { total: result.total, success: result.success, failed: result.failed, refetch });
+  });
 }

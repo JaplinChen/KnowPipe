@@ -4,6 +4,7 @@
  * Zero LLM cost — aggregates existing vault-knowledge.json insights.
  */
 import type { VaultKnowledge, NoteAnalysis, KnowledgeInsight } from './types.js';
+import { runLocalLlmPrompt } from '../utils/local-llm.js';
 
 /* ── Types ────────────────────────────────────────────────── */
 
@@ -201,4 +202,56 @@ export function formatDistillReport(report: DistillationReport): string {
   }
 
   return L.join('\n');
+}
+
+/**
+ * Generate a baoyu-article-illustrator style illustration prompt for the distill report.
+ * Picks the top 3 high-confidence principles and asks the LLM to produce
+ * a structured AI image prompt (Type × Style format).
+ * Returns null silently on failure — the report renders fine without it.
+ */
+export async function generateDistillVisualPrompt(report: DistillationReport): Promise<string | null> {
+  // Collect top principles sorted by confidence
+  const allPrinciples = report.categories
+    .flatMap(c => c.principles.map(p => ({ ...p, category: c.category })))
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 4);
+
+  if (allPrinciples.length === 0) return null;
+
+  const principleList = allPrinciples
+    .map((p, i) => `${i + 1}. [${p.category}] ${p.content}`)
+    .join('\n');
+
+  const prompt = `你是 AI 視覺提示詞生成師。根據以下知識蒸餾核心原則，生成一段可直接用於 Midjourney / DALL-E / 通義萬相的英文圖像提示詞。
+
+核心原則：
+${principleList}
+
+圖表類型選擇（擇一）：
+- infographic：多資料點展示 → 適合 3 個以上原則
+- framework：模型架構圖 → 適合有層次關係的原則
+- comparison：對比圖 → 適合有對立關係的原則
+- flowchart：流程圖 → 適合有順序關係的原則
+
+設計風格：minimal-flat（簡潔扁平）
+
+請直接輸出提示詞，格式如下（英文，不超過 120 words）：
+TYPE: [選擇的圖表類型]
+LAYOUT: [版面描述]
+LABELS: [關鍵標籤與數據]
+COLORS: [配色方案含 hex 色值]
+STYLE: minimal-flat, clean, professional infographic
+ASPECT: 16:9`;
+
+  try {
+    const result = await runLocalLlmPrompt(prompt, {
+      model: 'flash',
+      timeoutMs: 30_000,
+      maxTokens: 300,
+    });
+    return result?.trim() ?? null;
+  } catch {
+    return null;
+  }
 }

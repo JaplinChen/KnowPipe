@@ -68,6 +68,8 @@ export const HELP_CATEGORIES: Record<string, string> = {
     '  /admin health — 健康檢查',
     '  /admin doctor — 全面診斷',
     '  /admin logs [n] — 查看日誌',
+    '  /admin cleanup — 清理背景記憶體大戶',
+    '    可清理 oMLX / Claude CLI / 全部清理',
     '  /admin restart — 重啟 Bot',
     '  /admin code <action> — 遠端指令',
     '  /admin clear — 清除統計',
@@ -100,7 +102,7 @@ export const HELP_ALL_TEXT = [
   '/vault [quality|dedup|reprocess|reformat|benchmark|retry|suggest]',
   '',
   '⚙️ 系統管理',
-  '/admin [status|health|doctor|logs|restart|code|clear|learn]',
+  '/admin [status|health|doctor|logs|cleanup|restart|code|clear|learn]',
   '',
   '所有舊指令（/find /monitor /status 等）仍可直接使用',
 ].join('\n');

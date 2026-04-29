@@ -4,8 +4,8 @@
  * Supports multiple source types: DDG search, GitHub trending, RSS feeds.
  */
 import type { Telegraf } from 'telegraf';
-import { type AppConfig, getOwnerUserId } from '../utils/config.js';
-import type { RadarConfig, RadarResult, RadarCycleSummary, RadarQueryType } from './radar-types.js';
+import type { AppConfig } from '../utils/config.js';
+import type { RadarConfig, RadarResult, RadarQueryType } from './radar-types.js';
 import { saveRadarConfig } from './radar-store.js';
 import { promoteNextAuthor, runWeeklyAuthorRefresh } from './radar-author.js';
 import { webSearch } from '../utils/search-service.js';
@@ -26,7 +26,8 @@ import { loadKnowledge } from '../knowledge/knowledge-store.js';
 import { VIDEO_PLATFORMS, enqueueVideo } from './video-queue.js';
 import { createCustomSource } from './sources/custom-source.js';
 import type { CustomSourceConfig } from './sources/custom-source.js';
-import { buildCycleSummary, sourceLabel } from './radar-cycle-utils.js';
+import { buildCycleSummary } from './radar-cycle-utils.js';
+import { notifyAutoPausedQueries, notifyRadarResults } from './radar-notifier.js';
 import { isAdUrl } from '../utils/ad-url-filter.js';
 
 /** Max consecutive failures before auto-pausing a query. */
@@ -232,50 +233,17 @@ export async function runRadarCycle(
   radarConfig.lastRunAt = new Date().toISOString();
   await saveRadarConfig(radarConfig);
 
-  // Notify user if any new content found or queued
-  const totalQueued = results.reduce((s, r) => s + r.queued, 0);
-  if (totalSaved > 0 || totalQueued > 0) {
-    const userId = getOwnerUserId(config);
-    if (userId) {
-      const lines = [`🔍 內容雷達：發現 ${totalSaved} 篇新內容`, ''];
-      for (const r of results) {
-        if (r.saved > 0) {
-          const label = sourceLabel(r.query.type ?? 'search', r.query.customConfig?.name);
-          const desc = r.query.type === 'rss'
-            ? r.query.keywords[0]
-            : r.query.type === 'custom'
-              ? (r.query.customConfig?.name ?? r.query.keywords.join(' '))
-              : r.query.keywords.join(' ');
-          lines.push(`• [${label}] ${r.saved} 篇 — ${desc}`);
-        }
-      }
-      const totalSkipped = results.reduce((s, r) => s + r.skipped, 0);
-      if (totalSkipped > 0) lines.push(`\n（${totalSkipped} 篇已存在，已跳過）`);
-      if (totalQueued > 0) lines.push(`🎬 ${totalQueued} 部影片已排入轉錄佇列`);
-
-      await bot.telegram.sendMessage(userId, lines.join('\n')).catch(() => {});
-    }
-  }
+  await notifyRadarResults(bot, config, results);
 
   // Notify user about auto-paused queries
-  if (newlyPaused.length > 0) {
-    const userId = getOwnerUserId(config);
-    if (userId) {
-      const lines = [
-        `⚠️ 以下查詢連續 ${MAX_CONSECUTIVE_FAILURES} 次無結果，已自動暫停：`,
-        ...newlyPaused.map(q => `• ${q}`),
-        '',
-        '使用 /radar resume <id> 可恢復。',
-      ];
-      if (promotedAuthors.length > 0) {
-        lines.push('', `🔄 已自動輪替加入下一位備用作者：`);
-        promotedAuthors.forEach(h => lines.push(`• @${h}`));
-        const remaining = radarConfig.authorQueue?.length ?? 0;
-        if (remaining > 0) lines.push(`（備用佇列剩餘 ${remaining} 位）`);
-      }
-      await bot.telegram.sendMessage(userId, lines.join('\n')).catch(() => {});
-    }
-  }
+  await notifyAutoPausedQueries(
+    bot,
+    config,
+    MAX_CONSECUTIVE_FAILURES,
+    newlyPaused,
+    promotedAuthors,
+    radarConfig.authorQueue?.length ?? 0,
+  );
 
   // ── Weekly author-queue refresh (delegated to radar-author.ts) ───────────
   await runWeeklyAuthorRefresh(bot, config, radarConfig);

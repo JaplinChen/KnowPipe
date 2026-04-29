@@ -417,7 +417,7 @@ Ingest               Compile                 Query              Output
 
 ### 技術架構
 
-- **TypeScript** + ESM（`tsx` 執行），281 個檔案 / 31,670 行
+- **TypeScript** + ESM（`tsx` 執行），279 個檔案 / 36,702 行
 - **Telegraf** — Telegram Bot API（10 指令 hub 架構 + InlineKeyboard + ForceReply）
 - **Camoufox** — 反偵測瀏覽器（Firefox 基底），瀏覽器池最多 4 實例，閒置立即釋放
 - **Jina Reader** — 通用網頁 Markdown 轉換（`r.jina.ai`），Readability 失敗時自動觸發，零配置
@@ -466,12 +466,13 @@ src/
 ├── index.ts                    # 入口（ProcessGuardian 自動重試）
 ├── bot.ts                      # Telegram Bot（ForceReply 攔截 + URL 處理）
 ├── classifier.ts               # 內容智慧分類（108 規則 × 24 大類）
-├── saver.ts                    # Obsidian 存檔 + 去重快取
+├── classifier-categories.ts    # 分類規則資料（108 規則 × 24 大類）
+├── saver.ts                    # Obsidian 存檔協調（主流程）
+├── saver/                      # 存檔子模組
+│   ├── slug.ts                 # 檔名 slug 生成
+│   ├── url-index.ts            # URL 去重索引（in-memory + 持久化）
+│   └── image-downloader.ts     # 圖片下載 + 同來源洪水警告
 ├── process-guardian.ts         # 三段式 409 自癒 + 殭屍清理 + PID lockfile
-├── categories/                 # 分類規則（24 模組）
-│   ├── index.ts                # 匯總所有分類
-│   ├── ai-*.ts                 # 13 個 AI 子領域分類
-│   └── *.ts                    # 11 個通用分類（科技/程式/財經/設計…）
 ├── cards/                      # 資訊卡片
 │   ├── card-renderer.ts        # PNG 卡片渲染引擎
 │   └── card-templates.ts       # 卡片版型（標題/分類/關鍵字/色系）

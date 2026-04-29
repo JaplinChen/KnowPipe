@@ -420,6 +420,13 @@
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-title collapsible" onclick="toggleSection(this)">🧹 <span data-i18n="config.monitor">自動記憶體清理</span></div>
+      <div class="section-body">
+        <div id="monitorSettings"></div>
+      </div>
+    </div>
+
     <div class="divider"></div>
     <button class="btn btn-primary" onclick="saveUserConfig()">💾 <span data-i18n="config.save">儲存配置</span></button>
     <div class="save-status" id="saveStatus"></div>
@@ -449,6 +456,17 @@
       <div class="section-title collapsible" onclick="toggleSection(this)">⚡ <span data-i18n="dashboard.breakers">熔斷器狀態</span></div>
       <div class="section-body">
         <div id="breakerPanel" style="font-size:13px;color:#555;" data-i18n="dashboard.allNormal">所有平台正常</div>
+      </div>
+    </div>
+    <div class="section" style="margin-top:20px;">
+      <div class="section-title collapsible" onclick="toggleSection(this)">🧹 <span data-i18n="dashboard.cleanup">記憶體清理</span></div>
+      <div class="section-body">
+        <div id="cleanupStatus" style="font-size:13px;line-height:1.8;color:#555;" data-i18n="dashboard.cleanupHint">可直接清理 oMLX 與 Claude CLI 背景 session，不會停止 KnowPipe bot。</div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost" onclick="runCleanup('omlx')" data-i18n="dashboard.cleanupOmlx">清理 oMLX</button>
+          <button class="btn btn-ghost" onclick="runCleanup('claude-cli')" data-i18n="dashboard.cleanupClaude">清理 Claude CLI</button>
+          <button class="btn btn-ghost" onclick="runCleanup('trim')" data-i18n="dashboard.cleanupTrim">全部清理</button>
+        </div>
       </div>
     </div>
     <div style="margin-top:16px;">
@@ -571,6 +589,11 @@ async function loadDashboard() {
     document.getElementById('sysStatus').innerHTML = [
       '⏱ ' + t('dashboard.uptime', {h:h, m:m}),
       '💾 ' + t('dashboard.memory', {heap:status.heapMB, rss:status.rssMB}),
+      '🗂 ' + t('dashboard.systemMemory', {free:status.systemMemoryFreePercent ?? 'n/a', pressure:status.memoryPressureStatus ?? 'n/a'}),
+      '🧹 ' + t('dashboard.memoryCleanup', {n:status.memoryCandidateCount ?? 0, sessions:status.claudeSessionCount ?? 0}),
+      status.topMemoryCandidate
+        ? '⚠️ ' + t('dashboard.memoryTop', {label:status.topMemoryCandidate.label, rss:status.topMemoryCandidate.rssMB})
+        : '⚠️ ' + t('dashboard.memoryTopNone'),
       '🔧 ' + t('dashboard.pid', {pid:status.pid, ver:status.nodeVersion}),
     ].join('<br>');
 
@@ -604,6 +627,24 @@ async function loadDashboard() {
     }
   } catch (err) {
     document.getElementById('sysStatus').textContent = t('dashboard.loadFail') + err.message;
+  }
+}
+
+async function runCleanup(action) {
+  var statusEl = document.getElementById('cleanupStatus');
+  statusEl.textContent = t('dashboard.cleanupRunning');
+  try {
+    var res = await fetch('/api/system/cleanup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: action })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'cleanup failed');
+    statusEl.textContent = t('dashboard.cleanupDone', { n: (data.killedPids || []).length, action: action });
+    await loadDashboard();
+  } catch (err) {
+    statusEl.textContent = t('dashboard.cleanupFail') + err.message;
   }
 }
 
@@ -698,7 +739,8 @@ var PLATFORM_LABELS = {
 var _userConfig = {
   features: { translation:true, linkEnrichment:true, imageAnalysis:true, videoTranscription:true, comments:true, proactive:true, monitor:true, wall:true, patrol:false, consolidation:true },
   llm: { order:['omlx','ollama','openai','gemini','opencode','ddg'], enabled:{omlx:true,ollama:false,openai:false,gemini:false,opencode:true,ddg:true}, omlx:{baseUrl:'http://127.0.0.1:8000',apiKey:'',model:'',models:{flash:'',standard:'',deep:''}}, ollama:{baseUrl:'http://127.0.0.1:11434',apiKey:'',model:'',models:{flash:'',standard:'',deep:''}}, openai:{baseUrl:'https://api.openai.com/v1',apiKey:'',model:'',models:{flash:'gpt-4.1-mini',standard:'gpt-4.1-mini',deep:'gpt-4.1'}}, gemini:{apiKey:'',model:'gemini-2.5-flash'}, opencode:{models:{flash:'opencode/mimo-v2-pro-free',standard:'opencode/big-pickle',deep:'opencode/big-pickle'},timeoutMs:90000}, routing:{} },
-  extractors: { enabled:Object.keys(PLATFORM_LABELS), disabled:[] }
+  extractors: { enabled:Object.keys(PLATFORM_LABELS), disabled:[] },
+  monitor: { memoryCleanupEnabled:true, intervalMinutes:15, cooldownMinutes:30, freeThresholdPercent:15, claudeThresholdPercent:10 }
 };
 
 async function loadUserConfig() {
@@ -709,6 +751,7 @@ async function loadUserConfig() {
   renderFeatures();
   renderPlatforms();
   renderLlm();
+  renderMonitorSettings();
 }
 
 function renderFeatures() {
@@ -739,6 +782,20 @@ function renderLlm() {
   _activeProvider = order[0] || 'omlx';
   renderProviderList();
   renderProviderPanel();
+}
+
+function renderMonitorSettings() {
+  var cfg = _userConfig.monitor || {};
+  document.getElementById('monitorSettings').innerHTML =
+    '<div class="toggle-row" style="margin-bottom:12px;">' +
+      '<span class="toggle-label">' + t('monitor.autoCleanup') + '</span>' +
+      '<label class="toggle"><input type="checkbox" id="monitorEnabled"' + (cfg.memoryCleanupEnabled !== false ? ' checked' : '') + '><span class="slider"></span></label>' +
+    '</div>' +
+    '<div class="llm-field"><label>' + t('monitor.interval') + '</label><input type="text" id="monitorInterval" value="' + esc(String(cfg.intervalMinutes || 15)) + '"></div>' +
+    '<div class="llm-field"><label>' + t('monitor.cooldown') + '</label><input type="text" id="monitorCooldown" value="' + esc(String(cfg.cooldownMinutes || 30)) + '"></div>' +
+    '<div class="llm-field"><label>' + t('monitor.freeThreshold') + '</label><input type="text" id="monitorFreeThreshold" value="' + esc(String(cfg.freeThresholdPercent || 15)) + '"></div>' +
+    '<div class="llm-field"><label>' + t('monitor.claudeThreshold') + '</label><input type="text" id="monitorClaudeThreshold" value="' + esc(String(cfg.claudeThresholdPercent || 10)) + '"></div>' +
+    '<div class="hint">' + t('monitor.hint') + '</div>';
 }
 
 function renderProviderList() {
@@ -957,7 +1014,18 @@ async function saveUserConfig() {
   if (p === 'gemini') llmPatch.gemini = { apiKey: curKey, model: geminiModelEl ? geminiModelEl.value.trim() : _userConfig.llm.gemini.model };
   if (p === 'opencode') llmPatch.opencode = { models: readProviderModels('opencode'), timeoutMs: timeoutEl ? parseInt(timeoutEl.value, 10) || 90000 : _userConfig.llm.opencode.timeoutMs };
 
-  var patch = { features: features, extractors: { disabled: disabled }, llm: llmPatch };
+  var patch = {
+    features: features,
+    extractors: { disabled: disabled },
+    llm: llmPatch,
+    monitor: {
+      memoryCleanupEnabled: document.getElementById('monitorEnabled').checked,
+      intervalMinutes: parseInt(document.getElementById('monitorInterval').value, 10) || 15,
+      cooldownMinutes: parseInt(document.getElementById('monitorCooldown').value, 10) || 30,
+      freeThresholdPercent: parseInt(document.getElementById('monitorFreeThreshold').value, 10) || 15,
+      claudeThresholdPercent: parseInt(document.getElementById('monitorClaudeThreshold').value, 10) || 10
+    }
+  };
 
   var el = document.getElementById('saveStatus');
   el.textContent = t('config.saving');

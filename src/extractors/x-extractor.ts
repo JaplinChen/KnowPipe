@@ -2,6 +2,7 @@ import type { ExtractedContent, ExtractorWithComments, ThreadComment, VideoInfo 
 import { fetchWithTimeout, retry } from '../utils/fetch-with-timeout.js';
 import { camoufoxPool } from '../utils/camoufox-pool.js';
 import { extractThreadViaGraphQL } from './x-graphql-thread.js';
+import { injectChromeCookies } from '../utils/chrome-cookies.js';
 
 interface ArticleBlock {
   text: string;
@@ -230,6 +231,7 @@ export const xExtractor: ExtractorWithComments = {
     try {
       const { page, release } = await camoufoxPool.acquire();
       try {
+        await injectChromeCookies(page, 'x.com').catch(() => {});
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30_000 });
         await page.waitForSelector('[data-testid="tweet"]', { timeout: 15_000 });
 

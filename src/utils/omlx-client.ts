@@ -5,10 +5,19 @@
  */
 import { fetchWithTimeout } from './fetch-with-timeout.js';
 import type { ModelTier } from './local-llm.js';
-
 import { getUserConfig } from './user-config.js';
+import {
+  buildAuthHeaders,
+  buildChatCompletionBody,
+  buildVisionCompletionBody,
+  getOmlxTimeouts,
+  parseOmlxContent,
+} from './omlx-client-helpers.js';
 
 const AVAILABILITY_CACHE_MS = 30_000;
+/** 507 (model load OOM) 後，跳過該 model 的冷卻時間。*/
+const MODEL_507_CACHE_MS = 60_000;
+const failed507Models = new Map<string, number>(); // modelId → failedAt
 
 /** Read base URL from user config (falls back to env var → default). */
 function getOmlxBase(): string {
@@ -26,20 +35,7 @@ function getOmlxModels(): Record<ModelTier, string> {
 }
 
 /** Per-tier default timeouts (ms). Deep is longer for large model inference. */
-const OMLX_TIMEOUTS: Record<ModelTier, number> = {
-  flash: 15_000,
-  standard: 30_000,
-  deep: 120_000,
-};
-
-/** Build common headers (Content-Type + optional Authorization). */
-function authHeaders(contentType?: string): Record<string, string> {
-  const h: Record<string, string> = {};
-  if (contentType) h['Content-Type'] = contentType;
-  const key = getApiKey();
-  if (key) h['Authorization'] = `Bearer ${key}`;
-  return h;
-}
+const OMLX_TIMEOUTS = getOmlxTimeouts();
 
 /* ── Availability probe with cache ──────────────────────────────────── */
 
@@ -55,7 +51,7 @@ export async function isOmlxAvailable(): Promise<boolean> {
 
   try {
     const res = await fetchWithTimeout(`${getOmlxBase()}/v1/models`, 3_000, {
-      headers: authHeaders(),
+      headers: buildAuthHeaders(getApiKey()),
     });
     _available = res.ok;
   } catch {
@@ -88,19 +84,6 @@ export function getOmlxTimeout(tier: ModelTier): number {
 
 const OMLX_VISION_MODEL = 'Qwen2.5-VL-7B-Instruct-4bit';
 
-/* ── Shared response parser ─────────────────────────────────────────── */
-
-async function parseOmlxContent(res: Response, label: string): Promise<string | null> {
-  const json = (await res.json()) as {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  const content = json.choices?.[0]?.message?.content?.trim();
-  if (content) {
-    console.log(`[${label}] ✓ (${content.length} chars)`);
-  }
-  return content || null;
-}
-
 /* ── Chat completion ────────────────────────────────────────────────── */
 
 interface OmlxOptions {
@@ -123,33 +106,34 @@ export async function omlxChatCompletion(
   const tier = options.model ?? 'standard';
   const modelId = getOmlxModelId(tier);
   const timeoutMs = options.timeoutMs ?? getOmlxTimeout(tier);
+  const body = buildChatCompletionBody(modelId, prompt, options);
 
-  const isQwenModel = modelId.toLowerCase().includes('qwen');
-  const messages: Array<{ role: string; content: string }> = [];
-  if (options.systemPrompt) messages.push({ role: 'system', content: options.systemPrompt });
-  messages.push({ role: 'user', content: prompt });
-  const body = JSON.stringify({
-    model: modelId,
-    messages,
-    temperature: options.temperature ?? 0.3,
-    max_tokens: options.maxTokens ?? 4096,
-    // Disable reasoning/thinking for Qwen models — 10x+ faster
-    ...(isQwenModel ? { chat_template_kwargs: { enable_thinking: false } } : {}),
-  });
+  // 跳過最近 507 的 model（記憶體不足時不浪費 deadline）
+  const failedAt507 = failed507Models.get(modelId);
+  if (failedAt507 !== undefined && Date.now() - failedAt507 < MODEL_507_CACHE_MS) {
+    return null;
+  }
 
   try {
     const res = await fetchWithTimeout(`${getOmlxBase()}/v1/chat/completions`, timeoutMs, {
       method: 'POST',
-      headers: authHeaders('application/json'),
+      headers: buildAuthHeaders(getApiKey(), 'application/json'),
       body,
     });
 
     if (!res.ok) {
       console.error(`[omlx] HTTP ${res.status} for model ${modelId}`);
-      invalidateCache();
+      if (res.status === 507) {
+        // 507 = model 記憶體不足；server 仍在，只快取該 model 失敗
+        failed507Models.set(modelId, Date.now());
+      } else {
+        invalidateCache();
+      }
       return null;
     }
 
+    // 成功後清除 507 快取
+    failed507Models.delete(modelId);
     return parseOmlxContent(res, `omlx:${modelId}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -176,20 +160,7 @@ export async function* omlxStreamCompletion(
   const tier = options.model ?? 'standard';
   const modelId = getOmlxModelId(tier);
   const timeoutMs = options.timeoutMs ?? getOmlxTimeout(tier);
-  const isQwenModel = modelId.toLowerCase().includes('qwen');
-
-  const messages: Array<{ role: string; content: string }> = [];
-  if (options.systemPrompt) messages.push({ role: 'system', content: options.systemPrompt });
-  messages.push({ role: 'user', content: prompt });
-
-  const body = JSON.stringify({
-    model: modelId,
-    messages,
-    temperature: options.temperature ?? 0.3,
-    max_tokens: options.maxTokens ?? 4096,
-    stream: true,
-    ...(isQwenModel ? { chat_template_kwargs: { enable_thinking: false } } : {}),
-  });
+  const body = buildChatCompletionBody(modelId, prompt, { ...options, stream: true });
 
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
@@ -197,7 +168,7 @@ export async function* omlxStreamCompletion(
   try {
     const res = await fetch(`${getOmlxBase()}/v1/chat/completions`, {
       method: 'POST',
-      headers: authHeaders('application/json'),
+      headers: buildAuthHeaders(getApiKey(), 'application/json'),
       body,
       signal: ctrl.signal,
     });
@@ -250,25 +221,12 @@ export async function omlxVisionCompletion(
   prompt: string,
   timeoutMs = 30_000,
 ): Promise<string | null> {
-  const dataUrl = `data:${mimeType};base64,${imageBase64}`;
-
-  const body = JSON.stringify({
-    model: OMLX_VISION_MODEL,
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'text', text: prompt },
-        { type: 'image_url', image_url: { url: dataUrl } },
-      ],
-    }],
-    temperature: 0.3,
-    max_tokens: 1024,
-  });
+  const body = buildVisionCompletionBody(OMLX_VISION_MODEL, imageBase64, mimeType, prompt);
 
   try {
     const res = await fetchWithTimeout(`${getOmlxBase()}/v1/chat/completions`, timeoutMs, {
       method: 'POST',
-      headers: authHeaders('application/json'),
+      headers: buildAuthHeaders(getApiKey(), 'application/json'),
       body,
     });
 

@@ -22,6 +22,7 @@ export interface FeatureFlags {
   patrol: boolean;
   consolidation: boolean;
   qualityReview: boolean;
+  speakerIdentification: boolean;
 }
 
 export interface LlmTierModels {
@@ -60,10 +61,19 @@ export interface ExtractorConfig {
   disabled: string[];
 }
 
+export interface MonitorTuningConfig {
+  memoryCleanupEnabled: boolean;
+  intervalMinutes: number;
+  cooldownMinutes: number;
+  freeThresholdPercent: number;
+  claudeThresholdPercent: number;
+}
+
 export interface UserConfig {
   features: FeatureFlags;
   llm: LlmConfig;
   extractors: ExtractorConfig;
+  monitor: MonitorTuningConfig;
 }
 
 /* ── Defaults ───────────────────────────────────────────────────────── */
@@ -95,6 +105,7 @@ const DEFAULTS: UserConfig = {
     patrol: false,
     consolidation: true,
     qualityReview: true,
+    speakerIdentification: false,
   },
   llm: {
     order: IS_WINDOWS
@@ -154,6 +165,13 @@ const DEFAULTS: UserConfig = {
   extractors: {
     enabled: [...ALL_PLATFORMS],
     disabled: [],
+  },
+  monitor: {
+    memoryCleanupEnabled: true,
+    intervalMinutes: 15,
+    cooldownMinutes: 30,
+    freeThresholdPercent: 15,
+    claudeThresholdPercent: 10,
   },
 };
 

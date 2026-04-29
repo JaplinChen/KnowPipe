@@ -9,16 +9,7 @@ import {
 } from './shared.js';
 import { cleanAdSpeak } from '../utils/content-cleaner.js';
 import { reformatBody } from './body-reformatter.js';
-
-function toPlainText(input: string): string {
-  return input
-    .replace(/!\[.*?\]\(.*?\)/g, ' ')
-    .replace(/\[([^\]]+)\]\(.*?\)/g, '$1')
-    .replace(/[\*_`>#]/g, ' ')
-    .replace(/https?:\/\/\S+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
+import { isLikelyStatsLine, splitSentences, toPlainText } from './text-utils.js';
 
 function stripStatsPrefix(input: string): string {
   return input
@@ -28,22 +19,6 @@ function stripStatsPrefix(input: string): string {
     .replace(/Stats:\s*Views:.*?(?=\s{2,}|$)/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-}
-
-function splitSentences(input: string): string[] {
-  return input
-    .split(/[。！？!?\n；;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-function isLikelyStatsLine(input: string): boolean {
-  const s = input.toLowerCase();
-  return s.includes('views:')
-    || s.includes('likes:')
-    || s.includes('comments:')
-    || s.includes('duration:')
-    || /[0-9]{2,}/.test(s) && /(views|likes|comments|stats|duration)/i.test(s);
 }
 
 function collectContentSentences(content: ExtractedContent, displayText: string): string[] {
@@ -255,4 +230,3 @@ export function assembleNote(
   // Defensive: ensure frontmatter closing --- is on its own line
   return result.replace(/^(---\n[\s\S]*?\n)(---)(>|\*|[^\n])/m, '$1$2\n\n$3');
 }
-

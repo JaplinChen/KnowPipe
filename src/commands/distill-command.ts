@@ -7,7 +7,7 @@ import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
 import { scanVaultNotes, loadKnowledge } from '../knowledge/knowledge-store.js';
 import { extractPreferences, formatDetailedReport } from '../knowledge/preference-extractor.js';
-import { distillVault, formatDistillReport } from '../knowledge/distiller.js';
+import { distillVault, formatDistillReport, generateDistillVisualPrompt } from '../knowledge/distiller.js';
 import { replyEmptyKnowledge } from './reply-buttons.js';
 import { splitMessage } from '../utils/telegram.js';
 
@@ -47,5 +47,11 @@ export async function handleDistill(ctx: Context, config: AppConfig): Promise<vo
 
   for (const chunk of splitMessage(text)) {
     await ctx.reply(chunk);
+  }
+
+  // Visual prompt: generate async, send as follow-up if successful
+  const visualPrompt = await generateDistillVisualPrompt(report).catch(() => null);
+  if (visualPrompt) {
+    await ctx.reply(`🎨 視覺化提示詞（可直接用於 Midjourney / DALL-E / 通義萬相）：\n\n${visualPrompt}`);
   }
 }

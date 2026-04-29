@@ -18,6 +18,7 @@ import { scanVaultNotes } from '../knowledge/knowledge-store.js';
 import { reformatNoteBody } from '../formatters/body-reformatter.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
 import { isOmlxAvailable, omlxChatCompletion } from '../utils/omlx-client.js';
+import { withStatusMessage } from './command-runner.js';
 
 interface ParsedArgs {
   mode: 'single' | 'batch';
@@ -185,51 +186,48 @@ export async function handleReformat(ctx: Context, config: AppConfig): Promise<v
 
   if (parsed.mode === 'single') {
     const filePath = join(config.vaultPath, 'KnowPipe', parsed.path!);
-    const status = await ctx.reply(`正在排版修復：${parsed.path}...`);
-    const result = await reformatSingle(filePath, false);
-    try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-
-    if (result.changed) {
-      await ctx.reply(`✅ 已修復排版：${parsed.path}`);
-    } else if (result.error) {
-      await ctx.reply(`❌ 修復失敗：${result.error}`);
-    } else {
-      await ctx.reply(`ℹ️ 無需修復：${parsed.path}`);
-    }
+    await withStatusMessage(ctx, `正在排版修復：${parsed.path}...`, async () => {
+      const result = await reformatSingle(filePath, false);
+      if (result.changed) {
+        await ctx.reply(`✅ 已修復排版：${parsed.path}`);
+      } else if (result.error) {
+        await ctx.reply(`❌ 修復失敗：${result.error}`);
+      } else {
+        await ctx.reply(`ℹ️ 無需修復：${parsed.path}`);
+      }
+    });
     return;
   }
 
   // Batch mode
   const dayLabel = parsed.sinceDays != null ? `近 ${parsed.sinceDays} 天` : '全部';
   const modeLabel = parsed.dryRun ? '（掃描模式）' : parsed.useLlm ? '（含 LLM）' : '';
-  const status = await ctx.reply(`正在掃描${dayLabel}的筆記排版${modeLabel}...`);
+  await withStatusMessage(ctx, `正在掃描${dayLabel}的筆記排版${modeLabel}...`, async (status) => {
+    const result = await reformatBatch(config, parsed, async (processed, total) => {
+      try {
+        await ctx.telegram.editMessageText(
+          ctx.chat!.id, status.message_id, undefined,
+          `排版處理中 ${processed}/${total}...`,
+        );
+      } catch { /* rate limit */ }
+    });
 
-  const result = await reformatBatch(config, parsed, async (processed, total) => {
-    try {
-      await ctx.telegram.editMessageText(
-        ctx.chat!.id, status.message_id, undefined,
-        `排版處理中 ${processed}/${total}...`,
-      );
-    } catch { /* rate limit */ }
-  });
+    const verb = parsed.dryRun ? '需修復' : '已修復';
+    const lines = [
+      `排版${parsed.dryRun ? '掃描' : '修復'}完成${modeLabel}（${dayLabel}）`,
+      `總計：${result.total} 篇`,
+      `${verb}：${result.changed} | 略過：${result.skipped}`,
+    ];
+    if (result.llm > 0) lines.push(`LLM 處理：${result.llm} 篇`);
+    if (result.errors.length > 0) {
+      lines.push('', '失敗清單：');
+      for (const e of result.errors.slice(0, 5)) lines.push(`• ${e}`);
+      if (result.errors.length > 5) lines.push(`...及其他 ${result.errors.length - 5} 項`);
+    }
 
-  try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
-
-  const verb = parsed.dryRun ? '需修復' : '已修復';
-  const lines = [
-    `排版${parsed.dryRun ? '掃描' : '修復'}完成${modeLabel}（${dayLabel}）`,
-    `總計：${result.total} 篇`,
-    `${verb}：${result.changed} | 略過：${result.skipped}`,
-  ];
-  if (result.llm > 0) lines.push(`LLM 處理：${result.llm} 篇`);
-  if (result.errors.length > 0) {
-    lines.push('', '失敗清單：');
-    for (const e of result.errors.slice(0, 5)) lines.push(`• ${e}`);
-    if (result.errors.length > 5) lines.push(`...及其他 ${result.errors.length - 5} 項`);
-  }
-
-  await ctx.reply(lines.join('\n'));
-  logger.info('reformat', '批次完成', {
-    total: result.total, changed: result.changed, llm: result.llm, dryRun: parsed.dryRun,
+    await ctx.reply(lines.join('\n'));
+    logger.info('reformat', '批次完成', {
+      total: result.total, changed: result.changed, llm: result.llm, dryRun: parsed.dryRun,
+    });
   });
 }

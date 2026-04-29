@@ -11,6 +11,8 @@ import { handleDoctor } from './doctor-command.js';
 import { handleDoctorUpgrade, handleDoctorUpgradeRun } from './doctor-upgrade-command.js';
 import { handleCode } from './code-command.js';
 import type { BotStats } from '../messages/types.js';
+import { cleanupSystemProcesses } from '../admin/system-health.js';
+import { logger } from '../core/logger.js';
 
 function rewriteText(ctx: Context, newCommand: string, args: string): void {
   const text = args ? `${newCommand} ${args}` : newCommand;
@@ -27,6 +29,25 @@ function rewriteText(ctx: Context, newCommand: string, args: string): void {
 }
 
 type CtxHandler = (ctx: Context, config: AppConfig) => Promise<void>;
+
+async function showCleanupMenu(ctx: Context): Promise<void> {
+  await ctx.reply(
+    '🧹 記憶體清理\n選擇要清理的背景程序：',
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback('🖥 清理 oMLX', 'adm:cleanup:omlx'),
+        Markup.button.callback('🤖 清理 Claude CLI', 'adm:cleanup:claude-cli'),
+      ],
+      [Markup.button.callback('🧼 全部清理', 'adm:cleanup:trim')],
+    ]),
+  );
+}
+
+async function runCleanupAction(ctx: Context, action: 'omlx' | 'claude-cli' | 'trim'): Promise<void> {
+  const result = await cleanupSystemProcesses(action);
+  logger.info('admin', 'system cleanup triggered', result);
+  await ctx.reply(`🧹 清理完成：${action}\n已處理 PID：${result.killedPids.length > 0 ? result.killedPids.join(', ') : '0'}`);
+}
 
 /** Build admin hub with status/clear handlers injected at registration time */
 export function createAdminHub(
@@ -51,6 +72,10 @@ export function createAdminHub(
           [Markup.button.callback('🌐 批次翻譯', 'lr:translate')],
         ]),
       );
+      return;
+    }
+    if (sub === 'cleanup') {
+      await showCleanupMenu(ctx);
       return;
     }
 
@@ -87,6 +112,7 @@ export function createAdminHub(
           Markup.button.callback('📚 學習', 'adm:learn'),
         ],
         [
+          Markup.button.callback('🧹 清理', 'adm:cleanup'),
           Markup.button.callback('⬆️ 版本升級', 'adm:upgrade'),
           Markup.button.callback('🔄 重啟', 'adm:restart'),
           Markup.button.callback('🗑 清除統計', 'adm:clear'),
@@ -104,6 +130,18 @@ export function createAdminCallback(
   return async function handleAdminCallback(ctx: Context & { match: RegExpExecArray }, config: AppConfig): Promise<void> {
     const mode = ctx.match[1];
     await ctx.answerCbQuery().catch(() => {});
+
+    if (mode === 'cleanup') {
+      await showCleanupMenu(ctx);
+      return;
+    }
+    if (mode.startsWith('cleanup:')) {
+      const action = mode.slice('cleanup:'.length);
+      if (action === 'omlx' || action === 'claude-cli' || action === 'trim') {
+        await runCleanupAction(ctx, action);
+      }
+      return;
+    }
 
     switch (mode) {
       case 'status': await statusHandler(ctx); break;

@@ -9,6 +9,7 @@ import { logger } from '../core/logger.js';
 import type { AppConfig } from '../utils/config.js';
 import { processUrl } from '../messages/services/process-url-service.js';
 import type { BotStats } from '../messages/types.js';
+import { withStatusMessage } from './command-runner.js';
 
 /** Create the /retry command handler (closure over stats) */
 export function createRetryHandler(stats: BotStats) {
@@ -26,32 +27,30 @@ export function createRetryHandler(stats: BotStats) {
       ? stats.failedUrls.slice(-count)
       : [...stats.failedUrls];
 
-    const status = await ctx.reply(`正在重試 ${targets.length} 個失敗連結...`);
-    let success = 0;
-    let failed = 0;
+    await withStatusMessage(ctx, `正在重試 ${targets.length} 個失敗連結...`, async () => {
+      let success = 0;
+      let failed = 0;
 
-    for (const target of targets) {
-      logger.info('retry', '重試 URL', { url: target.url, reason: target.reason });
-      const result = await processUrl(target.url, config, stats);
-      if (result.success) {
-        success++;
-        // Remove from failedUrls
-        const idx = stats.failedUrls.findIndex(f => f.url === target.url);
-        if (idx >= 0) stats.failedUrls.splice(idx, 1);
-      } else {
-        failed++;
+      for (const target of targets) {
+        logger.info('retry', '重試 URL', { url: target.url, reason: target.reason });
+        const result = await processUrl(target.url, config, stats);
+        if (result.success) {
+          success++;
+          const idx = stats.failedUrls.findIndex((f) => f.url === target.url);
+          if (idx >= 0) stats.failedUrls.splice(idx, 1);
+        } else {
+          failed++;
+        }
       }
-    }
 
-    try { await ctx.deleteMessage(status.message_id); } catch { /* */ }
+      await ctx.reply([
+        `重試完成`,
+        `成功：${success} | 仍失敗：${failed}`,
+        failed > 0 ? `剩餘 ${stats.failedUrls.length} 個失敗連結` : '',
+      ].filter(Boolean).join('\n'));
 
-    await ctx.reply([
-      `重試完成`,
-      `成功：${success} | 仍失敗：${failed}`,
-      failed > 0 ? `剩餘 ${stats.failedUrls.length} 個失敗連結` : '',
-    ].filter(Boolean).join('\n'));
-
-    logger.info('retry', '重試完成', { success, failed });
+      logger.info('retry', '重試完成', { success, failed });
+    });
   };
 }
 
