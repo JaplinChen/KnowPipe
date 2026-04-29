@@ -5,6 +5,7 @@
  * - 知識蒸餾 (distill)
  * - 跨筆記洞察 (consolidate)
  * - 週報深度合成 (weekly)
+ * - 知識卡片 (cards) — baoyu-xhs-images 格式
  */
 import type { Context } from 'telegraf';
 import { Markup } from 'telegraf';
@@ -17,6 +18,8 @@ import { getAllMdFiles } from '../vault/frontmatter-utils.js';
 import { saveReportToVault } from '../knowledge/report-saver.js';
 import { startTyping, stopTyping } from '../utils/typing-indicator.js';
 import { splitMessage } from '../utils/telegram.js';
+import { withTypingIndicator } from './command-runner.js';
+import { buildCardsMessage } from '../utils/visual-cards-builder.js';
 
 export interface NoteSummary {
   title: string;
@@ -141,10 +144,12 @@ export async function handleDigestMenu(ctx: Context, config: AppConfig): Promise
       '📰 週報合成 — 深度分析本週知識趨勢，存入 Vault',
       '🧪 知識蒸餾 — 萃取你的偏好模式與學習傾向',
       '🧠 跨筆記洞察 — 發現筆記間的隱藏連結',
+      '🎴 知識卡片 — 近期筆記轉成 baoyu-xhs-images 卡片提示詞',
     ].join('\n'),
     Markup.inlineKeyboard([
       [Markup.button.callback('📋 精華摘要', 'dg:digest'), Markup.button.callback('📰 週報合成', 'dg:weekly')],
       [Markup.button.callback('🧪 知識蒸餾', 'dg:distill'), Markup.button.callback('🧠 跨筆記洞察', 'dg:consolidate')],
+      [Markup.button.callback('🎴 知識卡片', 'dg:cards')],
     ]),
   );
 }
@@ -185,9 +190,7 @@ function buildWeeklyPrompt(
 /** dg:weekly callback — deep weekly synthesis */
 export async function handleWeeklyDigest(ctx: Context, config: AppConfig): Promise<void> {
   const days = 7;
-  const status = await ctx.reply('正在生成週報深度合成…（約需 30-60 秒）');
-
-  try {
+  await withTypingIndicator(ctx, '正在生成週報深度合成…（約需 30-60 秒）', async () => {
     const notes = await collectRecentNotes(config.vaultPath, days);
     if (notes.length === 0) {
       await ctx.reply(`近 ${days} 天沒有筆記。`);
@@ -231,19 +234,31 @@ export async function handleWeeklyDigest(ctx: Context, config: AppConfig): Promi
 
     await ctx.reply(`💾 已存入 Vault：${savedPath.split('/KnowPipe/')[1] ?? savedPath}`);
     logger.info('digest', '週報深度合成完成', { days, notes: totalNotes, categories: catCount });
-  } catch (err) {
-    await ctx.reply(`週報生成失敗：${(err as Error).message}`);
-  } finally {
-    await ctx.deleteMessage(status.message_id).catch(() => {});
-  }
+  }, '週報生成失敗');
+}
+
+/** dg:cards callback — knowledge cards in baoyu-xhs-images format */
+export async function handleKnowledgeCards(ctx: Context, config: AppConfig): Promise<void> {
+  const days = 7;
+  await withTypingIndicator(ctx, '正在生成知識卡片…', async () => {
+    const notes = await collectRecentNotes(config.vaultPath, days);
+    const filtered = notes.filter(n => n.summary.length > 30).slice(0, 5);
+    if (filtered.length === 0) {
+      await ctx.reply(`近 ${days} 天筆記摘要不足，無法生成知識卡片。`);
+      return;
+    }
+    const msg = buildCardsMessage(filtered);
+    for (const chunk of splitMessage(msg)) {
+      await ctx.reply(chunk);
+    }
+    logger.info('digest', '知識卡片生成完成', { count: filtered.length });
+  }, '知識卡片生成失敗');
 }
 
 /** dg:digest callback — recent knowledge digest */
 export async function handleDigest(ctx: Context, config: AppConfig): Promise<void> {
   const days = 7;
-  const status = await ctx.reply(`正在彙整近 ${days} 天的知識...`);
-
-  try {
+  await withTypingIndicator(ctx, `正在彙整近 ${days} 天的知識...`, async () => {
     const notes = await collectRecentNotes(config.vaultPath, days);
     if (notes.length === 0) {
       await ctx.reply(`近 ${days} 天沒有筆記。`);
@@ -270,9 +285,5 @@ export async function handleDigest(ctx: Context, config: AppConfig): Promise<voi
 
     await ctx.reply(output);
     logger.info('digest', '摘要完成', { days, notes: notes.length, categories: Object.keys(groups).length });
-  } catch (err) {
-    await ctx.reply(`摘要生成失敗：${(err as Error).message}`);
-  } finally {
-    await ctx.deleteMessage(status.message_id).catch(() => {});
-  }
+  }, '摘要生成失敗');
 }

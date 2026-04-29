@@ -16,11 +16,10 @@ import { handleDedup, handleDedupFix } from './dedup-command.js';
 import { createRetryHandler, createRetryActionHandler } from './retry-command.js';
 import { handleSubscribe, handleSubscribeAction } from './subscribe-command.js';
 import { handleQuality, getLastWorstPaths } from './quality-command.js';
-import { handleDigestMenu, handleDigest, handleWeeklyDigest } from './digest-command.js';
+import { handleDigestMenu, handleDigest, handleWeeklyDigest, handleKnowledgeCards } from './digest-command.js';
 import { handleSuggest } from './suggest-command.js';
 import { handleRadar, handleRadarAction } from './radar-command.js';
 import { handleBenchmark } from './benchmark-command.js';
-import { runCommandTask } from './command-runner.js';
 import { formatErrorMessage } from '../core/errors.js';
 import { logger } from '../core/logger.js';
 import { registerForceReplyHandler } from '../messages/force-reply-router.js';
@@ -45,34 +44,17 @@ import { handleRadarAddKeyword, handleRadarAddAuthor } from './radar-callbacks.j
 import { handleTrackHub, handleTrackCallback } from './track-hub.js';
 import { createVaultHub, createVaultCallback } from './vault-hub.js';
 import { createAdminHub, createAdminCallback } from './admin-hub.js';
-
-export { formatErrorMessage };
-
-type MatchedContext = Context & { match: RegExpExecArray };
-
-function registerAsyncCommand(
-  bot: Telegraf,
-  command: string | readonly string[],
-  tag: string,
-  config: AppConfig,
-  handler: (ctx: Context, config: AppConfig) => Promise<void>,
-): void {
-  bot.command(command as string | string[], (ctx) => {
-    runCommandTask(ctx, tag, () => handler(ctx, config), formatErrorMessage).catch(() => {});
-  });
-}
-
-function registerAsyncAction(
-  bot: Telegraf,
-  pattern: RegExp,
-  tag: string,
-  handler: (ctx: MatchedContext) => Promise<void>,
-): void {
-  bot.action(pattern, (ctx) => {
-    const matchedCtx = ctx as MatchedContext;
-    runCommandTask(matchedCtx, tag, () => handler(matchedCtx), formatErrorMessage).catch(() => {});
-  });
-}
+import {
+  createForceReplyRunner,
+  mutateContextMessageText,
+  registerActionSet,
+  registerAsyncAction,
+  registerCommandSet,
+  type ActionRegistration,
+  type CommandRegistration,
+  type ForceReplyRegistration,
+  type MatchedContext,
+} from './register-command-helpers.js';
 
 export function registerCommands(
   bot: Telegraf,
@@ -95,36 +77,39 @@ export function registerCommands(
   const handleVaultCallback = createVaultCallback(stats);
   const handleAdminCb = createAdminCallback(statusHandler, clearHandler);
 
-  registerAsyncCommand(bot, 'search', 'search-hub', config, handleSearchHub);
-  registerAsyncCommand(bot, 'ask', 'ask', config, handleAsk);
-  registerAsyncCommand(bot, 'digest', 'digest', config, handleDigestMenu);
-  registerAsyncCommand(bot, 'discover', 'discover', config, handleDiscover);
-  registerAsyncCommand(bot, 'radar', 'radar', config, handleRadar);
-  registerAsyncCommand(bot, 'track', 'track-hub', config, handleTrackHub);
-  registerAsyncCommand(bot, 'vault', 'vault-hub', config, handleVaultHub);
-  registerAsyncCommand(bot, 'admin', 'admin-hub', config, handleAdminHub);
-  registerAsyncCommand(bot, 'knowledge', 'knowledge', config, handleKnowledge);
-  registerAsyncCommand(bot, 'find', 'find', config, handleFind);
-  registerAsyncCommand(bot, 'monitor', 'monitor', config, handleMonitor);
-  registerAsyncCommand(bot, 'vsearch', 'vsearch', config, handleVsearch);
-  registerAsyncCommand(bot, 'timeline', 'timeline', config, handleTimeline);
-  registerAsyncCommand(bot, 'subscribe', 'subscribe', config, handleSubscribe);
-  registerAsyncCommand(bot, 'patrol', 'patrol', config, handlePatrol);
-  registerAsyncCommand(bot, 'reprocess', 'reprocess', config, handleReprocess);
-  registerAsyncCommand(bot, 'reformat', 'reformat', config, handleReformat);
-  registerAsyncCommand(bot, 'dedup', 'dedup', config, handleDedup);
-  registerAsyncCommand(bot, 'quality', 'quality', config, handleQuality);
-  registerAsyncCommand(bot, 'benchmark', 'benchmark', config, handleBenchmark);
-  registerAsyncCommand(bot, 'retry', 'retry', config, createRetryHandler(stats));
-  registerAsyncCommand(bot, 'suggest', 'suggest', config, handleSuggest);
-  registerAsyncCommand(bot, 'toolkit', 'toolkit', config, handleToolkit);
-  registerAsyncCommand(bot, 'memory', 'memory-export', config, handleMemoryExport);
-  registerAsyncCommand(bot, 'config', 'config', config, handleConfig);
-  registerAsyncCommand(bot, 'compile', 'compile', config, handleCompile);
-  registerAsyncCommand(bot, 'skillmgr', 'skillmgr', config, handleSkillsCommand);
-  registerAsyncCommand(bot, 'research', 'research', config, handleResearch);
-  registerAsyncCommand(bot, 'slides', 'slides', config, handleSlides);
-  registerAsyncCommand(bot, 'anki', 'anki', config, handleAnki);
+  const commandRegistrations: CommandRegistration[] = [
+    { command: 'search', tag: 'search-hub', handler: handleSearchHub },
+    { command: 'ask', tag: 'ask', handler: handleAsk },
+    { command: 'digest', tag: 'digest', handler: handleDigestMenu },
+    { command: 'discover', tag: 'discover', handler: handleDiscover },
+    { command: 'radar', tag: 'radar', handler: handleRadar },
+    { command: 'track', tag: 'track-hub', handler: handleTrackHub },
+    { command: 'vault', tag: 'vault-hub', handler: handleVaultHub },
+    { command: 'admin', tag: 'admin-hub', handler: handleAdminHub },
+    { command: 'knowledge', tag: 'knowledge', handler: handleKnowledge },
+    { command: 'find', tag: 'find', handler: handleFind },
+    { command: 'monitor', tag: 'monitor', handler: handleMonitor },
+    { command: 'vsearch', tag: 'vsearch', handler: handleVsearch },
+    { command: 'timeline', tag: 'timeline', handler: handleTimeline },
+    { command: 'subscribe', tag: 'subscribe', handler: handleSubscribe },
+    { command: 'patrol', tag: 'patrol', handler: handlePatrol },
+    { command: 'reprocess', tag: 'reprocess', handler: handleReprocess },
+    { command: 'reformat', tag: 'reformat', handler: handleReformat },
+    { command: 'dedup', tag: 'dedup', handler: handleDedup },
+    { command: 'quality', tag: 'quality', handler: handleQuality },
+    { command: 'benchmark', tag: 'benchmark', handler: handleBenchmark },
+    { command: 'retry', tag: 'retry', handler: createRetryHandler(stats) },
+    { command: 'suggest', tag: 'suggest', handler: handleSuggest },
+    { command: 'toolkit', tag: 'toolkit', handler: handleToolkit },
+    { command: 'memory', tag: 'memory-export', handler: handleMemoryExport },
+    { command: 'config', tag: 'config', handler: handleConfig },
+    { command: 'compile', tag: 'compile', handler: handleCompile },
+    { command: 'skillmgr', tag: 'skillmgr', handler: handleSkillsCommand },
+    { command: 'research', tag: 'research', handler: handleResearch },
+    { command: 'slides', tag: 'slides', handler: handleSlides },
+    { command: 'anki', tag: 'anki', handler: handleAnki },
+  ];
+  registerCommandSet(bot, config, commandRegistrations);
   // --- InlineKeyboard sub-actions ---
   registerAsyncAction(bot, /^kb:(.+)$/, 'knowledge-action', async (ctx) => {
     const mode = ctx.match![1];
@@ -141,18 +126,6 @@ export function registerCommands(
     if (handler) await handler(ctx, config);
   });
   registerSkillCallbacks(bot, config);
-  // --- InlineKeyboard: navigation shortcuts ---
-  registerAsyncAction(bot, /^nav:(.+)$/, 'nav-shortcut', async (ctx) => {
-    const target = ctx.match![1];
-    await ctx.answerCbQuery().catch(() => {});
-    const navHandlers: Record<string, (c: Context, cfg: AppConfig) => Promise<void>> = {
-      discover: handleDiscover,
-      knowledge: handleKnowledge,
-      digest: handleDigestMenu,
-    };
-    const handler = navHandlers[target];
-    if (handler) await handler(ctx, config);
-  });
 
   // --- InlineKeyboard: /digest sub-actions ---
   registerAsyncAction(bot, /^dg:(.+)$/, 'digest-action', async (ctx) => {
@@ -163,42 +136,46 @@ export function registerCommands(
       weekly: handleWeeklyDigest,
       distill: handleDistill,
       consolidate: handleConsolidate,
+      cards: handleKnowledgeCards,
     };
     const handler = handlers[mode];
     if (handler) await handler(ctx, config);
   });
 
-  // --- InlineKeyboard: hub callbacks ---
-  registerAsyncAction(bot, /^srch:(.+)$/, 'search-hub-cb', async (ctx) => {
-    await handleSearchCallback(ctx, config);
-  });
-  registerAsyncAction(bot, /^trk:(.+)$/, 'track-hub-cb', async (ctx) => {
-    await handleTrackCallback(ctx, config);
-  });
-  registerAsyncAction(bot, /^vlt:(.+)$/, 'vault-hub-cb', async (ctx) => {
-    await handleVaultCallback(ctx, config);
-  });
-  registerAsyncAction(bot, /^adm:(.+)$/, 'admin-hub-cb', async (ctx) => {
-    await handleAdminCb(ctx, config);
-  });
-
-  // --- InlineKeyboard: /help category ---
-  registerAsyncAction(bot, /^help:(.+)$/, 'help-category', handleHelpCategory);
-
-  registerAsyncAction(bot, /^retry:(.+)$/, 'retry-action', createRetryActionHandler(stats, config));
-
-  // --- InlineKeyboard: admin actions ---
-  registerAsyncAction(bot, /^admin:restart-confirm$/, 'admin-restart', async (ctx) => {
-    await handleRestartConfirm(ctx);
-  });
-  registerAsyncAction(bot, /^admin:cancel$/, 'admin-cancel', async (ctx) => {
-    await handleAdminCancel(ctx);
-  });
-
-  registerAsyncAction(bot, /^dedup:fix$/, 'dedup-fix', async (ctx) => {
-    await ctx.answerCbQuery('開始刪除…').catch(() => {});
-    await handleDedupFix(ctx, config);
-  });
+  const navHandlers: Record<string, (c: Context, cfg: AppConfig) => Promise<void>> = {
+    discover: handleDiscover,
+    knowledge: handleKnowledge,
+    digest: handleDigestMenu,
+  };
+  const passthroughActions: ActionRegistration[] = [
+    { pattern: /^srch:(.+)$/, tag: 'search-hub-cb', handler: async (ctx) => handleSearchCallback(ctx, config) },
+    { pattern: /^trk:(.+)$/, tag: 'track-hub-cb', handler: async (ctx) => handleTrackCallback(ctx, config) },
+    { pattern: /^vlt:(.+)$/, tag: 'vault-hub-cb', handler: async (ctx) => handleVaultCallback(ctx, config) },
+    { pattern: /^adm:(.+)$/, tag: 'admin-hub-cb', handler: async (ctx) => handleAdminCb(ctx, config) },
+    { pattern: /^help:(.+)$/, tag: 'help-category', handler: handleHelpCategory },
+    { pattern: /^retry:(.+)$/, tag: 'retry-action', handler: createRetryActionHandler(stats, config) },
+    { pattern: /^admin:restart-confirm$/, tag: 'admin-restart', handler: async (ctx) => handleRestartConfirm(ctx) },
+    { pattern: /^admin:cancel$/, tag: 'admin-cancel', handler: async (ctx) => handleAdminCancel(ctx) },
+    {
+      pattern: /^dedup:fix$/,
+      tag: 'dedup-fix',
+      handler: async (ctx) => {
+        await ctx.answerCbQuery('開始刪除…').catch(() => {});
+        await handleDedupFix(ctx, config);
+      },
+    },
+    {
+      pattern: /^nav:(.+)$/,
+      tag: 'nav-shortcut',
+      handler: async (ctx) => {
+        const target = ctx.match![1];
+        await ctx.answerCbQuery().catch(() => {});
+        const handler = navHandlers[target];
+        if (handler) await handler(ctx, config);
+      },
+    },
+  ];
+  registerActionSet(bot, passthroughActions);
 
   registerAsyncAction(bot, /^quality:fix$/, 'quality-fix', async (ctx) => {
     await ctx.answerCbQuery('開始修復…').catch(() => {});
@@ -206,12 +183,7 @@ export function registerCommands(
     if (paths.length === 0) { await ctx.reply('沒有待修復的筆記。'); return; }
     await ctx.reply(`🔄 正在重新處理 ${paths.length} 篇筆記…`);
     const pathArgs = paths.join(' ');
-    const existingMsg = ctx.message as unknown as Record<string, unknown> | undefined;
-    if (existingMsg) { existingMsg.text = `/reprocess ${pathArgs}`; }
-    else {
-      const cbMsg = (ctx.callbackQuery?.message ?? {}) as Record<string, unknown>;
-      (ctx.update as unknown as Record<string, unknown>).message = { ...cbMsg, text: `/reprocess ${pathArgs}` };
-    }
+    mutateContextMessageText(ctx, `/reprocess ${pathArgs}`);
     await handleReprocess(ctx, config);
   });
 
@@ -261,34 +233,50 @@ export function registerCommands(
   });
 
   // --- ForceReply dispatch ---
-  const frm: Array<[string, string, (c: Context, cfg: AppConfig) => Promise<void>]> = [
-    ['search', 'search', handleSearch], ['monitor', 'monitor', handleMonitor],
-    ['timeline', 'timeline', handleTimeline],
-    ['ask', 'ask', handleAsk], ['discover', 'discover', handleDiscover],
-    ['reprocess', 'reprocess', handleReprocess], ['reformat', 'reformat', handleReformat],
-    ['subscribe', 'subscribe', handleSubscribe], ['find', 'find', handleFind],
-    ['vsearch-hub', 'vsearch', handleVsearch],
+  const forceReplyRegistrations: ForceReplyRegistration[] = [
+    { key: 'search', tag: 'search', handler: handleSearch },
+    { key: 'monitor', tag: 'monitor', handler: handleMonitor },
+    { key: 'timeline', tag: 'timeline', handler: handleTimeline },
+    { key: 'ask', tag: 'ask', handler: handleAsk },
+    { key: 'discover', tag: 'discover', handler: handleDiscover },
+    { key: 'reprocess', tag: 'reprocess', handler: handleReprocess },
+    { key: 'reformat', tag: 'reformat', handler: handleReformat },
+    { key: 'subscribe', tag: 'subscribe', handler: handleSubscribe },
+    { key: 'find', tag: 'find', handler: handleFind },
+    { key: 'vsearch-hub', tag: 'vsearch', handler: handleVsearch },
   ];
-  for (const [key, tag, handler] of frm)
-    registerForceReplyHandler(key, (ctx) => runCommandTask(ctx, tag, () => handler(ctx, config), formatErrorMessage));
+  for (const registration of forceReplyRegistrations) {
+    registerForceReplyHandler(
+      registration.key,
+      createForceReplyRunner(config, registration.handler, registration.tag),
+    );
+  }
 
   // --- ForceReply: search topic / author ---
   registerForceReplyHandler('srch-topic', (ctx) => {
     const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
     const topic = text.replace(/^\/srch-topic\s*/i, '').trim();
-    return runCommandTask(ctx, 'search-topic', () => handleMonitorTopic(ctx, config, topic), formatErrorMessage);
+    return createForceReplyRunner(
+      config,
+      (forceReplyCtx, appConfig) => handleMonitorTopic(forceReplyCtx, appConfig, topic),
+      'search-topic',
+    )(ctx);
   });
   registerForceReplyHandler('srch-author', (ctx) => {
     const text = (ctx.message && 'text' in ctx.message) ? ctx.message.text : '';
     const author = text.replace(/^\/srch-author\s*/i, '').trim();
-    return runCommandTask(ctx, 'search-author', () => handleMonitorAuthor(ctx, config, author), formatErrorMessage);
+    return createForceReplyRunner(
+      config,
+      (forceReplyCtx, appConfig) => handleMonitorAuthor(forceReplyCtx, appConfig, author),
+      'search-author',
+    )(ctx);
   });
 
   // --- ForceReply: radar add keyword / author ---
   registerForceReplyHandler('radar-keyword', (ctx) =>
-    runCommandTask(ctx, 'radar-add-keyword', () => handleRadarAddKeyword(ctx, config), formatErrorMessage));
+    createForceReplyRunner(config, handleRadarAddKeyword, 'radar-add-keyword')(ctx));
   registerForceReplyHandler('radar-author', (ctx) =>
-    runCommandTask(ctx, 'radar-add-author', () => handleRadarAddAuthor(ctx, config), formatErrorMessage));
+    createForceReplyRunner(config, handleRadarAddAuthor, 'radar-add-author')(ctx));
 
   registerInfoCommands(bot, stats, startTime);
 

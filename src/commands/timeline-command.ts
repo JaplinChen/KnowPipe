@@ -11,6 +11,8 @@ import { camoufoxPool } from '../utils/camoufox-pool.js';
 import { saveToVault } from '../saver.js';
 import { classifyContent } from '../classifier.js';
 import { tagForceReply, forceReplyMarkup } from '../utils/force-reply.js';
+import { withTypingIndicator } from './command-runner.js';
+import { buildTimelineVisualPrompt } from '../utils/visual-cards-builder.js';
 
 type SupportedPlatform = 'threads' | 'x';
 
@@ -174,9 +176,7 @@ export async function handleTimeline(ctx: Context, config: AppConfig): Promise<v
     return;
   }
 
-  const status = await ctx.reply(`正在抓取 Threads 用戶 @${username} 的最近 ${count} 篇貼文...`);
-
-  try {
+  await withTypingIndicator(ctx, `正在抓取 Threads 用戶 @${username} 的最近 ${count} 篇貼文...`, async () => {
     const posts = await scrapeThreadsTimeline(username, count);
 
     if (posts.length === 0) {
@@ -202,10 +202,18 @@ export async function handleTimeline(ctx: Context, config: AppConfig): Promise<v
       `⏭ 略過重複：${result.skipped} 篇\n` +
       `❌ 失敗：${result.failed} 篇`,
     );
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    await ctx.reply(`時間軸抓取失敗：${msg}`);
-  } finally {
-    await ctx.deleteMessage(status.message_id).catch(() => {});
-  }
+
+    // Generate visual timeline prompt asynchronously
+    if (posts.length >= 3) {
+      const visualData = posts.map(p => ({
+        title: p.title,
+        category: p.category ?? '其他',
+        date: p.date ?? new Date().toISOString().split('T')[0],
+      }));
+      const visualPrompt = await buildTimelineVisualPrompt(username, visualData).catch(() => null);
+      if (visualPrompt) {
+        await ctx.reply(`🎨 時間軸視覺提示詞（可用於 Midjourney / DALL-E）：\n\n${visualPrompt}`);
+      }
+    }
+  }, '時間軸抓取失敗');
 }
