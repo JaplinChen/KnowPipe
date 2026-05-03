@@ -94,6 +94,8 @@ async function enrichWebPage(url: string): Promise<Omit<LinkedContentMeta, 'url'
     redirect: 'follow',
   });
   if (!res.ok) throw new Error(`fetch failed: ${res.status}`);
+  const contentType = res.headers.get('content-type') ?? '';
+  if (contentType.includes('application/pdf')) throw new Error('PDF content skipped');
 
   const html = await res.text();
   const title = extractMeta(html, 'og:title') || extractMeta(html, 'twitter:title') ||
@@ -153,8 +155,18 @@ async function enrichGithubPage(url: string): Promise<Omit<LinkedContentMeta, 'u
   return { title: title.slice(0, 200), description: description || undefined, platform: 'github', stars, language, fullText };
 }
 
+function isPdfUrl(url: string): boolean {
+  try {
+    const { pathname } = new URL(url);
+    return pathname.endsWith('.pdf') || pathname.includes('/pdf/');
+  } catch {
+    return false;
+  }
+}
+
 async function enrichSingleUrl(entry: UrlEntry): Promise<LinkedContentMeta> {
   const { url, source, mentionedBy } = entry;
+  if (isPdfUrl(url)) throw new Error('PDF URL skipped');
   const platform = detectPlatform(url);
   const meta = platform === 'github'
     ? await enrichGithubPage(url)

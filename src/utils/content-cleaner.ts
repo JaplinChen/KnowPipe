@@ -40,12 +40,65 @@ const EMOJI_SPAM_RE = new RegExp(
 );
 
 /**
+ * Remove web boilerplate: sponsor ads, copyright footers, year-navigation lists,
+ * and disclaimer/about-site links that leak in from blog footers.
+ * Truncates at the first recognised boilerplate marker.
+ */
+function stripWebBoilerplate(text: string): string {
+  const lines = text.split('\n');
+  const truncatePatterns = [
+    /\*\*贊助商[：:]/,               // sponsor ad block
+    /©\s*\d{4}/,                      // copyright year
+    /^(?:\*\s*)?\[(?:免責聲明|關於本站|訂閱|Privacy)/m,  // footer nav links
+  ];
+
+  // Detect the first line index that looks like a boilerplate marker
+  let cutLine = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (truncatePatterns.some(re => re.test(line))) {
+      cutLine = i;
+      break;
+    }
+    // Consecutive year-list lines: "* [2002](...)" repeated 3+ times in a row
+    if (/^\*\s*\[\d{4}\]/.test(line)) {
+      // Check if surrounded by similar lines
+      const nextLine = lines[i + 1] ?? '';
+      const prevLine = lines[i - 1] ?? '';
+      if (/^\*\s*\[\d{4}\]/.test(nextLine) || /^\*\s*\[\d{4}\]/.test(prevLine)) {
+        cutLine = i;
+        break;
+      }
+    }
+  }
+
+  // Remove individual boilerplate lines that escaped the truncation heuristic
+  const lineFilters: RegExp[] = [
+    /^!\[\]\(https?:\/\/[^\s)]*(?:sponsor|ad|tracker|pixel)[^\s)]*\)/i,  // tracker pixels
+    /^\[免責聲明\]|^\[關於本站\]|^\[訂閱\]|^\[隱私政策\]/,
+    /^©\s*\d{4}/,
+  ];
+
+  const cleaned = lines
+    .slice(0, cutLine)
+    .filter(line => !lineFilters.some(re => re.test(line.trim())));
+
+  return cleaned.join('\n');
+}
+
+/**
  * Clean advertising language from body text.
  * Removes exaggerated modifiers, urgency language, and self-promotion.
  * Preserves factual content and technical details.
  */
 export function cleanAdSpeak(text: string): string {
   let result = text;
+
+  // Unwrap image links: [![alt](img)](link) → ![alt](img)
+  result = result.replace(/\[!\[([^\]]*)\]\(([^)]+)\)\]\([^)]+\)/g, '![$1]($2)');
+
+  // Strip web boilerplate (sponsor sections, footer navigation, copyright)
+  result = stripWebBoilerplate(result);
 
   for (const pattern of AD_SPEAK_PATTERNS) {
     result = result.replace(pattern, '');
@@ -65,6 +118,24 @@ export function cleanAdSpeak(text: string): string {
   result = result.replace(/[ \t]{2,}/g, ' ');
 
   return result.trim();
+}
+
+/** UI navigation words that indicate a page couldn't be parsed (SPA / landing page noise) */
+const UI_NAV_RE = /(?:功能|價格|常見問題|登入|立即開始|免費開始|立即試用|立即購買|了解更多|立即體驗|Click\s*here|Sign\s*up|Log\s*in)/gi;
+
+/**
+ * Detect whether a summary contains UI navigation boilerplate instead of real content.
+ * Used by vault-healer and pipeline to reject garbage summaries.
+ */
+export function isBoilerplateSummary(summary: string): boolean {
+  // Contains HTML structural tags
+  if (/<(?:div|span|table|tbody|caption|figure|h[1-6])\b[^>]*>/.test(summary)) return true;
+  // Starts with known Wikipedia/HTML boilerplate
+  if (/^(?:来自维基百科|來自維基百科|<caption>|<tbody>|\{\{)/.test(summary.trim())) return true;
+  // 3+ consecutive UI navigation words in a short summary — classic SPA landing page grab
+  const navMatches = summary.match(UI_NAV_RE) ?? [];
+  if (navMatches.length >= 3) return true;
+  return false;
 }
 
 /**
