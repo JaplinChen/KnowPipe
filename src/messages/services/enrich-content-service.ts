@@ -45,6 +45,15 @@ export async function enrichExtractedContent(content: ExtractedContent, config: 
 
   const features = getUserConfig().features;
 
+  // X 推文：實質字數 < 50 且無附圖 → 內容太薄，標記 pending-review 供人工確認
+  if (content.platform === 'x' && content.images.length === 0) {
+    const wordCount = cleanText.split(/\s+/).filter(Boolean).length;
+    if (wordCount < 50) {
+      content.extraTags = [...(content.extraTags ?? []), 'pending-review'];
+      logger.info('msg', 'X 推文內容不足，標記 pending-review', { wordCount });
+    }
+  }
+
   // OCR + Vision: run whenever images are present and imageAnalysis is enabled
   let ocrText = '';
   let imageContext = '';

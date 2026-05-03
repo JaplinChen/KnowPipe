@@ -21,6 +21,20 @@ const VISION_PROMPT = `Describe this image in Traditional Chinese (zh-TW) in 2-3
 Focus on: what tool/product/concept is shown, key visual elements, any text visible in the image.
 Be factual and concise. Do not describe decorative elements.`;
 
+/**
+ * Validate image description quality.
+ * Rejects empty, too-short, non-CJK, or garbled outputs (e.g. truncated binary + random ASCII).
+ */
+function isValidDescription(desc: string): boolean {
+  if (desc.length < 10) return false;
+  // Prompt asks for Traditional Chinese — require at least 3 CJK characters
+  const cjkCount = (desc.match(/[一-鿿㐀-䶿]/g) ?? []).length;
+  if (cjkCount < 3) return false;
+  // Garbled output: CJK char immediately followed by 8+ lowercase alphanum (binary leak)
+  if (/[一-鿿][a-z0-9]{8,}/i.test(desc)) return false;
+  return true;
+}
+
 /** Map file extension to MIME type. */
 function extToMime(ext: string): string {
   const map: Record<string, string> = {
@@ -131,7 +145,7 @@ export async function analyzeContentImages(
         const imgPath = join(tempDir, `img-${i}${ext}`);
         await writeFile(imgPath, buf);
         const desc = await analyzeImage(imgPath);
-        if (desc) {
+        if (desc && isValidDescription(desc)) {
           logger.info('vision', `image ${i + 1} analyzed`, { chars: desc.length });
           return `[圖片${i + 1}] ${desc}`;
         }

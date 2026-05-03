@@ -54,6 +54,19 @@ function buildTranslationPrompt(title: string, text: string): string {
   ].join('\n');
 }
 
+
+/**
+ * Strip LLM thinking/analysis sections that leaked into translation output.
+ * Removes patterns like **Title Analysis:** or **Translation Considerations:** blocks.
+ */
+function stripThinkingChain(text: string): string {
+  return text
+    .replace(/\*\*(?:Title|Text|Translation)\s+(?:Analysis|Considerations?)[:：]\*\*[\s\S]*?(?=\n\n|\n##|$)/gi, '')
+    .replace(/^\d+\.\s+"[^"]*"\s*[→\->]+\s*"[^"]*"\s*(?:\([^)]*\))?\s*$/gm, '')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function parseTranslationResponse(response: string): TranslationResult | null {
   // 優先嘗試 JSON 格式（oMLX / 嚴格 LLM 回傳）
   const match = response.match(/\{[\s\S]*\}/);
@@ -71,14 +84,13 @@ function parseTranslationResponse(response: string): TranslationResult | null {
   }
 
   // fallback：opencode / DDG 可能直接回傳純文字翻譯（非 JSON）
-  // 只要回應含有中文字就視為有效翻譯
-  // 若回應仍以 { 開頭表示 JSON 解析已失敗但非純文字，直接放棄
+  // 先清除 thinking chain 再判斷
   const CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf]/;
-  const trimmed = response.trim();
-  if (!trimmed.startsWith('{') && CJK_RE.test(trimmed) && trimmed.length > 20) {
+  const cleaned = stripThinkingChain(response.trim());
+  if (!cleaned.startsWith('{') && CJK_RE.test(cleaned) && cleaned.length > 20) {
     return {
       detectedLanguage: 'en',
-      translatedText: trimmed,
+      translatedText: cleaned,
       translatedTitle: undefined,
     };
   }
