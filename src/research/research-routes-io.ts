@@ -157,7 +157,7 @@ export async function handleIORequest(
 
   /* ── open-design 整合 ──────────────────────────────────────── */
 
-  // Health check：確認 open-design 是否在 port 7456 運行
+  // Health check：確認 open-design 是否在 port 7456 運行，同時回傳可用 deck skill
   if (url === '/api/research/opendesign/health' && method === 'GET') {
     try {
       const ctrl = new AbortController();
@@ -165,8 +165,10 @@ export async function handleIORequest(
       const r = await fetch('http://127.0.0.1:7456/api/skills', { signal: ctrl.signal });
       clearTimeout(timer);
       if (r.ok) {
-        const skills = await r.json() as unknown[];
-        json(res, { available: true, skillCount: Array.isArray(skills) ? skills.length : 0, skills });
+        const raw = await r.json() as { skills?: unknown[] } | unknown[];
+        const skills = (Array.isArray(raw) ? raw : (raw as { skills?: unknown[] }).skills ?? []) as Array<{ id: string; mode?: string; name?: string }>;
+        const deckSkills = skills.filter(s => s.mode === 'deck').map(s => ({ id: s.id, name: s.name ?? s.id }));
+        json(res, { available: true, skillCount: skills.length, deckSkills });
       } else {
         json(res, { available: false, error: `HTTP ${r.status}` });
       }
@@ -176,7 +178,7 @@ export async function handleIORequest(
     return true;
   }
 
-  // 生成進階簡報：呼叫 open-design /api/chat + guizang-ppt skill
+  // 生成進階簡報：呼叫 open-design /api/chat，agentId=claude，skillId 由前端傳入
   if (url === '/api/research/opendesign/generate' && method === 'POST') {
     const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string }>(await readBody(req), res);
     if (!body) return true;
@@ -191,8 +193,8 @@ export async function handleIORequest(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: body.agentId ?? 'claude-code',
-          skillId: body.skillId ?? 'guizang-ppt',
+          agentId: body.agentId ?? 'claude',       // open-design 的 Claude Code agent ID
+          skillId: body.skillId ?? 'magazine-web-ppt', // guizang-ppt 在 open-design 的實際 ID
           message,
         }),
         signal: ctrl.signal,
@@ -218,15 +220,31 @@ export async function handleIORequest(
         if (fullOutput.includes('event: end')) break;
       }
 
-      // 從輸出中擷取生成的檔案路徑
-      const pptxFiles = [...new Set((fullOutput.match(/[\w.\/\\-]+\.pptx/gi) ?? []))];
-      const htmlFiles = [...new Set((fullOutput.match(/[\w.\/\\-]+\.html/gi) ?? []))]
-        .filter(p => !p.includes('node_modules') && !p.includes('research-ui'));
+      // 從 SSE 輸出擷取 run ID，再掃 open-design artifacts 目錄
+      const OD_DIR = '/Users/japlin/Works/open-design';
+      const artifactsBase = join(OD_DIR, '.od', 'artifacts');
+      let artifactHtmlUrl: string | null = null;
+
+      try {
+        const { readdirSync, statSync } = await import('node:fs');
+        if (existsSync(artifactsBase)) {
+          const dirs = readdirSync(artifactsBase)
+            .map(d => ({ name: d, mtime: statSync(join(artifactsBase, d)).mtimeMs }))
+            .sort((a, b) => b.mtime - a.mtime); // 最新的在前
+          if (dirs.length > 0) {
+            const latest = join(artifactsBase, dirs[0].name, 'index.html');
+            // 只取 60 秒內新生成的 artifact（避免拿到舊的）
+            if (existsSync(latest) && Date.now() - dirs[0].mtime < 60_000) {
+              artifactHtmlUrl = `file://${latest}`;
+            }
+          }
+        }
+      } catch { /* 掃目錄失敗不影響回傳 */ }
 
       json(res, {
         ok: true,
-        pptxFiles,
-        htmlFiles,
+        artifactHtmlUrl,
+        artifactsDir: artifactsBase,
         rawOutput: fullOutput.slice(0, 3000),
       });
     } catch (e: unknown) {
