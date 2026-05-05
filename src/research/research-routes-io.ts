@@ -155,5 +155,87 @@ export async function handleIORequest(
     return true;
   }
 
+  /* ── open-design 整合 ──────────────────────────────────────── */
+
+  // Health check：確認 open-design 是否在 port 7456 運行
+  if (url === '/api/research/opendesign/health' && method === 'GET') {
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 2500);
+      const r = await fetch('http://127.0.0.1:7456/api/skills', { signal: ctrl.signal });
+      clearTimeout(timer);
+      if (r.ok) {
+        const skills = await r.json() as unknown[];
+        json(res, { available: true, skillCount: Array.isArray(skills) ? skills.length : 0, skills });
+      } else {
+        json(res, { available: false, error: `HTTP ${r.status}` });
+      }
+    } catch {
+      json(res, { available: false, error: 'service_not_running' });
+    }
+    return true;
+  }
+
+  // 生成進階簡報：呼叫 open-design /api/chat + guizang-ppt skill
+  if (url === '/api/research/opendesign/generate' && method === 'POST') {
+    const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string }>(await readBody(req), res);
+    if (!body) return true;
+
+    const message = `請根據以下研究內容，製作一份關於「${body.topic}」的專業投影片簡報。\n\n研究內容如下：\n\n${body.content.slice(0, 6000)}`;
+
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 300_000); // 5 min max
+
+      const r = await fetch('http://127.0.0.1:7456/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: body.agentId ?? 'claude-code',
+          skillId: body.skillId ?? 'guizang-ppt',
+          message,
+        }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(timer);
+
+      if (!r.ok) {
+        const errText = await r.text().catch(() => '');
+        json(res, { error: `open-design 回傳 HTTP ${r.status}`, detail: errText.slice(0, 300) }, 502);
+        return true;
+      }
+
+      // 讀取 SSE 串流直到 event: end
+      let fullOutput = '';
+      const decoder = new TextDecoder();
+      const reader = (r.body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
+      const deadline = Date.now() + 300_000;
+
+      while (Date.now() < deadline) {
+        const { done, value } = await reader.next();
+        if (done) break;
+        fullOutput += decoder.decode(value, { stream: true });
+        if (fullOutput.includes('event: end')) break;
+      }
+
+      // 從輸出中擷取生成的檔案路徑
+      const pptxFiles = [...new Set((fullOutput.match(/[\w.\/\\-]+\.pptx/gi) ?? []))];
+      const htmlFiles = [...new Set((fullOutput.match(/[\w.\/\\-]+\.html/gi) ?? []))]
+        .filter(p => !p.includes('node_modules') && !p.includes('research-ui'));
+
+      json(res, {
+        ok: true,
+        pptxFiles,
+        htmlFiles,
+        rawOutput: fullOutput.slice(0, 3000),
+      });
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const isTimeout = msg.includes('abort') || msg.includes('timeout');
+      json(res, { error: isTimeout ? '生成超時（5 分鐘）' : msg }, 500);
+    }
+    return true;
+  }
+
   return false;
 }

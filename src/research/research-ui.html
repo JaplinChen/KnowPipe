@@ -256,6 +256,23 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 /* ── P2: Disabled tool buttons ── */
 .tool-btn.disabled{opacity:.35;cursor:not-allowed;pointer-events:none}
 .tool-section-note{font-size:11px;color:var(--txt3);padding:3px 2px 8px;font-style:italic}
+/* ── open-design 整合 ── */
+.od-divider{border-top:1px solid var(--bdr);margin:10px 0 8px}
+.od-status-row{font-size:11px;color:var(--txt3);margin-bottom:4px;min-height:16px;line-height:1.5}
+.od-status-row.ok{color:var(--gn)}
+.od-status-row.warn{color:var(--txt3)}
+.od-status-row code{background:var(--bg2);border:1px solid var(--bdr);border-radius:4px;padding:1px 5px;font-size:10px;font-family:'SF Mono',Menlo,Consolas,monospace}
+.od-btn:not([disabled]){border-color:rgba(102,126,234,.4);color:var(--pu)}
+.od-btn:not([disabled]):hover{background:var(--pu2);border-color:var(--pu3)}
+.od-btn[disabled]{opacity:.4;cursor:not-allowed}
+.od-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:800;display:flex;align-items:center;justify-content:center}
+.od-modal{background:var(--bg1);border-radius:14px;padding:28px 32px;max-width:460px;width:90%;box-shadow:0 12px 40px rgba(0,0,0,.25);text-align:center}
+.od-modal h3{font-size:16px;color:var(--txt1);margin-bottom:10px}
+.od-modal p{font-size:13px;color:var(--txt2);line-height:1.7;margin-bottom:8px}
+.od-modal .od-close{background:var(--bg2);border:1px solid var(--bdr2);border-radius:8px;padding:7px 18px;font-size:13px;cursor:pointer;font-family:inherit;margin-top:12px;color:var(--txt2)}
+.od-modal .od-close:hover{border-color:var(--pu3);color:var(--pu)}
+.od-spinner{display:inline-block;width:20px;height:20px;border:2px solid var(--pu3);border-top-color:var(--pu);border-radius:50%;animation:spin .7s linear infinite;margin-bottom:12px}
+@keyframes spin{to{transform:rotate(360deg)}}
 /* ── P3: Selection badge in topic bar ── */
 .sel-badge{background:var(--pu2);color:var(--pu);border:1px solid var(--pu3);border-radius:20px;padding:3px 10px;font-size:11px;font-weight:700;white-space:nowrap;flex-shrink:0}
 /* ── P5: Restore session banner ── */
@@ -1150,7 +1167,11 @@ function renderRight(){
     window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
   }else if(S.tab==='slides'){
     el.innerHTML='<button class="tool-btn" onclick="exportPreview()"><span class="icon">👁</span>'+t('research.previewSlides')+'</button>'
-      +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>';
+      +'<button class="tool-btn" onclick="exportPptx()"><span class="icon">📥</span>'+t('research.downloadPptx')+'</button>'
+      +'<div class="od-divider"></div>'
+      +'<div id="od-status" class="od-status-row"></div>'
+      +'<button class="tool-btn od-btn" id="od-btn" onclick="exportOpenDesign()" disabled><span class="icon">✨</span>AI設計簡報</button>';
+    checkOpenDesignHealth();
   }
 }
 
@@ -1408,6 +1429,82 @@ async function exportPptx(){
     const blob=await r.blob();const url=URL.createObjectURL(blob);
     const a=document.createElement('a');a.href=url;a.download='research.pptx';a.click();URL.revokeObjectURL(url);
   }catch(e){alert(t('research.exportFail')+e.message);}
+}
+
+/* ── open-design 進階簡報 ─────────────────────────────────── */
+async function checkOpenDesignHealth(){
+  var status=document.getElementById('od-status');
+  var btn=document.getElementById('od-btn');
+  if(!status||!btn)return;
+  status.className='od-status-row warn';
+  status.textContent='⏳ 偵測 open-design…';
+  try{
+    var r=await fetch('/api/research/opendesign/health');
+    var d=await r.json();
+    if(d.available){
+      status.className='od-status-row ok';
+      status.textContent='✅ open-design 已就緒（'+d.skillCount+' 個技能）';
+      btn.disabled=false;
+    }else{
+      status.className='od-status-row warn';
+      status.innerHTML='⚪ open-design 未啟動 — 執行 <code>pnpm tools-dev run web</code> 後重整';
+      btn.disabled=true;
+    }
+  }catch{
+    status.className='od-status-row warn';
+    status.innerHTML='⚪ open-design 無法連線 — 執行 <code>pnpm tools-dev run web</code>';
+    btn.disabled=true;
+  }
+}
+
+function _odShowOverlay(html){
+  var el=document.createElement('div');
+  el.className='od-overlay';el.id='od-overlay';
+  el.innerHTML='<div class="od-modal">'+html+'</div>';
+  el.onclick=function(e){if(e.target===el)_odCloseOverlay();};
+  document.body.appendChild(el);
+}
+function _odCloseOverlay(){var el=document.getElementById('od-overlay');if(el)el.remove();}
+
+async function exportOpenDesign(){
+  if(!S.topic){alert('請先設定研究主題再生成簡報');return;}
+  var btn=document.getElementById('od-btn');
+  var content=S.history.filter(function(m){return m.role==='assistant';}).map(function(m){return m.content;}).join('\n\n');
+  if(!content){alert('尚無研究內容，請先進行研究再生成簡報');return;}
+
+  _odShowOverlay('<div class="od-spinner"></div><h3>AI 設計中…</h3><p>open-design 正在根據研究內容生成投影片<br>這可能需要 1–3 分鐘，請稍候</p>');
+  if(btn){btn.disabled=true;btn.querySelector('.icon').textContent='⏳';}
+
+  try{
+    var r=await fetch('/api/research/opendesign/generate',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({content:content,topic:S.topic})
+    });
+    var d=await r.json();
+    _odCloseOverlay();
+
+    if(!r.ok||d.error){
+      _odShowOverlay('<h3>❌ 生成失敗</h3><p>'+d.error+'</p><button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+      return;
+    }
+
+    if(d.pptxFiles&&d.pptxFiles.length){
+      var links=d.pptxFiles.map(function(p){return '<div style="font-size:12px;padding:4px 0;word-break:break-all">📄 '+p+'</div>';}).join('');
+      _odShowOverlay('<h3>✅ 簡報已生成</h3>'+links+'<p style="margin-top:10px;font-size:12px;color:var(--txt3)">PPTX 已存放在 open-design 工作目錄中</p><button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+    }else if(d.htmlFiles&&d.htmlFiles.length){
+      var htmlLink=d.htmlFiles[0];
+      _odShowOverlay('<h3>✅ 簡報已生成（HTML）</h3><p style="font-size:12px;word-break:break-all">'+htmlLink+'</p><button class="od-close" onclick="window.open(\'file://\'+\''+htmlLink+'\',\'_blank\');_odCloseOverlay()">開啟預覽</button> <button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+    }else{
+      _odShowOverlay('<h3>⚠️ 生成完成，未偵測到輸出路徑</h3><p style="font-size:12px">請至 open-design 介面查看生成結果。</p><pre style="font-size:10px;text-align:left;background:var(--bg2);padding:8px;border-radius:6px;max-height:120px;overflow:auto;word-break:break-all">'+d.rawOutput.slice(0,400)+'</pre><button class="od-close" onclick="window.open(\'http://127.0.0.1:7456\',\'_blank\');_odCloseOverlay()">開啟 open-design</button> <button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+    }
+  }catch(e){
+    _odCloseOverlay();
+    _odShowOverlay('<h3>❌ 連線失敗</h3><p>'+e.message+'</p><button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+  }finally{
+    if(btn){btn.disabled=false;btn.querySelector('.icon').textContent='✨';}
+    checkOpenDesignHealth();
+  }
 }
 
 /* ── Multi-session persistence（後端 API，跨 domain 共享） ── */
