@@ -161,7 +161,9 @@ export async function handleIORequest(
   if (url === '/api/research/opendesign/serve' && method === 'GET') {
     const filePath = new URL(`http://x${req.url}`).searchParams.get('p') ?? '';
     const OD_PROJECTS = '/Users/japlin/Works/open-design/.od/projects/';
-    if (!filePath || !filePath.startsWith(OD_PROJECTS) || !filePath.endsWith('.html')) {
+    const TMP_PREFIX = '/tmp/od-artifact-';
+    const allowed = filePath.startsWith(OD_PROJECTS) || filePath.startsWith(TMP_PREFIX);
+    if (!filePath || !allowed || !filePath.endsWith('.html')) {
       json(res, { error: '無效路徑' }, 400); return true;
     }
     try {
@@ -275,36 +277,65 @@ export async function handleIORequest(
         }
       }
 
-      // 掃 .od/projects/ 找最近修改過的 HTML artifact
-      const OD_DIR = '/Users/japlin/Works/open-design';
-      const projectsBase = join(OD_DIR, '.od', 'projects');
+      // 從 SSE 串流取出 sessionId，讀 Claude session JSONL 提取 <artifact> HTML
       let artifactHtmlPath: string | null = null;
-      const RECENCY_MS = 10 * 60 * 1000; // 10 分鐘內建立的視為本次生成
-
       try {
-        const { readdirSync, statSync } = await import('node:fs');
-        if (existsSync(projectsBase)) {
-          // 找最近修改的 project 目錄
-          const projectDirs = readdirSync(projectsBase)
-            .map(d => ({ id: d, mtime: statSync(join(projectsBase, d)).mtimeMs }))
-            .filter(d => Date.now() - d.mtime < RECENCY_MS)
-            .sort((a, b) => b.mtime - a.mtime);
-
-          for (const proj of projectDirs) {
-            const projDir = join(projectsBase, proj.id);
-            // 找最新的 .html 檔（排除範本檔）
-            const htmlFiles = readdirSync(projDir)
-              .filter(f => f.endsWith('.html') && !f.startsWith('.'))
-              .map(f => ({ name: f, mtime: statSync(join(projDir, f)).mtimeMs }))
-              .filter(f => Date.now() - f.mtime < RECENCY_MS)
-              .sort((a, b) => b.mtime - a.mtime);
-            if (htmlFiles.length > 0) {
-              artifactHtmlPath = join(projDir, htmlFiles[0].name);
-              break;
+        const sessionMatch = fullOutput.match(/"sessionId"\s*:\s*"([0-9a-f-]{36})"/);
+        if (sessionMatch) {
+          const sessionId = sessionMatch[1];
+          const sessionFile = join(
+            process.env['HOME'] ?? '/Users/japlin',
+            '.claude/projects/-Users-japlin-Works-open-design',
+            `${sessionId}.jsonl`,
+          );
+          if (existsSync(sessionFile)) {
+            const lines = readFileSync(sessionFile, 'utf-8').split('\n');
+            // 倒序找最後一個包含 <artifact type="text/html"> 的 assistant 訊息
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const line = lines[i].trim();
+              if (!line || !line.includes('artifact') || !line.includes('text/html')) continue;
+              try {
+                const parsed = JSON.parse(line) as { message?: { content?: Array<{ type: string; text?: string }> } };
+                const textBlock = (parsed.message?.content ?? []).find(b => b.type === 'text' && b.text?.includes('<artifact'));
+                if (!textBlock?.text) continue;
+                const m = textBlock.text.match(/<artifact[^>]*>([\s\S]*?)<\/artifact>/);
+                if (!m) continue;
+                const html = m[1].trim();
+                // 存到 /tmp 供 serve proxy 回傳
+                const slug = (body.topic ?? 'deck').toLowerCase().replace(/[^\w一-鿿]/g, '-').slice(0, 20);
+                const outPath = join('/tmp', `od-artifact-${slug}-${sessionId.slice(0, 8)}.html`);
+                writeFileSync(outPath, html, 'utf-8');
+                artifactHtmlPath = outPath;
+                break;
+              } catch { continue; }
             }
           }
         }
-      } catch { /* 掃目錄失敗不影響回傳 */ }
+      } catch { /* 提取失敗不影響主流程 */ }
+
+      // fallback：掃 .od/projects/ 找最近 HTML（agent 有時會用 Write tool 存檔）
+      if (!artifactHtmlPath) {
+        try {
+          const { readdirSync, statSync } = await import('node:fs');
+          const projectsBase = join('/Users/japlin/Works/open-design', '.od', 'projects');
+          const RECENCY_MS = 15 * 60 * 1000;
+          if (existsSync(projectsBase)) {
+            const projectDirs = readdirSync(projectsBase)
+              .map(d => ({ id: d, mtime: statSync(join(projectsBase, d)).mtimeMs }))
+              .filter(d => Date.now() - d.mtime < RECENCY_MS)
+              .sort((a, b) => b.mtime - a.mtime);
+            for (const proj of projectDirs) {
+              const projDir = join(projectsBase, proj.id);
+              const htmlFiles = readdirSync(projDir)
+                .filter(f => f.endsWith('.html') && !f.startsWith('.'))
+                .map(f => ({ name: f, mtime: statSync(join(projDir, f)).mtimeMs }))
+                .filter(f => Date.now() - f.mtime < RECENCY_MS)
+                .sort((a, b) => b.mtime - a.mtime);
+              if (htmlFiles.length > 0) { artifactHtmlPath = join(projDir, htmlFiles[0].name); break; }
+            }
+          }
+        } catch { /* ignore */ }
+      }
 
       const elapsed = Math.round((Date.now() - startTs) / 1000);
       json(res, {
