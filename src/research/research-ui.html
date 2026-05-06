@@ -1179,6 +1179,11 @@ function renderRight(){
         +'<option value="dark-minimal">⬛ 暗色極簡 · 高端</option>'
       +'</select>'
       +'<select id="od-skill-sel" class="od-skill-sel" style="display:none"><option value="magazine-web-ppt">magazine-web-ppt</option></select>'
+      +'<select id="od-model-sel" class="od-skill-sel" style="display:none">'
+        +'<option value="sonnet">Sonnet（省額度，推薦）</option>'
+        +'<option value="opus">Opus（品質最高）</option>'
+        +'<option value="haiku">Haiku（最快）</option>'
+      +'</select>'
       +'<button class="tool-btn od-btn" id="od-btn" onclick="exportOpenDesign()" disabled><span class="icon">✨</span>AI設計簡報（open-design）</button>';
     checkOpenDesignHealth();
   }
@@ -1457,9 +1462,11 @@ async function checkOpenDesignHealth(){
       status.className='od-status-row ok';
       status.textContent='✅ open-design 就緒（'+d.skillCount+' 個技能）';
       btn.disabled=false;
-      // 顯示風格選擇器
+      // 顯示風格選擇器與模型選擇器
       var styleSel=document.getElementById('od-style-sel');
       if(styleSel)styleSel.style.display='';
+      var modelSel=document.getElementById('od-model-sel');
+      if(modelSel)modelSel.style.display='';
       // 填入 deck skill 選單
       if(sel&&d.deckSkills&&d.deckSkills.length){
         sel.innerHTML=d.deckSkills.map(function(s){
@@ -1474,6 +1481,8 @@ async function checkOpenDesignHealth(){
       if(sel)sel.style.display='none';
       var styleSel2=document.getElementById('od-style-sel');
       if(styleSel2)styleSel2.style.display='none';
+      var modelSel2=document.getElementById('od-model-sel');
+      if(modelSel2)modelSel2.style.display='none';
     }
   }catch{
     status.className='od-status-row warn';
@@ -1482,6 +1491,8 @@ async function checkOpenDesignHealth(){
     if(sel)sel.style.display='none';
     var styleSel3=document.getElementById('od-style-sel');
     if(styleSel3)styleSel3.style.display='none';
+    var modelSel3=document.getElementById('od-model-sel');
+    if(modelSel3)modelSel3.style.display='none';
   }
 }
 
@@ -1499,20 +1510,23 @@ async function exportOpenDesign(){
   var btn=document.getElementById('od-btn');
   var sel=document.getElementById('od-skill-sel');
   var styleSel=document.getElementById('od-style-sel');
+  var modelSel=document.getElementById('od-model-sel');
   var skillId=sel?sel.value:'magazine-web-ppt';
   var stylePreset=styleSel?styleSel.value:'wired-tech';
   var styleLabel=styleSel&&styleSel.selectedOptions[0]?styleSel.selectedOptions[0].text:stylePreset;
+  var model=modelSel?modelSel.value:'sonnet';
+  var modelLabel=modelSel&&modelSel.selectedOptions[0]?modelSel.selectedOptions[0].text:model;
   var content=S.history.filter(function(m){return m.role==='assistant';}).map(function(m){return m.content;}).join('\n\n');
   if(!content){alert('尚無研究內容，請先進行研究再生成簡報');return;}
 
-  _odShowOverlay('<div class="od-spinner"></div><h3>AI 設計中…</h3><p>open-design 正在生成投影片</p><p style="font-size:11px;color:var(--txt3)">風格：'+styleLabel+'<br>Skill：'+skillId+'<br>這可能需要 1–4 分鐘，請稍候</p>');
+  _odShowOverlay('<div class="od-spinner"></div><h3>AI 設計中…</h3><p>open-design 正在生成投影片</p><p style="font-size:11px;color:var(--txt3)">模型：'+modelLabel+'<br>風格：'+styleLabel+'<br>Skill：'+skillId+'<br>這可能需要 1–8 分鐘，請稍候</p>');
   if(btn){btn.disabled=true;btn.querySelector('.icon').textContent='⏳';}
 
   try{
     var r=await fetch('/api/research/opendesign/generate',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({content:content,topic:S.topic,skillId:skillId,stylePreset:stylePreset})
+      body:JSON.stringify({content:content,topic:S.topic,skillId:skillId,stylePreset:stylePreset,model:model})
     });
     var d=await r.json();
     _odCloseOverlay();

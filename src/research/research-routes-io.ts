@@ -196,7 +196,7 @@ export async function handleIORequest(
 
   // 生成進階簡報：呼叫 open-design /api/chat，agentId=claude，skillId 由前端傳入
   if (url === '/api/research/opendesign/generate' && method === 'POST') {
-    const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string; stylePreset?: string }>(await readBody(req), res);
+    const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string; stylePreset?: string; model?: string }>(await readBody(req), res);
     if (!body) return true;
 
     const STYLE_PRESETS: Record<string, { direction: string; color: string }> = {
@@ -233,8 +233,9 @@ export async function handleIORequest(
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          agentId: body.agentId ?? 'claude',       // open-design 的 Claude Code agent ID
-          skillId: body.skillId ?? 'magazine-web-ppt', // guizang-ppt 在 open-design 的實際 ID
+          agentId: body.agentId ?? 'claude',
+          skillId: body.skillId ?? 'magazine-web-ppt',
+          model: body.model ?? 'sonnet',   // 預設 Sonnet，省額度；前端可傳 'opus' 切換
           message,
         }),
         signal: ctrl.signal,
