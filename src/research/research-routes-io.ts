@@ -162,7 +162,8 @@ export async function handleIORequest(
     const filePath = new URL(`http://x${req.url}`).searchParams.get('p') ?? '';
     const OD_PROJECTS = '/Users/japlin/Works/open-design/.od/projects/';
     const TMP_PREFIX = '/tmp/od-artifact-';
-    const allowed = filePath.startsWith(OD_PROJECTS) || filePath.startsWith(TMP_PREFIX);
+    const OD_ROOT = '/Users/japlin/Works/open-design/';
+    const allowed = filePath.startsWith(OD_PROJECTS) || filePath.startsWith(TMP_PREFIX) || filePath.startsWith(OD_ROOT);
     if (!filePath || !allowed || !filePath.endsWith('.html')) {
       json(res, { error: '無效路徑' }, 400); return true;
     }
@@ -256,25 +257,65 @@ export async function handleIORequest(
         return true;
       }
 
-      // 讀取 SSE 串流直到 event: end（最長 10 分鐘）
+      // 雙軌策略：讀 SSE + 輪詢檔案系統，哪個先完成就回傳
       const startTs = Date.now();
       let fullOutput = '';
       const decoder = new TextDecoder();
       const reader = (r.body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator]();
-      const deadline = Date.now() + 600_000;
+      const deadline = Date.now() + 720_000; // 12 分鐘上限
+      const OD_WATCH_DIR = '/Users/japlin/Works/open-design';
+      let earlyHtmlPath: string | null = null;
 
+      // 記錄生成前既有的 HTML 檔（避免誤抓舊檔）
+      let preexistingHtml: Set<string>;
+      try {
+        const { readdirSync } = await import('node:fs');
+        preexistingHtml = new Set(
+          readdirSync(OD_WATCH_DIR).filter(f => f.endsWith('.html'))
+        );
+      } catch { preexistingHtml = new Set(); }
+
+      let lastPollTs = Date.now();
       while (Date.now() < deadline) {
-        const { done, value } = await reader.next();
-        if (done) break;
-        fullOutput += decoder.decode(value, { stream: true });
-        if (fullOutput.includes('event: end')) break;
-        // 偵測 Claude 額度耗盡
-        if (fullOutput.includes("You've hit your limit") || fullOutput.includes('hit your limit')) {
-          const resetMatch = fullOutput.match(/resets\s+([^\\"\\n]+)/);
-          const resetTime = resetMatch ? resetMatch[1].trim() : '稍後';
-          json(res, { error: `Claude 使用額度已耗盡，將於 ${resetTime} 重置。請稍後再試。`, limitHit: true }, 503);
-          return true;
+        // 以 race 方式取下一個 SSE chunk（最多等 3 秒）
+        const chunkP = reader.next();
+        const timeoutP = new Promise<null>(resolve => setTimeout(() => resolve(null), 3_000));
+        const result = await Promise.race([chunkP, timeoutP]);
+
+        if (result && result !== null && 'done' in result) {
+          if (result.done) break;
+          fullOutput += decoder.decode(result.value, { stream: true });
+          if (fullOutput.includes('event: end')) break;
+          if (fullOutput.includes("You've hit your limit") || fullOutput.includes('hit your limit')) {
+            const resetMatch = fullOutput.match(/resets\s+([^\\"\\n]+)/);
+            const resetTime = resetMatch ? resetMatch[1].trim() : '稍後';
+            json(res, { error: `Claude 使用額度已耗盡，將於 ${resetTime} 重置。請稍後再試。`, limitHit: true }, 503);
+            return true;
+          }
         }
+
+        // 每 5 秒輪詢一次 OD 根目錄，看有沒有新的 HTML 寫入
+        if (Date.now() - lastPollTs > 5_000) {
+          lastPollTs = Date.now();
+          try {
+            const { readdirSync, statSync } = await import('node:fs');
+            const newHtml = readdirSync(OD_WATCH_DIR)
+              .filter(f => f.endsWith('.html') && !preexistingHtml.has(f))
+              .map(f => ({ name: f, mtime: statSync(join(OD_WATCH_DIR, f)).mtimeMs }))
+              .sort((a, b) => b.mtime - a.mtime);
+            if (newHtml.length > 0) {
+              earlyHtmlPath = join(OD_WATCH_DIR, newHtml[0].name);
+              break; // 提早結束，不等 event: end
+            }
+          } catch { /* ignore */ }
+        }
+      }
+
+      // 提早偵測到檔案 → 直接用，跳過後續解析
+      if (earlyHtmlPath) {
+        const elapsed = Math.round((Date.now() - startTs) / 1000);
+        json(res, { ok: true, artifactHtmlPath: earlyHtmlPath, elapsed, earlyDetect: true });
+        return true;
       }
 
       // 從 SSE 串流取出 sessionId，讀 Claude session JSONL 提取 <artifact> HTML
@@ -313,25 +354,36 @@ export async function handleIORequest(
         }
       } catch { /* 提取失敗不影響主流程 */ }
 
-      // fallback：掃 .od/projects/ 找最近 HTML（agent 有時會用 Write tool 存檔）
+      // fallback：掃 OD root 和 .od/projects/ 找最近 HTML
       if (!artifactHtmlPath) {
         try {
           const { readdirSync, statSync } = await import('node:fs');
-          const projectsBase = join('/Users/japlin/Works/open-design', '.od', 'projects');
+          const OD_DIR = '/Users/japlin/Works/open-design';
           const RECENCY_MS = 15 * 60 * 1000;
-          if (existsSync(projectsBase)) {
-            const projectDirs = readdirSync(projectsBase)
-              .map(d => ({ id: d, mtime: statSync(join(projectsBase, d)).mtimeMs }))
-              .filter(d => Date.now() - d.mtime < RECENCY_MS)
-              .sort((a, b) => b.mtime - a.mtime);
-            for (const proj of projectDirs) {
-              const projDir = join(projectsBase, proj.id);
-              const htmlFiles = readdirSync(projDir)
-                .filter(f => f.endsWith('.html') && !f.startsWith('.'))
-                .map(f => ({ name: f, mtime: statSync(join(projDir, f)).mtimeMs }))
-                .filter(f => Date.now() - f.mtime < RECENCY_MS)
+          // 1. 先掃 OD root（agent 常寫到 CWD）
+          const rootHtml = readdirSync(OD_DIR)
+            .filter(f => f.endsWith('.html') && !f.startsWith('.'))
+            .map(f => ({ path: join(OD_DIR, f), mtime: statSync(join(OD_DIR, f)).mtimeMs }))
+            .filter(f => Date.now() - f.mtime < RECENCY_MS)
+            .sort((a, b) => b.mtime - a.mtime);
+          if (rootHtml.length > 0) { artifactHtmlPath = rootHtml[0].path; }
+          // 2. 再掃 .od/projects/
+          if (!artifactHtmlPath) {
+            const projectsBase = join(OD_DIR, '.od', 'projects');
+            if (existsSync(projectsBase)) {
+              const projectDirs = readdirSync(projectsBase)
+                .map(d => ({ id: d, mtime: statSync(join(projectsBase, d)).mtimeMs }))
+                .filter(d => Date.now() - d.mtime < RECENCY_MS)
                 .sort((a, b) => b.mtime - a.mtime);
-              if (htmlFiles.length > 0) { artifactHtmlPath = join(projDir, htmlFiles[0].name); break; }
+              for (const proj of projectDirs) {
+                const projDir = join(projectsBase, proj.id);
+                const htmlFiles = readdirSync(projDir)
+                  .filter(f => f.endsWith('.html') && !f.startsWith('.'))
+                  .map(f => ({ name: f, mtime: statSync(join(projDir, f)).mtimeMs }))
+                  .filter(f => Date.now() - f.mtime < RECENCY_MS)
+                  .sort((a, b) => b.mtime - a.mtime);
+                if (htmlFiles.length > 0) { artifactHtmlPath = join(projDir, htmlFiles[0].name); break; }
+              }
             }
           }
         } catch { /* ignore */ }
