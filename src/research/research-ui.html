@@ -1518,7 +1518,8 @@ async function exportOpenDesign(){
     _odCloseOverlay();
 
     if(!r.ok||d.error){
-      _odShowOverlay('<h3>❌ 生成失敗</h3><p style="font-size:13px">'+d.error+(d.detail?'<br><code style="font-size:10px">'+d.detail+'</code>':'')+'</p><button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
+      var icon=d.limitHit?'⏰':'❌';
+      _odShowOverlay('<h3>'+icon+' '+(d.limitHit?'使用額度已耗盡':'生成失敗')+'</h3><p style="font-size:13px">'+d.error+(d.detail?'<br><code style="font-size:10px">'+d.detail+'</code>':'')+'</p><button class="od-close" onclick="_odCloseOverlay()">關閉</button>');
       return;
     }
 
