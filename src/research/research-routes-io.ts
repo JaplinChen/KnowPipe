@@ -266,14 +266,8 @@ export async function handleIORequest(
       const OD_WATCH_DIR = '/Users/japlin/Works/open-design';
       let earlyHtmlPath: string | null = null;
 
-      // 記錄生成前既有的 HTML 檔（避免誤抓舊檔）
-      let preexistingHtml: Set<string>;
-      try {
-        const { readdirSync } = await import('node:fs');
-        preexistingHtml = new Set(
-          readdirSync(OD_WATCH_DIR).filter(f => f.endsWith('.html'))
-        );
-      } catch { preexistingHtml = new Set(); }
+      // 記錄生成開始時間，後續只抓「在此之後修改過」的 HTML
+      const genStartTs = Date.now();
 
       let lastPollTs = Date.now();
       while (Date.now() < deadline) {
@@ -300,8 +294,9 @@ export async function handleIORequest(
           try {
             const { readdirSync, statSync } = await import('node:fs');
             const newHtml = readdirSync(OD_WATCH_DIR)
-              .filter(f => f.endsWith('.html') && !preexistingHtml.has(f))
+              .filter(f => f.endsWith('.html'))
               .map(f => ({ name: f, mtime: statSync(join(OD_WATCH_DIR, f)).mtimeMs }))
+              .filter(f => f.mtime > genStartTs)   // 在生成開始後才修改的
               .sort((a, b) => b.mtime - a.mtime);
             if (newHtml.length > 0) {
               earlyHtmlPath = join(OD_WATCH_DIR, newHtml[0].name);
