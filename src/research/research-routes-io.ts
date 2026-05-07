@@ -199,7 +199,7 @@ export async function handleIORequest(
 
   // 生成進階簡報：呼叫 open-design /api/chat，agentId=claude，skillId 由前端傳入
   if (url === '/api/research/opendesign/generate' && method === 'POST') {
-    const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string; stylePreset?: string; model?: string }>(await readBody(req), res);
+    const body = parseBody<{ content: string; topic: string; agentId?: string; skillId?: string; stylePreset?: string; model?: string; slideCount?: number }>(await readBody(req), res);
     if (!body) return true;
 
     const STYLE_PRESETS: Record<string, { direction: string; color: string }> = {
@@ -210,10 +210,18 @@ export async function handleIORequest(
     };
     const preset = STYLE_PRESETS[body.stylePreset ?? 'wired-tech'] ?? STYLE_PRESETS['wired-tech'];
 
-    // 提取前 2500 字並拆成段落，作為投影片大綱依據
-    const contentSnippet = body.content.slice(0, 2500);
+    // 快速模式（3 張）或標準模式（5 張）
+    const slideCount = Math.max(3, Math.min(7, body.slideCount ?? 5));
+    const contentLimit = slideCount <= 3 ? 1500 : 2500;
+    const contentSnippet = body.content.slice(0, contentLimit);
     const paragraphs = contentSnippet.split(/\n{2,}/).filter(p => p.trim().length > 20);
-    const slideTopics = paragraphs.slice(0, 4).map((p, i) => `第${i + 2}張：${p.trim().slice(0, 60)}`).join('\n');
+    const maxTopics = slideCount - 1; // 第 1 張是封面，剩餘給正文
+    const slideTopics = paragraphs.slice(0, maxTopics).map((p, i) => `第${i + 2}張：${p.trim().slice(0, 60)}`).join('\n');
+
+    // 快速模式預設結構
+    const defaultTopics3 = `第2張：核心洞察與關鍵數據\n第3張：結論與行動建議`;
+    const defaultTopics5 = `第2張：核心概念\n第3張：關鍵數據\n第4張：技術架構\n第5張：結論`;
+    const defaultTopics = slideCount <= 3 ? defaultTopics3 : defaultTopics5;
 
     const message = [
       `請根據以下研究內容，製作一份關於「${body.topic}」的專業投影片簡報。`,
@@ -221,14 +229,14 @@ export async function handleIORequest(
       '【設計規格 — 以下已確認，略過所有詢問，直接生成 HTML】',
       `視覺方向：${preset.direction}`,
       `主題色：${preset.color}`,
-      '投影片數量：5 張（固定），16:9 格式',
+      `投影片數量：${slideCount} 張（固定），16:9 格式`,
       '目標受眾：企業技術主管',
       '語言：繁體中文（標題可保留英文關鍵字）',
       '圖片素材：無，用顏色色塊替代',
       '',
       '【投影片結構 — 直接用以下結構，不需重新規劃】',
       `第1張：封面 — 標題「${body.topic}」`,
-      slideTopics || `第2張：核心概念\n第3張：關鍵數據\n第4張：技術架構\n第5張：結論`,
+      slideTopics || defaultTopics,
       '',
       '研究內容（摘要）：',
       contentSnippet,
@@ -281,8 +289,15 @@ export async function handleIORequest(
           fullOutput += decoder.decode(result.value, { stream: true });
           if (fullOutput.includes('event: end')) break;
           if (fullOutput.includes("You've hit your limit") || fullOutput.includes('hit your limit')) {
-            const resetMatch = fullOutput.match(/resets\s+([^\\"\\n]+)/);
-            const resetTime = resetMatch ? resetMatch[1].trim() : '稍後';
+            const resetMatch = fullOutput.match(/resets\s+(?:at\s+)?([^\n"]+)/);
+            let resetTime = '稍後';
+            if (resetMatch) {
+              resetTime = resetMatch[1].trim();
+              // 移除不完整的括號結尾（如 "10:30pm (Asia/Saigo"）
+              resetTime = resetTime.replace(/\s*\([^)]*$/, '').trim() || resetTime;
+              // 移除結尾標點
+              resetTime = resetTime.replace(/[.)]+$/, '').trim();
+            }
             json(res, { error: `Claude 使用額度已耗盡，將於 ${resetTime} 重置。請稍後再試。`, limitHit: true }, 503);
             return true;
           }
