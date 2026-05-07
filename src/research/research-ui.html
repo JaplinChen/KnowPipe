@@ -1482,7 +1482,7 @@ async function checkOpenDesignHealth(){
       }
     }else{
       status.className='od-status-row warn';
-      status.innerHTML='⚪ open-design 未啟動 &nbsp;·&nbsp; <code>cd /Users/japlin/Works/open-design && pnpm tools-dev start web</code>';
+      status.innerHTML='⚪ open-design 未啟動 &nbsp;<button onclick="_odRestart()" style="font-size:11px;background:none;border:1px solid var(--bdr2);border-radius:4px;padding:2px 8px;cursor:pointer;color:var(--pu);font-family:inherit">↺ 重啟</button>';
       btn.disabled=true;
       if(sel)sel.style.display='none';
       var styleSel2=document.getElementById('od-style-sel');
@@ -1494,7 +1494,7 @@ async function checkOpenDesignHealth(){
     }
   }catch{
     status.className='od-status-row warn';
-    status.innerHTML='⚪ open-design 無法連線';
+    status.innerHTML='⚪ open-design 無法連線 &nbsp;<button onclick="_odRestart()" style="font-size:11px;background:none;border:1px solid var(--bdr2);border-radius:4px;padding:2px 8px;cursor:pointer;color:var(--pu);font-family:inherit">↺ 重啟</button>';
     btn.disabled=true;
     if(sel)sel.style.display='none';
     var styleSel3=document.getElementById('od-style-sel');
@@ -1521,6 +1521,17 @@ function _odCloseOverlay(){
 function _odCancelGenerate(){
   if(_odAbortCtrl)_odAbortCtrl.abort();
   _odCloseOverlay();
+}
+async function _odRestart(){
+  var status=document.getElementById('od-status');
+  if(status)status.innerHTML='⏳ 重啟 open-design 中…';
+  try{
+    await fetch('/api/research/opendesign/restart',{method:'POST',headers:{'Content-Type':'application/json'}});
+    if(status)status.innerHTML='🔄 重啟指令已送出，10 秒後自動重新確認狀態…';
+    setTimeout(checkOpenDesignHealth,12000);
+  }catch(e){
+    if(status)status.innerHTML='❌ 重啟失敗：'+e.message;
+  }
 }
 
 async function exportOpenDesign(){

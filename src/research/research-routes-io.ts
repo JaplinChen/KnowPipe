@@ -19,7 +19,7 @@ let _odBaseUrlCacheTs = 0;
 
 function getOdBaseUrl(): string {
   const now = Date.now();
-  if (_odBaseUrlCache && now - _odBaseUrlCacheTs < 30_000) return _odBaseUrlCache;
+  if (_odBaseUrlCache && now - _odBaseUrlCacheTs < 5_000) return _odBaseUrlCache;
   try {
     const log = readFileSync(OD_DAEMON_LOG, 'utf-8');
     // 取最後一個 "url" 欄位（最新啟動的 port）
@@ -196,6 +196,27 @@ export async function handleIORequest(
       res.setHeader('Cache-Control', 'no-cache');
       res.end(content);
     } catch { json(res, { error: '找不到檔案' }, 404); }
+    return true;
+  }
+
+  // 重啟 open-design daemon
+  if (url === '/api/research/opendesign/restart' && method === 'POST') {
+    try {
+      const { spawn } = await import('node:child_process');
+      const OD_DIR = '/Users/japlin/Works/open-design';
+      // 強制清除舊快取，讓下次 health check 重新讀 log
+      _odBaseUrlCache = null;
+      _odBaseUrlCacheTs = 0;
+      const proc = spawn('pnpm', ['tools-dev', 'start', 'web'], {
+        cwd: OD_DIR,
+        detached: true,
+        stdio: 'ignore',
+      });
+      proc.unref();
+      json(res, { ok: true, message: 'open-design 重啟中，請稍後 10 秒再試' });
+    } catch (err) {
+      json(res, { error: String(err) }, 500);
+    }
     return true;
   }
 
