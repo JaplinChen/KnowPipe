@@ -5,18 +5,15 @@
  */
 import type { Context } from 'telegraf';
 import type { AppConfig } from '../utils/config.js';
-import { writeFile, mkdir, readFile } from 'node:fs/promises';
-import { join } from 'node:path';
 import { startTyping, stopTyping } from '../utils/typing-indicator.js';
 import { splitMessage } from '../utils/telegram.js';
-import { runLocalLlmPrompt } from '../utils/local-llm.js';
-import { collectRecentNotes } from './digest-command.js';
 import { loadKnowledge } from '../knowledge/knowledge-store.js';
 import { formatGraph } from '../knowledge/knowledge-graph.js';
 import { runDreaming } from '../knowledge/dreaming-engine.js';
 import { generateMemoir } from '../knowledge/memoir-generator.js';
 import { runRulesSuggester } from '../knowledge/rules-suggester.js';
 import { analyzeBookmarkGaps } from '../knowledge/bookmark-analyzer.js';
+import { generateDraft } from '../knowledge/draft-generator.js';
 
 /** /vault graph [--topic <kw>] [--top N] */
 export async function handleVaultGraph(ctx: Context, config: AppConfig, args: string): Promise<void> {
@@ -139,75 +136,39 @@ export async function handleVaultBookmarkGap(ctx: Context, config: AppConfig, _a
 }
 
 /**
- * /vault draft <category> [--days N]
- * 從指定分類（或近 N 天全體）的筆記生成一篇有觀點的文章草稿，
- * 存入 Vault/Drafts/ 並回傳路徑。
+ * /vault draft <主題或分類> [--days N] [--long]
+ * 從主題關鍵字搜索（跨分類）找相關筆記，生成有觀點的草稿。
+ * 輸出含 Obsidian [[]] 來源引用，存入 Vault/Drafts/。
+ * --long 旗標：目標 1800-2500 字（預設 900-1200 字）
  */
 export async function handleVaultDraft(ctx: Context, config: AppConfig, args: string): Promise<void> {
   const daysMatch = args.match(/--days\s+(\d+)/);
-  const days = daysMatch ? parseInt(daysMatch[1], 10) : 14;
-  const category = args.replace(/--days\s+\d+/, '').trim() || 'AI';
+  const days = daysMatch ? parseInt(daysMatch[1], 10) : 30;
+  const isLong = args.includes('--long');
+  const topic = args.replace(/--days\s+\d+|--long/g, '').trim() || 'AI';
 
   const typing = startTyping(ctx);
-  await ctx.reply(`📝 正在從「${category}」近 ${days} 天筆記生成草稿…`);
+  await ctx.reply(`📝 正在搜索「${topic}」相關筆記（近 ${days} 天${isLong ? '，長文模式' : ''}）…`);
 
   try {
-    // 嘗試先讀該 category 的 wiki.md 作為素材骨架
-    const wikiPath = join(config.vaultPath, 'KnowPipe', ...category.split('/'), 'wiki.md');
-    let wikiContext = '';
-    try { wikiContext = await readFile(wikiPath, 'utf-8'); } catch { /* wiki 不存在時略過 */ }
-
-    // 取最近 N 天筆記的摘要
-    const notes = await collectRecentNotes(config.vaultPath, days);
-    const catNotes = notes.filter(n => n.category.startsWith(category)).slice(0, 12);
-    if (catNotes.length === 0) {
-      stopTyping(typing);
-      await ctx.reply(`近 ${days} 天「${category}」無筆記，無法生成草稿。`);
-      return;
-    }
-
-    const noteLines = catNotes
-      .map((n, i) => `${i + 1}. ${n.title}${n.summary ? '：' + n.summary : ''}`)
-      .join('\n');
-
-    const wikiSection = wikiContext
-      ? `\n參考 wiki 摘要：\n${wikiContext.slice(0, 800)}`
-      : '';
-
-    const prompt = `你是知識管理助手。請根據以下筆記，用繁體中文撰寫一篇 800-1200 字的深度文章草稿，要有獨立觀點，不要只是列清單。
-
-分類：${category}
-近期 ${catNotes.length} 篇筆記：
-${noteLines}
-${wikiSection}
-
-文章結構：
-1. 引言（點出核心問題或矛盾）
-2. 主要觀點（2-3 節，有論據）
-3. 實作或應用啟示
-4. 結語（留一個開放問題）
-
-直接輸出 Markdown 正文，不要 frontmatter，不要前言。`;
-
-    const draft = await runLocalLlmPrompt(prompt, { task: 'summarize' });
-    if (!draft) {
-      stopTyping(typing);
-      await ctx.reply('LLM 未回傳內容，請確認 oMLX 服務正在執行。');
-      return;
-    }
-
-    const today = new Date().toISOString().slice(0, 10);
-    const catSlug = category.replace(/\//g, '-');
-    const filename = `draft-${catSlug}-${today}.md`;
-    const outDir = join(config.vaultPath, 'Drafts');
-    await mkdir(outDir, { recursive: true });
-    const outPath = join(outDir, filename);
-
-    const fullContent = `---\ntitle: "${category} 草稿 ${today}"\ndate: ${today}\ncategory: draft\nsource_notes: ${catNotes.length}\n---\n\n${draft}\n`;
-    await writeFile(outPath, fullContent, 'utf-8');
+    const result = await generateDraft(config.vaultPath, topic, { days, long: isLong });
 
     stopTyping(typing);
-    await ctx.reply(`✅ 草稿已生成（${catNotes.length} 篇筆記 → 1 篇草稿）\n📄 ${filename}\n\n在 Obsidian 中開啟 Drafts/${filename} 編輯。`);
+
+    if (!result) {
+      await ctx.reply(`近 ${days} 天找不到與「${topic}」相關的筆記，無法生成草稿。\n\n提示：可以調整主題關鍵字或加上 --days 30 擴大範圍。`);
+      return;
+    }
+
+    await ctx.reply([
+      `✅ 草稿已生成`,
+      `主題：${topic}`,
+      `素材：${result.noteCount} 篇筆記（含 Obsidian 引用）`,
+      `目標字數：${result.wordTarget} 字`,
+      `📄 Drafts/${result.filename}`,
+      '',
+      '在 Obsidian 中開啟 Drafts/ 資料夾查看草稿。',
+    ].join('\n'));
   } catch (err) {
     stopTyping(typing);
     await ctx.reply(`草稿生成失敗：${String(err)}`);
