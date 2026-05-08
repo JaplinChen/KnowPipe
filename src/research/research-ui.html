@@ -1119,52 +1119,12 @@ function renderRight(){
     var aiBody=(noAnalysis?'<div class="tool-section-note">請先執行分析以啟用 AI 工具</div>':'')
       +apiTools.map(a=>'<button class="tool-btn'+tDis+'" onclick="runTool(\''+a.tool+'\')"><span class="icon">'+a.icon+'</span>'+t(a.labelKey)+'</button>').join('');
 
-    // 圖表生成
-    var diagrams=[
-      {icon:'🔀',label:'流程圖',tool:'diagram:flowchart',title:'流程/步驟關係'},
-      {icon:'🧠',label:'心智圖',tool:'diagram:mindmap',title:'概念關聯展開'},
-      {icon:'🏗️',label:'架構圖',tool:'diagram:architecture',title:'系統架構（SVG）'},
-      {icon:'⏱️',label:'時間軸',tool:'diagram:timeline',title:'時間軸/發展歷程'},
-      {icon:'↔️',label:'時序圖',tool:'diagram:sequence',title:'參與者互動時序'},
-      {icon:'⊞',label:'四象限',tool:'diagram:quadrant',title:'比較/選型矩陣'},
-      {icon:'🔗',label:'ER 圖',tool:'diagram:er',title:'資料實體關聯'},
-      {icon:'📐',label:'類別圖',tool:'diagram:class',title:'類別/元件關係'},
-      {icon:'🔁',label:'狀態機',tool:'diagram:state',title:'狀態轉換圖'},
-    ];
-    var curStyle=localStorage.getItem('rd-diagram-style')||'sketch';
-    var styleOpts=[{id:'dark',label:'暗黑科技',icon:'🌑'},{id:'sketch',label:'手繪插畫',icon:'✏️'},{id:'minimal',label:'簡約白',icon:'⬜'},{id:'retro',label:'復古終端機',icon:'🖥'},{id:'blueprint',label:'工程藍圖',icon:'📐'},{id:'pastel',label:'粉彩',icon:'🌸'}];
-    var styleRow='<div class="diag-style-row"><span class="diag-style-label">圖表風格</span>'
-      +styleOpts.map(s=>'<button class="diag-style-btn'+(curStyle===s.id?' on':'')+'" onclick="setDiagStyle(\''+s.id+'\',this)">'+s.icon+' '+s.label+'</button>').join('')
-      +'</div>';
-    var diagBody=(noTopic?'<div class="tool-section-note">請先輸入主題以啟用</div>':'')
-      +diagrams.map(d=>'<button class="tool-btn'+eDis+'" title="'+(d.title||'')+'" onclick="runTool(\''+d.tool+'\')"><span class="icon">'+d.icon+'</span>'+d.label+'</button>').join('')
-      +styleRow;
-
     // 提示工具
     var promptBody=promptTools.map((p,i)=>'<button class="tool-btn'+tDis+'" onclick="sendPromptTool('+i+')"><span class="icon">'+p.icon+'</span>'+t(p.labelKey)+'</button>').join('');
 
-    // 自動插圖
-    var adMode=_ADConfig.mode,adTypes=_ADConfig.types,adMax=_ADConfig.max;
-    var _MODES=[{id:'off',label:'關閉'},{id:'a',label:'LLM標記'},{id:'b',label:'智能分析'},{id:'ab',label:'兩者'}];
-    var _DTYPES=[{id:'architecture',label:'架構圖'},{id:'flowchart',label:'流程圖'},{id:'mindmap',label:'心智圖'},{id:'sequence',label:'時序圖'},{id:'timeline',label:'時間軸'},{id:'quadrant',label:'四象限'},{id:'er',label:'ER圖'},{id:'class',label:'類別圖'},{id:'state',label:'狀態機'}];
-    var adBody='<div class="autodiag-panel"><div class="autodiag-row"><span class="autodiag-label">模式</span><div class="autodiag-grp">'
-      +_MODES.map(m=>'<button class="autodiag-btn'+(adMode===m.id?' on':'')+'" onclick="setADMode(\''+m.id+'\')">'+m.label+'</button>').join('')
-      +'</div></div>';
-    if(adMode!=='off'){
-      adBody+='<div class="autodiag-row"><span class="autodiag-label">類型</span><div class="autodiag-grp">'
-        +_DTYPES.map(dt=>'<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>').join('')
-        +'</div></div>'
-        +'<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">'
-        +[1,2,3,4,5,6].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('')
-        +'</div></div>';
-    }
-    adBody+='</div>'+_adDemo(adMode);
-
     let h=_tsec('export','📥',t('research.quickExport'),exportBody)
       +_tsec('ai','🤖',t('research.aiTools'),aiBody)
-      +_tsec('diagram','📊','圖表生成',diagBody)
-      +_tsec('prompt','💡','提示工具',promptBody)
-      +_tsec('autodiag','🖼','自動插圖',adBody);
+      +_tsec('prompt','💡','提示工具',promptBody);
     el.innerHTML=h;
     window._promptTools=promptTools.map(p=>({icon:p.icon,label:t(p.labelKey),prompt:t(p.promptKey)}));
   }else if(S.tab==='slides'){
@@ -1173,7 +1133,7 @@ function renderRight(){
   }
 }
 
-var _toolOpen={export:false,ai:true,diagram:true,prompt:false,autodiag:true};
+var _toolOpen={export:false,ai:true,prompt:false};
 function toggleToolSec(id){_toolOpen[id]=!_toolOpen[id];renderRight();}
 
 function _tsec(id,icon,label,body){
