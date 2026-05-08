@@ -19,6 +19,12 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .sb-sub{font-size:10px;color:var(--txt3);text-transform:uppercase;letter-spacing:.8px;margin-top:1px}
 .back-btn{background:transparent;border:1px solid var(--bdr);border-radius:6px;padding:4px 10px;color:var(--txt3);font-size:12px;cursor:pointer;text-decoration:none;font-family:inherit;transition:all .2s;flex-shrink:0}
 .back-btn:hover{border-color:var(--pu3);color:var(--pu)}
+/* 左上角 2×2 按鈕格 */
+.sb-btn-grid{display:grid;grid-template-columns:1fr 1fr;gap:4px;flex-shrink:0}
+.sb-btn-grid .theme-sw-btn{width:100%;padding:4px 0;font-size:14px}
+.sb-btn-grid .back-btn{width:100%;text-align:center;padding:4px 6px}
+.sb-btn-grid .lang-sw{width:100%}
+.sb-btn-grid .lang-sw-btn{width:100%;padding:4px 0;font-size:14px;text-align:center}
 .lang-sw{position:relative;flex-shrink:0}
 .lang-sw-btn{background:transparent;border:1px solid var(--bdr);border-radius:6px;padding:3px 8px;cursor:pointer;font-size:16px;line-height:1;transition:border-color .2s}
 .lang-sw-btn:hover{border-color:var(--pu3)}
@@ -366,17 +372,19 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
     <div class="sb-top">
       <div class="sb-icon">⚡</div>
       <div style="flex:1;min-width:0"><div class="sb-name" data-i18n="research.title">Vault Research</div><div class="sb-sub" data-i18n="research.subtitle">本機 AI × Obsidian</div></div>
-      <button class="theme-sw-btn" onclick="toggleDarkMode()" id="themeBtn" title="切換深色／淺色">🌙</button>
-      <div class="lang-sw">
-        <button class="lang-sw-btn" onclick="toggleRLangMenu()" id="rLangBtn" title="Language">🇹🇼</button>
-        <div class="lang-sw-menu" id="rLangMenu">
-          <button class="lang-sw-opt active" data-lang="zh-TW" onclick="changeRLang('zh-TW')">🇹🇼 繁體中文</button>
-          <button class="lang-sw-opt" data-lang="en" onclick="changeRLang('en')">🇺🇸 English</button>
-          <button class="lang-sw-opt" data-lang="vi" onclick="changeRLang('vi')">🇻🇳 Tiếng Việt</button>
+      <div class="sb-btn-grid">
+        <button class="theme-sw-btn" onclick="toggleDarkMode()" id="themeBtn" title="切換深色／淺色">🌙</button>
+        <div class="lang-sw">
+          <button class="lang-sw-btn" onclick="toggleRLangMenu()" id="rLangBtn" title="Language">🇹🇼</button>
+          <div class="lang-sw-menu" id="rLangMenu">
+            <button class="lang-sw-opt active" data-lang="zh-TW" onclick="changeRLang('zh-TW')">🇹🇼 繁體中文</button>
+            <button class="lang-sw-opt" data-lang="en" onclick="changeRLang('en')">🇺🇸 English</button>
+            <button class="lang-sw-opt" data-lang="vi" onclick="changeRLang('vi')">🇻🇳 Tiếng Việt</button>
+          </div>
         </div>
+        <button class="back-btn" onclick="openDiagCfg()">📊 圖表</button>
+        <button class="back-btn" onclick="openAdminPanel()" data-i18n="research.back">⚙️ 管理</button>
       </div>
-      <button class="back-btn" onclick="openDiagCfg()">📊 圖表</button>
-      <button class="back-btn" onclick="openAdminPanel()" data-i18n="research.back">管理</button>
     </div>
     <div class="search-bar"><input id="search" data-i18n-placeholder="research.search" placeholder="搜尋筆記…" /></div>
     <div id="tagBar"></div>
