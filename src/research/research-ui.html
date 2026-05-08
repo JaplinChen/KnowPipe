@@ -557,11 +557,11 @@ const $=id=>document.getElementById(id);
 
 // 自動插圖設定（存 localStorage）
 var _ADConfig={
-  get mode(){return localStorage.getItem('rd-ad-mode')||'off';},
+  get mode(){return localStorage.getItem('rd-ad-mode')||'ab';},
   set mode(v){localStorage.setItem('rd-ad-mode',v);},
-  get types(){try{return JSON.parse(localStorage.getItem('rd-ad-types')||'["flowchart","architecture"]');}catch{return['flowchart','architecture'];}},
+  get types(){try{return JSON.parse(localStorage.getItem('rd-ad-types')||'["architecture","flowchart","mindmap","sequence","timeline","quadrant","er","class","state"]');}catch{return['architecture','flowchart','mindmap','sequence','timeline','quadrant','er','class','state'];}},
   set types(v){localStorage.setItem('rd-ad-types',JSON.stringify(v));},
-  get max(){return parseInt(localStorage.getItem('rd-ad-max')||'2',10);},
+  get max(){return parseInt(localStorage.getItem('rd-ad-max')||'6',10);},
   set max(v){localStorage.setItem('rd-ad-max',String(v));},
 };
 
@@ -1136,7 +1136,7 @@ function renderRight(){
         +_DTYPES.map(dt=>'<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>').join('')
         +'</div></div>'
         +'<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">'
-        +[1,2,3].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('')
+        +[1,2,3,4,5,6].map(n=>'<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>').join('')
         +'</div></div>';
     }
     adBody+='</div>'+_adDemo(adMode);
