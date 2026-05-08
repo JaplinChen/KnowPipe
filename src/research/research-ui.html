@@ -284,6 +284,16 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
 .session-del:hover{border-color:#e74c3c;color:#e74c3c}
 .sessions-empty{text-align:center;padding:50px 20px;color:var(--txt3);font-size:13px;line-height:2}
 .history-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--pu);margin-left:3px;vertical-align:middle;flex-shrink:0}
+/* 圖表設定 modal */
+.diag-cfg-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:990;align-items:center;justify-content:center}
+.diag-cfg-overlay.open{display:flex}
+.diag-cfg-modal{background:var(--bg1);border-radius:14px;width:min(500px,94vw);max-height:88vh;overflow-y:auto;box-shadow:0 16px 56px rgba(0,0,0,.35);padding:24px 28px;position:relative}
+.diag-cfg-close{position:absolute;top:14px;right:16px;background:none;border:none;font-size:18px;cursor:pointer;color:var(--txt3);border-radius:6px;padding:2px 8px;font-family:inherit;line-height:1}
+.diag-cfg-close:hover{background:var(--bg2);color:var(--txt1)}
+.diag-cfg-title{font-size:15px;font-weight:700;color:var(--txt1);margin-bottom:20px;padding-right:30px}
+.diag-cfg-sec{margin-bottom:20px}
+.diag-cfg-sec:last-child{margin-bottom:0}
+.diag-cfg-h{font-size:11px;font-weight:700;color:var(--txt3);text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--bdr)}
 /* Admin modal overlay */
 .admin-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;align-items:center;justify-content:center}
 .admin-overlay.open{display:flex}
@@ -365,6 +375,7 @@ html,body{height:100%;overflow:hidden;background:var(--bg0);color:var(--txt1);fo
           <button class="lang-sw-opt" data-lang="vi" onclick="changeRLang('vi')">🇻🇳 Tiếng Việt</button>
         </div>
       </div>
+      <button class="back-btn" onclick="openDiagCfg()">📊 圖表</button>
       <button class="back-btn" onclick="openAdminPanel()" data-i18n="research.back">管理</button>
     </div>
     <div class="search-bar"><input id="search" data-i18n-placeholder="research.search" placeholder="搜尋筆記…" /></div>
@@ -1193,15 +1204,46 @@ function setDiagStyle(style,btn){
   document.querySelectorAll('.diag-style-btn').forEach(function(b){b.classList.remove('on');});
   if(btn)btn.classList.add('on');
   if(typeof mermaid!=='undefined')mermaid.initialize(getMermaidConfig(style));
+  _refreshDiagCfg();
 }
-function setADMode(mode){_ADConfig.mode=mode;renderRight();}
+function setADMode(mode){_ADConfig.mode=mode;renderRight();_refreshDiagCfg();}
 function toggleADType(type){
   var types=_ADConfig.types;
   var idx=types.indexOf(type);
   if(idx>=0){if(types.length>1)types.splice(idx,1);}else types.push(type);
-  _ADConfig.types=types;renderRight();
+  _ADConfig.types=types;renderRight();_refreshDiagCfg();
 }
-function setADMax(n){_ADConfig.max=n;renderRight();}
+function setADMax(n){_ADConfig.max=n;renderRight();_refreshDiagCfg();}
+
+/* ── 圖表設定 modal ──────────────────────────────────────────── */
+function openDiagCfg(){renderDiagCfg();document.getElementById('diagCfgOverlay').classList.add('open');}
+function closeDiagCfg(){document.getElementById('diagCfgOverlay').classList.remove('open');}
+function _refreshDiagCfg(){if(document.getElementById('diagCfgOverlay').classList.contains('open'))renderDiagCfg();}
+function renderDiagCfg(){
+  var adMode=_ADConfig.mode,adTypes=_ADConfig.types,adMax=_ADConfig.max;
+  var _MODES=[{id:'off',label:'關閉'},{id:'a',label:'LLM標記'},{id:'b',label:'智能分析'},{id:'ab',label:'兩者'}];
+  var _DTYPES=[{id:'architecture',label:'架構圖'},{id:'flowchart',label:'流程圖'},{id:'mindmap',label:'心智圖'},{id:'sequence',label:'時序圖'},{id:'timeline',label:'時間軸'},{id:'quadrant',label:'四象限'},{id:'er',label:'ER圖'},{id:'class',label:'類別圖'},{id:'state',label:'狀態機'}];
+  var s1='<div class="diag-cfg-sec"><div class="diag-cfg-h">🖼 自動插圖</div>'
+    +'<div class="autodiag-panel"><div class="autodiag-row"><span class="autodiag-label">模式</span><div class="autodiag-grp">'
+    +_MODES.map(function(m){return '<button class="autodiag-btn'+(adMode===m.id?' on':'')+'" onclick="setADMode(\''+m.id+'\')">'+m.label+'</button>';}).join('')
+    +'</div></div>';
+  if(adMode!=='off'){
+    s1+='<div class="autodiag-row"><span class="autodiag-label">類型</span><div class="autodiag-grp">'
+      +_DTYPES.map(function(dt){return '<button class="autodiag-btn'+(adTypes.includes(dt.id)?' on':'')+'" onclick="toggleADType(\''+dt.id+'\')">'+dt.label+'</button>';}).join('')
+      +'</div></div>'
+      +'<div class="autodiag-row"><span class="autodiag-label">上限</span><div class="autodiag-grp">'
+      +[1,2,3,4,5,6].map(function(n){return '<button class="autodiag-btn'+(adMax===n?' on':'')+'" onclick="setADMax('+n+')">'+n+'</button>';}).join('')
+      +'</div></div>';
+  }
+  s1+='</div></div>';
+  var curStyle=localStorage.getItem('rd-diagram-style')||'sketch';
+  var styleOpts=[{id:'dark',label:'暗黑科技',icon:'🌑'},{id:'sketch',label:'手繪插畫',icon:'✏️'},{id:'minimal',label:'簡約白',icon:'⬜'},{id:'retro',label:'復古終端機',icon:'🖥'},{id:'blueprint',label:'工程藍圖',icon:'📐'},{id:'pastel',label:'粉彩',icon:'🌸'}];
+  var s2='<div class="diag-cfg-sec"><div class="diag-cfg-h">📊 圖表生成</div>'
+    +'<div class="diag-style-row">'
+    +styleOpts.map(function(s){return '<button class="diag-style-btn'+(curStyle===s.id?' on':'')+'" onclick="setDiagStyle(\''+s.id+'\',this)">'+s.icon+' '+s.label+'</button>';}).join('')
+    +'</div></div>';
+  document.getElementById('diagCfgContent').innerHTML=s1+s2;
+}
 
 async function _fetchDiagram(type,topic){
   var r=await fetch('/api/research/tools/diagram:'+type,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({topic,paths:[...S.selected]})});
@@ -1548,6 +1590,14 @@ window.addEventListener('resize',function(){
 if(isMobile())switchMobTab('chat');
 </script>
 <div id="vaultToast"></div>
+<!-- 圖表設定 modal -->
+<div class="diag-cfg-overlay" id="diagCfgOverlay" onclick="if(event.target===this)closeDiagCfg()">
+  <div class="diag-cfg-modal">
+    <button class="diag-cfg-close" onclick="closeDiagCfg()">✕</button>
+    <div class="diag-cfg-title">📊 圖表設定</div>
+    <div id="diagCfgContent"></div>
+  </div>
+</div>
 <!-- Admin modal -->
 <div class="admin-overlay" id="adminOverlay" onclick="if(event.target===this)closeAdminPanel()">
   <div class="admin-frame-wrap">
