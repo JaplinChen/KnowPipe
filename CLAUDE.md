@@ -43,6 +43,34 @@ sleep 8 && tail -5 /tmp/knowpipe-launch.log
 - 修改分類器關鍵字後，**必須跑** `/test classify` 回歸測試。注意 substring 陷阱（如 `ads` 匹配 `attachments`）。
 - 搬移 Vault 檔案前先 **dry-run**，列出所有變更讓用戶確認。
 
+## Vault 檔案操作規範
+
+- 移動/重命名 Vault 檔案時，**必須在同一個操作中更新 category metadata**——`rename()` 單獨呼叫不足以同步 frontmatter 的 `category` 欄位。
+- 批量操作前先 dry-run，輸出完整變更清單讓用戶確認後再執行。
+- CJK/Unicode regex 編輯優先使用 Python script，避免 Edit tool 跳脫字元問題。
+- frontmatter regex 改動前，先對 legacy 格式（含格式不一致的舊筆記）做測試，確認 regex 能正確匹配。
+
+## UI / Frontend 規範
+
+- `data-i18n` 按鈕含圖示（如 ⚙️）時，文字**必須包在 `<span data-i18n>` 內**，避免 `textContent` 替換將圖示一起覆蓋掉。
+- 執行移除/清除功能前，先列出所有受影響的檔案（routes、HTML、CSS、JS、locale），讓用戶確認範圍再動手。
+- 移除功能後，列出被刪除的所有介面項目，確認與用戶原始需求逐一對應。
+
+## TypeScript 品質規則
+
+- 環境變數（user/pass/credentials）載入後必須處理 `undefined` narrowing，不能直接傳給期望 `string` 的參數。
+- 修改 auth 或 config 相關程式碼後，commit 前必須跑 `npx tsc --noEmit`（PostToolUse hook 會自動執行，看 hook 輸出確認無錯）。
+- `withStatusMessage` 及其他 shared util export 在 worktree sync 後需驗證是否仍存在，hook 有時會覆寫。
+
+## Observer / 記憶代理使用規範
+
+**問題**：長期運行的 observer session 容易觸發「Prompt is too long」，導致觀察記錄遺失。
+
+**正確做法**：
+- 每個觀察視窗生成一個**新的 Task sub-agent**，只傳入最近的 delta（不帶舊觀察累積）。
+- 每個 agent 寫完一筆觀察後即退出，下一個視窗再生成新 agent。
+- 不要讓 observer agent 跨越 session 邊界持續運行。
+
 ## 路由索引
 
 > 新任務先對照此表找入口，不確定再往下查代碼。
