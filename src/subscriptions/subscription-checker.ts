@@ -31,6 +31,7 @@ async function checkSubscription(
 
       // Classify and save
       post.category = await classifyContent(post.title, post.text);
+      post.extraTags = [...(post.extraTags ?? []), 'bot-discovered'];
       try {
         const result = await saveToVault(post, config.vaultPath);
         if (!result.duplicate) newCount++;

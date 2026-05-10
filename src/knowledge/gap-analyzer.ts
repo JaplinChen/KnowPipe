@@ -1,7 +1,22 @@
 /**
  * Vault 知識缺口地圖 — 找出高頻實體缺乏深探、分類覆蓋不足、洞察孤島。
  */
-import type { VaultKnowledge } from './types.js';
+import type { VaultKnowledge, EntityType } from './types.js';
+
+/** 太通用、不值得當「缺口」標記的概念詞 */
+const GENERIC_CONCEPTS = new Set([
+  '開源', '大模型', '效能', '依賴', '整合', '框架', '工具', '系統', '平台', '服務',
+  '使用者體驗', '安全漏洞', '安全性', '擴展性', '隱私', '效率', '生產力', '協作',
+  '分析', '架構', '部署', '測試', '文件', '介面', '功能', '需求', '模型', '資料',
+]);
+
+/** 非 concept 類型只需 3 次提及；concept 需 8 次且不在通用詞清單 */
+function isWorthyGap(name: string, type: EntityType, mentions: number): boolean {
+  if (type === 'concept') {
+    return mentions >= 8 && !GENERIC_CONCEPTS.has(name);
+  }
+  return mentions >= 3;
+}
 
 export interface GapEntry {
   topic: string;
@@ -21,7 +36,7 @@ export function findGaps(knowledge: VaultKnowledge): GapEntry[] {
   // 1. 高頻實體但無對應分類
   if (knowledge.globalEntities) {
     for (const entity of Object.values(knowledge.globalEntities)) {
-      if (entity.mentions < 3) continue;
+      if (!isWorthyGap(entity.name, entity.type, entity.mentions)) continue;
       const entityLow = entity.name.toLowerCase();
       const hasCat = [...categories].some(c => c.includes(entityLow) || entityLow.includes(c));
       if (!hasCat) {
