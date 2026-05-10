@@ -542,6 +542,23 @@ src/
 
 ---
 
+## 隱私架構
+
+KnowPipe 採「隱私優先、本地優先」架構設計——你的知識不上雲，你的思維不餵養第三方模型。
+
+| 處理層 | 執行位置 | 說明 |
+|--------|----------|------|
+| LLM 推論 | 本機（oMLX，port 11435）| 預設走 Homebrew 本地服務，不呼叫外部 LLM API |
+| 語音轉錄 | 本機（whisper / WhisperKit）| 音訊資料不出本機 |
+| Vault 存儲 | 本機 Obsidian Vault | Markdown 純文字，無雲端同步（除非用戶自行開啟 iCloud/Obsidian Sync）|
+| Telegram Bot | 用戶自架主機 | Bot Token 由用戶持有，對話資料不落第三方 |
+| 爬取 / 提取 | 本機進程 | Camoufox + Playwright 在本機執行，僅向目標網站發出請求 |
+| 雲端 LLM（可選）| 用戶自行啟用 | 需在 `/config` 填入自己的 API Key；不填則全走本地 oMLX |
+
+> 完整離線模式：確保 oMLX 已啟動（`brew services start omlx`），所有功能（摘要、分類、翻譯）均在本機執行，零外部 API 依賴。
+
+---
+
 ## 貢獻指南
 
 詳見 [`CONTRIBUTING.md`](./CONTRIBUTING.md)。歡迎使用 Claude Code / Codex 等 AI 輔助工具。

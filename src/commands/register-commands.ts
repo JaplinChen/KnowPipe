@@ -5,7 +5,7 @@ import { handleTimeline } from './timeline-command.js';
 import { handleMonitor, handleSearch } from './monitor-command.js';
 import { handleKnowledge, handleGaps, handleSkills, handleAnalyze, handleDashboard, handleHealth, handleCompile } from './knowledge-command.js';
 import { handleSkillsCommand, registerSkillCallbacks } from './skill-command.js';
-import { handlePreferences, handleDistill } from './distill-command.js';
+import { handlePreferences, handleDistill, handleDistillRouter } from './distill-command.js';
 import { handleConsolidate } from './consolidate-command.js';
 import { handleAsk } from './ask-command.js';
 import { handleDiscover, resolveDiscoverToken } from './discover-command.js';
@@ -38,6 +38,7 @@ import { handleMemoryExport } from './memory-export-command.js';
 import { handleConfig, handleConfigFeatureToggle, handleConfigResetConfirm, handleConfigResetCancel } from './config-command.js';
 import { handleResearch, handleSlides, handleAnki } from '../research/research-commands.js';
 import { handleReclassifyPicker, handleReclassifyMove } from './reclassify-action.js';
+import { handleValidate } from './validate-command.js';
 import { handleSearchHub, handleSearchCallback } from './search-hub.js';
 import { handleMonitorTopic, handleMonitorAuthor } from './monitor-command.js';
 import { handleRadarAddKeyword, handleRadarAddAuthor } from './radar-callbacks.js';
@@ -108,6 +109,8 @@ export function registerCommands(
     { command: 'research', tag: 'research', handler: handleResearch },
     { command: 'slides', tag: 'slides', handler: handleSlides },
     { command: 'anki', tag: 'anki', handler: handleAnki },
+    { command: 'distill', tag: 'distill', handler: handleDistillRouter },
+    { command: 'validate', tag: 'validate', handler: handleValidate },
   ];
   registerCommandSet(bot, config, commandRegistrations);
   // --- InlineKeyboard sub-actions ---

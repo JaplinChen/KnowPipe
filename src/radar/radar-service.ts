@@ -132,7 +132,8 @@ async function runQuery(
         // Enrich（翻譯、AI 摘要、關鍵字）— 與正常 URL 流程一致
         await enrichExtractedContent(content, config);
 
-        // Save to vault
+        // Save to vault (tag as bot-discovered for proactive ratio tracking)
+        content.extraTags = [...(content.extraTags ?? []), 'bot-discovered'];
         const saveResult = await saveToVault(content, config.vaultPath);
         if (saveResult.duplicate) {
           result.skipped++;
