@@ -40,14 +40,39 @@ sleep 8 && tail -5 /tmp/knowpipe-launch.log
 ## Worktree & 部署
 
 - 套用改動前，先確認當前目錄是主目錄還是 worktree（`git branch --show-current`）
+- **編輯前必須確認專案根目錄**：`git rev-parse --show-toplevel`，確保不在錯誤的 worktree 下改錯檔案
+- 在 worktree 做的改動，**commit 後**才會透過 hook sync 到主目錄生效；同步前主目錄的 Bot 仍跑舊版
 - Bot 重啟走 `dev:loop` supervisor，不要直接呼叫 `npm start`
 - TypeScript 改動後先跑 `tsc --noEmit` 再部署（PostToolUse hook 會自動執行，但要確認 hook 輸出無錯）
+
+## 完成前驗證閘門
+
+> 宣告任何任務完成前，必須按序執行以下 4 步驟。跳過任一步驟視為未完成。
+
+```bash
+# 1. TypeScript 編譯（有錯誤 → 修完再說，不得跳過）
+npx tsc --noEmit
+
+# 2. 觸碰到的模組跑單元測試
+npm test -- --testPathPattern=<受影響模組>
+
+# 3. 一次 live smoke check（bot 訊息 / vault 寫入 / API 呼叫擇一）
+# 依任務類型選擇適合的 smoke check
+
+# 4. git status 乾淨（無未暫存修改）
+git status
+```
+
+若任一步驟失敗 → 修復後**從步驟 1 重新開始**，不跳過。
+
+---
 
 ## 踩坑教訓
 
 - 修改 extractor 或 formatter 後，**同時修復** Vault 中受影響的筆記——不要只修 code 不修 output。
 - 修改分類器關鍵字後，**必須跑** `/test classify` 回歸測試。注意 substring 陷阱（如 `ads` 匹配 `attachments`）。
 - 搬移 Vault 檔案前先 **dry-run**，列出所有變更讓用戶確認。
+- glob 操作優先使用 `glob` npm 套件，**不用** `node:fs/promises` 的 glob API（`Dirent.path` 問題會導致 tsc 失敗）。
 
 ## Vault 檔案操作規範
 
@@ -98,19 +123,30 @@ sleep 8 && tail -5 /tmp/knowpipe-launch.log
 **額外限制**：
 - **pure-read / grep 探索**：一律輸出 `<skip/>`，不記錄任何內容
 - **每 session 硬性上限 20 筆觀察**，超過後停止記錄（避免觸發 Prompt is too long）
+- **每筆觀察限 200 tokens**，超過須截短
+
+### Observer 觸發條件（只在這 4 個時機記錄，其餘輸出 `<skip/>`）
+
+| 觸發 | 說明 |
+|------|------|
+| (a) commit 發生 | 任何 `git commit` 成功執行 |
+| (b) 工具連續失敗 2 次 | 同一工具連續回傳錯誤 |
+| (c) 用戶表達不滿 | 訊息含「不對」「錯了」「重來」等否定詞 |
+| (d) session 結束 | 最後一個工具呼叫後、回覆前 |
 
 ### Observer prompt 範本
 
 ```
-你是 KnowPipe 觀察代理。只記錄以下事件類型的觀察：
-檔案變更、編譯結果、測試結果、commit、架構決策、用戶指令轉向。
+你是 KnowPipe 觀察代理。只在以下 4 個觸發點記錄：
+(a) commit 發生、(b) 工具連續失敗 2 次、(c) 用戶表達不滿、(d) session 結束。
 
 本次 delta（最近工具呼叫）：
 <delta>
 {最近 N 個工具呼叫的輸出，不帶歷史累積}
 </delta>
 
-寫出一筆 XML 觀察後立即退出。若 delta 中無上述事件類型，輸出 <skip/> 後退出。
+若符合觸發條件：寫出一筆 XML 觀察（限 200 tokens）後立即退出。
+若不符合：輸出 <skip/> 後退出。
 ```
 
 ## 路由索引

@@ -1,0 +1,281 @@
+name: Self-Healing CI
+
+# 當 CI workflow 失敗時觸發，嘗試自動修復
+# 前提：在 GitHub Settings > Secrets > Actions 設定 ANTHROPIC_API_KEY
+#
+# 注意：此 workflow 使用 Claude Code CLI 的 headless 模式（claude -p）
+# 搭配 --allowedTools 限制只能讀寫 src/ 目錄，確保不會誤改系統設定。
+# 若需要更寬鬆的工具存取，可手動在本機執行 claude --dangerously-skip-permissions。
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+
+jobs:
+  check-trigger:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    outputs:
+      should_heal: ${{ steps.check.outputs.should_heal }}
+      branch: ${{ steps.check.outputs.branch }}
+      sha: ${{ steps.check.outputs.sha }}
+    steps:
+      - name: 確認觸發條件
+        id: check
+        run: |
+          BRANCH="${{ github.event.workflow_run.head_branch }}"
+          SHA="${{ github.event.workflow_run.head_sha }}"
+
+          # 不對 main 分支自動修復（保護主分支）
+          if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "master" ]; then
+            echo "⏭️ 跳過 main/master 分支的自動修復"
+            echo "should_heal=false" >> $GITHUB_OUTPUT
+          else
+            echo "🔧 將嘗試自動修復分支：$BRANCH（SHA: $SHA）"
+            echo "should_heal=true" >> $GITHUB_OUTPUT
+            echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+            echo "sha=$SHA" >> $GITHUB_OUTPUT
+          fi
+
+  self-heal:
+    needs: check-trigger
+    if: ${{ needs.check-trigger.outputs.should_heal == 'true' }}
+    runs-on: ubuntu-latest
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      MAX_ITERATIONS: 3
+      BRANCH: ${{ needs.check-trigger.outputs.branch }}
+      FAILED_SHA: ${{ needs.check-trigger.outputs.sha }}
+
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout 失敗的分支
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.BRANCH }}
+          fetch-depth: 10
+
+      - name: 設定 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: 安裝依賴
+        run: npm ci --ignore-scripts
+
+      - name: 取得 CI 失敗輸出
+        id: get-failure
+        run: |
+          set +e
+          TSC_OUTPUT=$(npx tsc --noEmit 2>&1)
+          TSC_EXIT=$?
+          LINT_OUTPUT=$(npm run lint 2>&1)
+          LINT_EXIT=$?
+          TEST_OUTPUT=$(npm test 2>&1 | tail -100)
+          TEST_EXIT=$?
+
+          {
+            echo "=== TypeScript 編譯 (exit: $TSC_EXIT) ==="
+            echo "$TSC_OUTPUT"
+            echo ""
+            echo "=== ESLint (exit: $LINT_EXIT) ==="
+            echo "$LINT_OUTPUT"
+            echo ""
+            echo "=== 單元測試 (exit: $TEST_EXIT) ==="
+            echo "$TEST_OUTPUT"
+          } > /tmp/ci-failure.txt
+
+          if [ $TSC_EXIT -ne 0 ] || [ $LINT_EXIT -ne 0 ] || [ $TEST_EXIT -ne 0 ]; then
+            echo "has_failure=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_failure=false" >> $GITHUB_OUTPUT
+          fi
+          set -e
+
+      - name: 安裝 Claude Code CLI
+        if: ${{ steps.get-failure.outputs.has_failure == 'true' }}
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: 設定 git 身份
+        if: ${{ steps.get-failure.outputs.has_failure == 'true' }}
+        run: |
+          git config user.name "claude-self-heal[bot]"
+          git config user.email "claude-self-heal[bot]@users.noreply.github.com"
+
+      - name: 執行自癒迴圈（最多 3 次迭代）
+        id: heal
+        if: ${{ steps.get-failure.outputs.has_failure == 'true' }}
+        run: |
+          ITERATION=0
+          HEALED=false
+
+          while [ $ITERATION -lt $MAX_ITERATIONS ]; do
+            ITERATION=$((ITERATION + 1))
+            echo "🔄 自癒迭代 $ITERATION / $MAX_ITERATIONS"
+
+            FAILURE_LOG=$(cat /tmp/ci-failure.txt)
+
+            # 呼叫 Claude Code（headless 模式，限制工具存取範圍）
+            # --allowedTools 限制只能讀寫 src/ 和執行 tsc/npm test
+            claude -p "你是 KnowPipe 自癒代理。
+
+## CI 失敗輸出
+
+分支：${BRANCH}，迭代：${ITERATION}/${MAX_ITERATIONS}
+
+\`\`\`
+${FAILURE_LOG}
+\`\`\`
+
+## 任務
+
+1. 分析失敗原因
+2. 修復 src/ 下的 TypeScript 檔案
+3. 執行 npx tsc --noEmit 確認型別正確
+4. 若可修復：輸出 FIX: <一行描述>
+   若無法修復：輸出 ESCALATE: <原因>
+   若是測試本身有誤：輸出 TEST-BUG: <說明>
+
+commit message 格式：[self-heal] fix: <描述>" \
+              --allowedTools "Read,Edit,Write,Bash(npx tsc --noEmit),Bash(npm test),Bash(npm run lint),Bash(git diff),Bash(git add src/),Bash(git commit)" \
+              --max-turns 15 \
+              --output-format text 2>&1 | tee /tmp/claude-output-$ITERATION.txt
+
+            CLAUDE_OUTPUT=$(cat /tmp/claude-output-$ITERATION.txt)
+
+            # 檢查升級訊號
+            if echo "$CLAUDE_OUTPUT" | grep -q "^ESCALATE:"; then
+              ESCALATE_REASON=$(echo "$CLAUDE_OUTPUT" | grep "^ESCALATE:" | head -1)
+              echo "⬆️ 需要人工介入：$ESCALATE_REASON"
+              echo "escalate_reason=$ESCALATE_REASON" >> $GITHUB_OUTPUT
+              break
+            fi
+
+            if echo "$CLAUDE_OUTPUT" | grep -q "^TEST-BUG:"; then
+              TEST_BUG=$(echo "$CLAUDE_OUTPUT" | grep "^TEST-BUG:" | head -1)
+              echo "🐛 測試本身有問題：$TEST_BUG"
+              echo "test_bug=$TEST_BUG" >> $GITHUB_OUTPUT
+              break
+            fi
+
+            # 重新執行 CI 確認是否通過
+            set +e
+            TSC_EXIT_NEW=$(npx tsc --noEmit > /dev/null 2>&1; echo $?)
+            TEST_EXIT_NEW=$(npm test > /dev/null 2>&1; echo $?)
+            LINT_EXIT_NEW=$(npm run lint > /dev/null 2>&1; echo $?)
+            set -e
+
+            if [ "$TSC_EXIT_NEW" = "0" ] && [ "$TEST_EXIT_NEW" = "0" ] && [ "$LINT_EXIT_NEW" = "0" ]; then
+              echo "✅ 迭代 $ITERATION：CI 通過！"
+              HEALED=true
+              echo "healed=true" >> $GITHUB_OUTPUT
+              echo "iterations=$ITERATION" >> $GITHUB_OUTPUT
+              break
+            else
+              echo "❌ 迭代 $ITERATION：仍有失敗，繼續..."
+              {
+                echo "=== TypeScript (exit: $TSC_EXIT_NEW) ==="
+                npx tsc --noEmit 2>&1 || true
+                echo ""
+                echo "=== 測試 (exit: $TEST_EXIT_NEW) ==="
+                npm test 2>&1 | tail -50 || true
+              } > /tmp/ci-failure.txt
+            fi
+          done
+
+          if [ "$HEALED" = "false" ] && [ $ITERATION -ge $MAX_ITERATIONS ]; then
+            echo "healed=false" >> $GITHUB_OUTPUT
+            echo "iterations=$ITERATION" >> $GITHUB_OUTPUT
+          fi
+
+      - name: 推送修復 commit
+        if: ${{ steps.heal.outputs.healed == 'true' }}
+        run: |
+          if ! git diff --quiet || ! git diff --staged --quiet; then
+            git push origin "$BRANCH"
+            echo "✅ 修復已推送到 $BRANCH"
+          else
+            echo "⚠️ 無檔案變更（可能 Claude 已在迴圈中 commit），確認 git log..."
+            git log --oneline -3
+          fi
+
+      - name: 記錄修復日誌到 .claude/self-heal-log.jsonl
+        if: always()
+        run: |
+          mkdir -p .claude
+          python3 - << 'PYEOF'
+          import json, datetime, os
+
+          entry = {
+            "timestamp": datetime.datetime.utcnow().isoformat() + "Z",
+            "branch": os.environ.get("BRANCH", ""),
+            "failed_sha": os.environ.get("FAILED_SHA", ""),
+            "healed": os.environ.get("HEALED_OUTPUT", "false") == "true",
+            "iterations": int(os.environ.get("ITERATIONS_OUTPUT", "0") or 0),
+            "escalate_reason": os.environ.get("ESCALATE_REASON", "") or None,
+            "test_bug": os.environ.get("TEST_BUG", "") or None,
+          }
+
+          log_path = ".claude/self-heal-log.jsonl"
+          with open(log_path, "a") as f:
+            f.write(json.dumps(entry, ensure_ascii=False) + "\n")
+          print(f"📝 已記錄到 {log_path}")
+          PYEOF
+        env:
+          HEALED_OUTPUT: ${{ steps.heal.outputs.healed }}
+          ITERATIONS_OUTPUT: ${{ steps.heal.outputs.iterations }}
+          ESCALATE_REASON: ${{ steps.heal.outputs.escalate_reason }}
+          TEST_BUG: ${{ steps.heal.outputs.test_bug }}
+
+      - name: 升級：建立 GitHub Issue（修復失敗時）
+        if: ${{ steps.heal.outputs.healed != 'true' && steps.get-failure.outputs.has_failure == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          FAILURE_SUMMARY=$(head -30 /tmp/ci-failure.txt || echo "（無法取得失敗摘要）")
+          ESCALATE="${{ steps.heal.outputs.escalate_reason }}"
+          TEST_BUG="${{ steps.heal.outputs.test_bug }}"
+          ITERATIONS="${{ steps.heal.outputs.iterations }}"
+
+          if [ -n "$ESCALATE" ]; then
+            TITLE="[self-heal] CI 修復需要人工介入 — ${BRANCH}"
+            REASON="Claude 判斷無法自動修復：${ESCALATE}"
+          elif [ -n "$TEST_BUG" ]; then
+            TITLE="[self-heal] 疑似測試本身有誤 — ${BRANCH}"
+            REASON="測試問題：${TEST_BUG}"
+          else
+            TITLE="[self-heal] 超過最大迭代次數（${ITERATIONS}/${MAX_ITERATIONS}）— ${BRANCH}"
+            REASON="${ITERATIONS} 次迭代後仍未修復"
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --body "## 自癒 CI 失敗報告
+
+**分支**：\`${BRANCH}\`
+**觸發 SHA**：\`${FAILED_SHA}\`
+**迭代次數**：${ITERATIONS}/${MAX_ITERATIONS}
+
+## 原因
+
+${REASON}
+
+## CI 失敗摘要
+
+\`\`\`
+${FAILURE_SUMMARY}
+\`\`\`
+
+## 下一步
+
+請手動修復 \`${BRANCH}\` 分支的 CI 失敗。
+
+---
+*此 issue 由 Self-Healing CI workflow 自動建立*" 2>/dev/null || \
+            echo "⚠️ 建立 issue 失敗（可能缺少 label 或權限），請手動處理 ${BRANCH} 分支的 CI 失敗"
