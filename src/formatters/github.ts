@@ -4,13 +4,16 @@ import { linkifyUrls } from './shared.js';
 
 /** Strip GitHub badge/shield images and broken badge remnants from README */
 function stripBadges(text: string): string {
+  const camoOrShield = 'https?:\\/\\/(?:camo\\.githubusercontent\\.com|img\\.shields\\.io|[^)]*shields\\.io\\/badge)';
   return text
-    // Badge images: [![alt](badge-url)](link-url) on their own line
-    .replace(/^\[?!?\[(?:[^\]]*)\]\(https?:\/\/(?:camo\.githubusercontent\.com|img\.shields\.io|.*?shields\.io\/badge)[^)]*\)\]?(?:\([^)]*\))?\s*$/gm, '')
+    // Bare badge/shield images on their own line: ![alt](badge-url)
+    .replace(new RegExp(`^!\\[.*?\\]\\(${camoOrShield}[^)]*\\)\\s*$`, 'gm'), '')
+    // Linked badge images: [![alt](badge-url)](any-link) — link-url may contain nested brackets
+    .replace(new RegExp(`^\\[!\\[.*?\\]\\(${camoOrShield}[^)]*\\)\\]\\(.*\\)\\s*$`, 'gm'), '')
+    // HTML <img> tags pointing to camo (GitHub image proxy — won't load outside GitHub)
+    .replace(/<img[^>]*\bsrc="https?:\/\/camo\.githubusercontent\.com\/[^"]*"[^>]*\/?>/g, '')
     // Broken badge remnants: lines that are just "[!" or "["
     .replace(/^\[!?\s*$/gm, '')
-    // Lines containing only camo.githubusercontent.com image links
-    .replace(/^!\[.*?\]\(https?:\/\/camo\.githubusercontent\.com\/[^)]+\)\s*$/gm, '')
     // Animated GIF decorators from user-images.githubusercontent.com
     .replace(/^!\[.*?\]\(https?:\/\/user-images\.githubusercontent\.com\/[^)]+\.gif\)\s*$/gm, '')
     // Orphaned link-only lines wrapping badge images
