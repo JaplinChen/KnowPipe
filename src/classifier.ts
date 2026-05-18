@@ -94,12 +94,13 @@ export function extractKeywords(title: string, text: string): string[] {
     ? cat.keywords.filter(kw => keywordMatch(titleH, kw) || keywordMatch(bodyH, kw))
     : [];
 
-  // Fallback: extract meaningful CJK/English words from title when category matching is thin
+  // Fallback: extract meaningful words from title only when category matching is very thin.
+  // Require CJK \u22654 chars to avoid cutting phrases into meaningless fragments (e.g. "\u8cec\u865f\u4e00\u9375\u8b8a\u6210").
   const titleWords: string[] = [];
-  if (catMatches.length < 3) {
-    const cjk = title.match(/[\u4e00-\u9fff\u3040-\u30ff]{2,6}/g) ?? [];
-    const eng = title.match(/\b[A-Za-z][a-z]{2,}\b/g)?.map(w => w.toLowerCase()) ?? [];
-    titleWords.push(...cjk.slice(0, 4), ...eng.slice(0, 3));
+  if (catMatches.length < 2) {
+    const cjk = title.match(/[\u4e00-\u9fff\u3040-\u30ff]{4,10}/g) ?? [];
+    const eng = title.match(/\b[A-Z][a-zA-Z]{3,}\b|\b[a-z]{4,}\b/g)?.map(w => w.toLowerCase()) ?? [];
+    titleWords.push(...cjk.slice(0, 3), ...eng.slice(0, 3));
   }
 
   return [...new Set([...catMatches, ...titleWords])].slice(0, 5);

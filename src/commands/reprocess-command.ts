@@ -32,6 +32,22 @@ interface ParsedArgs {
 /** Articles using the formulaic fallback pattern or missing 內容分析 are low-quality targets. */
 const LOW_QUALITY_RE = /主要探討：|重點在於：|影片重點聚焦在：/;
 
+/** Detect notes with known quality defects: missing analysis, bad keywords, or truncated summary. */
+function isLowQuality(rawContent: string): boolean {
+  if (LOW_QUALITY_RE.test(rawContent)) return true;
+  if (!rawContent.includes('## 內容分析')) return true;
+  // Bad keywords: any entry shorter than 3 chars (title fragments like "不" "在")
+  const kwMatch = rawContent.match(/^keywords:\s*\[(.*?)\]/m);
+  if (kwMatch) {
+    const kws = kwMatch[1].split(',').map(k => k.trim().replace(/^['"]|['"]$/g, ''));
+    if (kws.some(k => k.length < 3)) return true;
+  }
+  // Truncated summary: ends mid-sentence (incomplete CJK word boundary)
+  const smMatch = rawContent.match(/^summary:\s*"(.*?)"\s*$/m);
+  if (smMatch && /[不直的它是個以去來到用]"?\s*$/.test(smMatch[0])) return true;
+  return false;
+}
+
 /** Parse command arguments into execution mode */
 function parseArgs(text: string): ParsedArgs | null {
   // Normalize em-dash → double hyphen (iOS/macOS auto-corrects -- to —)
@@ -129,10 +145,8 @@ async function reprocessBatch(
 
   let targets = notes;
   if (lowQuality) {
-    // Target articles with formulaic fallback pattern OR missing 內容分析 section
-    targets = notes.filter(n =>
-      LOW_QUALITY_RE.test(n.rawContent) || !n.rawContent.includes('## 內容分析'),
-    );
+    // Target: formulaic fallback, missing 內容分析, bad keywords, or truncated summary
+    targets = notes.filter(n => isLowQuality(n.rawContent));
   } else if (pendingReview) {
     targets = notes.filter(n => n.rawContent.includes('pending-review'));
   } else if (sinceDays != null) {

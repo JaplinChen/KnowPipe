@@ -32,6 +32,30 @@ export function stripMarkdown(s: string): string {
     .trim();
 }
 
+/**
+ * Build summary for frontmatter:
+ * - LLM-generated enrichedSummary: use as-is (already ≤120 chars from prompt)
+ * - displayText fallback: truncate to nearest sentence boundary, max 250 chars
+ */
+export function buildSummary(enrichedSummary: string | undefined | null, displayText: string): string {
+  const source = enrichedSummary
+    ? enrichedSummary
+    : displayText.replace(/\{\{VIDEO:\d+\}\}/g, '');
+  const plain = stripMarkdown(source);
+  if (enrichedSummary) return plain;
+  // For displayText fallback, find nearest sentence end within 250 chars
+  const truncated = plain.slice(0, 250);
+  const lastPunct = Math.max(
+    truncated.lastIndexOf('。'),
+    truncated.lastIndexOf('！'),
+    truncated.lastIndexOf('？'),
+    truncated.lastIndexOf('. '),
+    truncated.lastIndexOf('! '),
+    truncated.lastIndexOf('? '),
+  );
+  return lastPunct > 80 ? plain.slice(0, lastPunct + 1) : truncated;
+}
+
 /** Convert bare URLs to Markdown links, skip already-linked ones */
 export function linkifyUrls(text: string): string {
   // Protect existing markdown links and angle-bracket links with placeholders
@@ -126,7 +150,7 @@ export function buildFrontmatter(
     `tags: [${allTags.join(', ')}]`,
     `category: ${category}`,
     `keywords: [${(content.enrichedKeywords ?? extractKeywords(displayTitle, displayText)).join(', ')}]`,
-    `summary: "${escape(stripMarkdown(content.enrichedSummary ?? displayText).replace(/\{\{VIDEO:\d+\}\}/g, '').slice(0, 150)).replace(/\n/g, ' ')}"`,
+    `summary: "${escape(buildSummary(content.enrichedSummary, displayText)).replace(/\n/g, ' ')}"`,
   ];
   if (content.stars != null) lines.push(`stars: ${content.stars}`);
   if (content.language) lines.push(`language: ${content.language}`);
